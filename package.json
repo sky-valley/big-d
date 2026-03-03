@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "loop": "node --env-file=.env node_modules/.bin/tsx src/loop/cli.ts",
+    "build": "bun build src/loop/agent.ts --outdir dist/current --target node --format esm --external better-sqlite3 --external @anthropic-ai/claude-agent-sdk --sourcemap=external",
+    "loop": "npm run build && node --env-file=.env node_modules/.bin/tsx src/loop/cli.ts",
+    "loop:dev": "node --env-file=.env node_modules/.bin/tsx src/loop/cli.ts",
     "test": "bash scripts/test-loop.sh"
   },
   "dependencies": {

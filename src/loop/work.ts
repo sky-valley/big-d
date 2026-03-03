@@ -49,7 +49,8 @@ Rules:
 - Follow existing code style and conventions
 - Use .ts extension on imports
 - Keep changes minimal and focused on the intent
-- Do not modify files outside the project root`,
+- Do not modify files outside the project root
+- Do not modify files in the dist/ directory (it contains compiled output)`,
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
       maxTurns: 20,
