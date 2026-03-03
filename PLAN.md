@@ -1,7 +1,7 @@
 ---
 title: "feat: Self-Modifying Agent Loop"
 type: feat
-status: active
+status: completed
 date: 2026-03-03
 brainstorm: docs/brainstorms/2026-03-03-self-modifying-agent-loop-brainstorm.md
 ---
@@ -571,42 +571,42 @@ Before implementing the loop, extract ITP types to `src/shared/itp/`. This is a 
 
 ### Functional
 
-- [ ] `loop init` creates promise log DB and HMAC key
-- [ ] `loop intent` posts INTENT messages to the promise log
-- [ ] `loop accept` / `assess` enforce state machine transitions with HMAC verification
-- [ ] `loop status` shows promise lifecycle state (human-readable and `--json`)
-- [ ] `loop run` starts supervisor, which launches agent process
-- [ ] Agent observes unpromised intents and voluntarily PROMISEs
-- [ ] Agent waits for HMAC-signed ACCEPT before beginning work (cooperative binding)
-- [ ] Agent waits for HMAC-signed ASSESS before committing (human gate)
-- [ ] `loop assess` displays full source diff before accepting input
-- [ ] ASSESS BROKEN triggers REVISE cycle with new ACCEPT requirement
-- [ ] Agent commits source changes and exits (0) after FULFILLED
-- [ ] Supervisor restarts agent from updated source after exit 0
-- [ ] Supervisor rolls back via `git checkout -- .` on crash (exit 1)
-- [ ] Agent derives state from promise log on boot — no checkpoint table needed
-- [ ] Agent ignores intents from its own sender_id (no self-directed loops)
+- [x] `loop init` creates promise log DB and HMAC key
+- [x] `loop intent` posts INTENT messages to the promise log
+- [x] `loop accept` / `assess` enforce state machine transitions with HMAC verification
+- [x] `loop status` shows promise lifecycle state (human-readable and `--json`)
+- [x] `loop run` starts supervisor, which launches agent process
+- [x] Agent observes unpromised intents and voluntarily PROMISEs
+- [x] Agent waits for HMAC-signed ACCEPT before beginning work (cooperative binding)
+- [x] Agent waits for HMAC-signed ASSESS before committing (human gate)
+- [x] `loop assess` displays full source diff before accepting input
+- [x] ASSESS BROKEN triggers REVISE cycle with new ACCEPT requirement
+- [x] Agent commits source changes and exits (0) after FULFILLED
+- [x] Supervisor restarts agent from updated source after exit 0
+- [x] Supervisor rolls back via `git checkout -- .` on crash (exit 1)
+- [x] Agent derives state from promise log on boot — no checkpoint table needed
+- [x] Agent ignores intents from its own sender_id (no self-directed loops)
 
 ### Promise Theory Compliance
 
-- [ ] No impositions: agent can DECLINE any intent
-- [ ] Cooperative binding: work only begins when both +b (PROMISE) and -b (ACCEPT) exist
-- [ ] Assessment is by the promisee (human), not the promisor (agent)
-- [ ] All state derived from the message log (materialized in `promise_state` table)
-- [ ] `--sender` flag enables any agent to participate with its own identity
+- [x] No impositions: agent can DECLINE any intent
+- [x] Cooperative binding: work only begins when both +b (PROMISE) and -b (ACCEPT) exist
+- [x] Assessment is by the promisee (human), not the promisor (agent)
+- [x] All state derived from the message log (materialized in `promise_state` table)
+- [x] `--sender` flag enables any agent to participate with its own identity
 
 ### Agent-Native Compliance
 
-- [ ] All CLI read commands support `--json` for structured output
-- [ ] All CLI write commands support `--sender <id>` for agent identity
-- [ ] Protocol is fully exercisable through CLI (no SQLite-only paths for core operations)
+- [x] All CLI read commands support `--json` for structured output
+- [x] All CLI write commands support `--sender <id>` for agent identity
+- [x] Protocol is fully exercisable through CLI (no SQLite-only paths for core operations)
 
 ### Non-Functional
 
-- [ ] Agent startup under 500ms (bun run from source)
-- [ ] Promise log handles 1000+ messages without degradation (WAL mode + materialized state)
-- [ ] `getUnpromisedIntents()` is O(1) regardless of message count
-- [ ] Supervisor is stateless — can be killed and restarted without data loss
+- [x] Agent startup under 500ms (bun run from source)
+- [x] Promise log handles 1000+ messages without degradation (WAL mode + materialized state)
+- [x] `getUnpromisedIntents()` is O(1) regardless of message count
+- [x] Supervisor is stateless — can be killed and restarted without data loss
 
 ---
 
