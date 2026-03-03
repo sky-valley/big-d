@@ -1,7 +1,7 @@
 ---
 title: "feat: Add bun build step with blue-green binary swap"
 type: feat
-status: active
+status: completed
 date: 2026-03-03
 ---
 
@@ -202,8 +202,8 @@ Add to the doWork() system prompt in `src/loop/work.ts`:
 
 ## Acceptance Criteria
 
-- [ ] `bun` installed, `npm run build` produces `dist/current/agent.js` + source map
-- [ ] `npm run loop -- run` builds, then runs agent from `dist/current/`
+- [x] `bun` installed, `npm run build` produces `dist/current/agent.js` + source map
+- [x] `npm run loop -- run` builds, then runs agent from `dist/current/`
 - [ ] Exit 0 → snapshot current, build new, swap in, restart
 - [ ] New version fails to start → rollback to `dist/previous/`, restart
 - [ ] Crash (mid-work) → restart same binary, agent retries with partial src/ edits
@@ -211,8 +211,8 @@ Add to the doWork() system prompt in `src/loop/work.ts`:
 - [ ] Build failure on exit 0 → rollback to previous, continue running
 - [ ] 5 consecutive crashes → stop supervisor
 - [ ] `npm run loop:dev` still works (tsx, no build)
-- [ ] Source is never rolled back (`git checkout -- .` is removed entirely)
-- [ ] Agent cannot modify `dist/` (excluded in system prompt)
+- [x] Source is never rolled back (`git checkout -- .` is removed entirely)
+- [x] Agent cannot modify `dist/` (excluded in system prompt)
 - [ ] Stack traces show src/ paths via source maps
 - [ ] Supervisor state (crash counter, promise log) persists across all restarts
 
@@ -242,11 +242,11 @@ node --enable-source-maps dist/current/agent.js
 ```
 
 Verify:
-- [ ] `.ts` import extensions rewritten in output
-- [ ] `better-sqlite3` loads at runtime
-- [ ] `@anthropic-ai/claude-agent-sdk` loads at runtime
-- [ ] Source maps present and functional
-- [ ] ESM format (matches `"type": "module"`)
+- [x] `.ts` import extensions rewritten in output
+- [x] `better-sqlite3` loads at runtime
+- [x] `@anthropic-ai/claude-agent-sdk` loads at runtime
+- [x] Source maps present and functional
+- [x] ESM format (matches `"type": "module"`)
 
 ## What We're NOT Doing
 
