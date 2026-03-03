@@ -76,8 +76,6 @@ async function main(): Promise<void> {
   // ---- OBSERVE: scan for unpromised intents ----
 
   log('Observing intent space...');
-  let idleCycles = 0;
-  const MAX_IDLE_CYCLES = 150; // 5 minutes at 2s intervals
 
   while (true) {
     const intents = promiseLog.getUnpromisedIntents();
@@ -98,13 +96,6 @@ async function main(): Promise<void> {
       lastSeq = promiseLog.getLatestSeq();
       await waitAccept(promiseLog, intent.promiseId, intent.payload.content ?? '', cwd, lastSeq);
       return;
-    }
-
-    idleCycles++;
-    if (idleCycles >= MAX_IDLE_CYCLES) {
-      log('No intents after 5 minutes. Shutting down.');
-      promiseLog.close();
-      process.exit(2);
     }
 
     await sleep(POLL_INTERVAL_MS);
