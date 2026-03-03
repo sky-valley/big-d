@@ -47,6 +47,8 @@ export function runSupervisor(sourceDir: string): void {
 
   console.log(`Supervisor started (PID ${process.pid}). Source: ${sourceDir}`);
 
+  let consecutiveCrashes = 0;
+
   while (true) {
     console.log('Launching agent...');
 
@@ -60,6 +62,7 @@ export function runSupervisor(sourceDir: string): void {
 
     if (code === 0) {
       console.log('Agent exited cleanly (code 0). Restarting with updated source.');
+      consecutiveCrashes = 0;
       continue;
     }
 
@@ -68,14 +71,24 @@ export function runSupervisor(sourceDir: string): void {
       break;
     }
 
-    // Crash — rollback and restart
+    // Crash — rollback and restart with backoff
+    consecutiveCrashes++;
     console.log(`Agent crashed (code ${code}). Rolling back source...`);
     try {
       execFileSync('git', ['checkout', '--', '.'], { cwd: sourceDir });
-      console.log('Rollback complete. Restarting agent.');
+      console.log('Rollback complete.');
     } catch (err) {
       console.error('Rollback failed:', err);
       break;
     }
+
+    if (consecutiveCrashes >= 5) {
+      console.error(`Agent crashed ${consecutiveCrashes} times in a row. Stopping supervisor.`);
+      break;
+    }
+
+    const backoffSec = Math.min(2 ** consecutiveCrashes, 60);
+    console.log(`Waiting ${backoffSec}s before restart (crash ${consecutiveCrashes}/5)...`);
+    spawnSync('sleep', [String(backoffSec)]);
   }
 }

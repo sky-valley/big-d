@@ -86,12 +86,21 @@ program
   .description('ACCEPT a promise — commit to using the work (-b use-promise)')
   .option('--sender <id>', 'Sender identity', 'human')
   .option('--json', 'Output JSON')
-  .action((promiseId: string, opts) => {
+  .action((promiseIdPrefix: string, opts) => {
     const log = new PromiseLog();
+    let promiseId: string;
+    try {
+      promiseId = log.resolvePromiseId(promiseIdPrefix) ?? promiseIdPrefix;
+    } catch (e: any) {
+      if (opts.json) console.log(JSON.stringify({ error: e.message }));
+      else console.error(e.message);
+      log.close();
+      process.exit(1);
+    }
     const ps = log.getPromiseState(promiseId);
 
     if (!ps || ps.state !== 'PROMISED') {
-      const err = `Cannot ACCEPT: promise ${promiseId} is in state ${ps?.state ?? 'NOT_FOUND'} (must be PROMISED)`;
+      const err = `Cannot ACCEPT: promise ${promiseId.slice(0, 8)} is in state ${ps?.state ?? 'NOT_FOUND'} (must be PROMISED)`;
       if (opts.json) console.log(JSON.stringify({ error: err }));
       else console.error(err);
       log.close();
@@ -118,12 +127,21 @@ program
   .argument('[reason]', 'Reason for assessment')
   .option('--sender <id>', 'Sender identity', 'human')
   .option('--json', 'Output JSON')
-  .action((promiseId: string, result: string, reason: string | undefined, opts) => {
+  .action((promiseIdPrefix: string, result: string, reason: string | undefined, opts) => {
     const log = new PromiseLog();
+    let promiseId: string;
+    try {
+      promiseId = log.resolvePromiseId(promiseIdPrefix) ?? promiseIdPrefix;
+    } catch (e: any) {
+      if (opts.json) console.log(JSON.stringify({ error: e.message }));
+      else console.error(e.message);
+      log.close();
+      process.exit(1);
+    }
     const ps = log.getPromiseState(promiseId);
 
     if (!ps || ps.state !== 'COMPLETED') {
-      const err = `Cannot ASSESS: promise ${promiseId} is in state ${ps?.state ?? 'NOT_FOUND'} (must be COMPLETED)`;
+      const err = `Cannot ASSESS: promise ${promiseId.slice(0, 8)} is in state ${ps?.state ?? 'NOT_FOUND'} (must be COMPLETED)`;
       if (opts.json) console.log(JSON.stringify({ error: err }));
       else console.error(err);
       log.close();

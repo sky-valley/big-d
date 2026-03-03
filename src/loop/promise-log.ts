@@ -134,6 +134,19 @@ export class PromiseLog {
     return rows.map(rowToMessage);
   }
 
+  /** Resolve a prefix to a full promise ID. Returns null if no match, throws if ambiguous. */
+  resolvePromiseId(prefix: string): string | null {
+    const rows = this.db.prepare(
+      `SELECT promise_id FROM promise_state WHERE promise_id LIKE ? || '%'`
+    ).all(prefix) as Array<{ promise_id: string }>;
+
+    if (rows.length === 0) return null;
+    if (rows.length === 1) return rows[0].promise_id;
+    const exact = rows.find(r => r.promise_id === prefix);
+    if (exact) return exact.promise_id;
+    throw new Error(`Ambiguous prefix "${prefix}" matches ${rows.length} promises: ${rows.map(r => r.promise_id.slice(0, 12)).join(', ')}`);
+  }
+
   /** Get the current state of a promise */
   getPromiseState(promiseId: string): { promiseId: string; state: PromiseState; senderId: string; content: string | null } | null {
     const row = this.db.prepare(
