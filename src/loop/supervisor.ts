@@ -59,6 +59,13 @@ export function runSupervisor(sourceDir: string): void {
     );
 
     const code = result.status ?? 1;
+    const signal = result.signal;
+
+    // SIGINT/SIGTERM — user killed it, not a crash
+    if (signal === 'SIGINT' || signal === 'SIGTERM' || code === 130) {
+      console.log(`Agent stopped by ${signal ?? 'interrupt'}. Stopping supervisor.`);
+      break;
+    }
 
     if (code === 0) {
       console.log('Agent exited cleanly (code 0). Restarting with updated source.');
