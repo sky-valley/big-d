@@ -99,7 +99,6 @@ async function main(): Promise<void> {
 
       lastSeq = promiseLog.getLatestSeq();
       await waitAccept(promiseLog, intent.promiseId, intent.payload.content ?? '', cwd, lastSeq);
-      return;
     }
 
     await sleep(POLL_INTERVAL_MS);
@@ -136,8 +135,7 @@ async function waitAccept(
 
       if (msg.type === 'RELEASE') {
         log('Promise RELEASED. Returning to observe.');
-        promiseLog.close();
-        process.exit(2); // Clean shutdown, supervisor won't rollback
+        return;
       }
     }
 
