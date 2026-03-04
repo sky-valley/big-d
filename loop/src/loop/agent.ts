@@ -16,10 +16,11 @@
 
 import { execFileSync } from 'child_process';
 import { PromiseLog } from './promise-log.ts';
-import { createPromise, createComplete, createRevise } from '../itp/protocol.ts';
+import { createPromise, createComplete, createRevise, createDecline } from '../itp/protocol.ts';
 import type { StoredMessage } from './promise-log.ts';
 import { doWork } from './work.ts';
 import { printBanner } from './banner.ts';
+import { query } from '@anthropic-ai/claude-agent-sdk';
 
 const AGENT_ID = 'agent';
 const POLL_INTERVAL_MS = 2000;
@@ -30,6 +31,99 @@ function sleep(ms: number): Promise<void> {
 
 function log(msg: string): void {
   console.log(`[agent] ${msg}`);
+}
+
+// ---- Deliberation helpers ----
+
+/** Patterns that are unambiguously outside this agent's scope */
+const OUT_OF_SCOPE_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
+  {
+    // Non-TypeScript languages
+    pattern: /\b(python|ruby|golang|rust|java(?:script\s+only)?|c\+\+|c#|php|swift|kotlin|scala|haskell|elixir|clojure|lua|perl|r\s+language|fortran)\b/i,
+    reason: 'This agent only works with TypeScript. The intent appears to target a different language.',
+  },
+  {
+    // Files outside the project root
+    pattern: /outside\s+the\s+project|modify\s+files?\s+outside|\.\.[/\\]/i,
+    reason: 'This agent cannot modify files outside the project root.',
+  },
+  {
+    // Destructive repo/database operations
+    pattern: /\b(delete|drop|rm\s+-rf|destroy|wipe|purge|truncate)\b.*\b(repo(?:sitory)?|database|db|schema|table|collection|bucket)\b/i,
+    reason: 'Destructive operations against the repository or databases are not permitted.',
+  },
+  {
+    // External services this agent has no credentials for
+    pattern: /\b(send\s+(?:an?\s+)?email|send\s+sms|post\s+to\s+(?:twitter|x\.com|slack|discord|telegram)|deploy\s+to\s+(?:aws|gcp|azure|heroku|vercel|fly\.io|production|staging)|push\s+to\s+remote|publish\s+to\s+npm)\b/i,
+    reason: 'This agent cannot interact with external services it has no access to.',
+  },
+  {
+    // Completely unrelated domains
+    pattern: /\b(build\s+(?:a\s+)?(?:mobile\s+app|ios\s+app|android\s+app|unity\s+game|video\s+game)|train\s+(?:a\s+)?(?:ml\s+)?model|fine[- ]tun(?:e|ing)|web\s+scraper\s+for|stock\s+trading\s+bot|mine\s+(?:bitcoin|crypto))\b/i,
+    reason: 'This request is unrelated to the self-modifying agent loop for coordinating code changes through Promise Theory.',
+  },
+];
+
+/**
+ * Synchronous scope check.
+ * Returns a decline reason string if out of scope, or null if it passes.
+ */
+function scopeCheck(intentContent: string): string | null {
+  for (const { pattern, reason } of OUT_OF_SCOPE_PATTERNS) {
+    if (pattern.test(intentContent)) {
+      return reason;
+    }
+  }
+  return null;
+}
+
+/**
+ * Lightweight LLM viability check via the Claude Agent SDK (maxTurns: 1).
+ * Asks Claude whether the intent is realistically implementable in this codebase.
+ * Returns { viable: boolean; reason: string }.
+ */
+async function viabilityCheck(
+  intentContent: string,
+  cwd: string,
+): Promise<{ viable: boolean; reason: string }> {
+  const prompt =
+    `Given this codebase and its purpose as a self-modifying agent loop for coordinating ` +
+    `code changes through Promise Theory, can you realistically implement this intent?\n\n` +
+    `Intent: ${intentContent}\n\n` +
+    `Reply YES or NO with a one-sentence reason.`;
+
+  let resultText = '';
+
+  try {
+    for await (const message of query({
+      prompt,
+      options: {
+        cwd,
+        allowedTools: [],
+        maxTurns: 1,
+        systemPrompt: 'You are a concise technical advisor. Reply only YES or NO followed by one sentence.',
+      },
+    })) {
+      if (message.type === 'result' && message.subtype === 'success') {
+        resultText = message.result;
+      }
+    }
+  } catch (err) {
+    log(`Viability check LLM call failed: ${err}. Proceeding conservatively.`);
+    return { viable: true, reason: 'LLM check unavailable; scope passed so proceeding.' };
+  }
+
+  if (!resultText) {
+    log('Viability check returned no text. Proceeding conservatively.');
+    return { viable: true, reason: 'Empty LLM response; scope passed so proceeding.' };
+  }
+
+  // Parse: first word of the response should be YES or NO
+  const firstWord = resultText.trim().split(/\s+/)[0].toUpperCase();
+  const viable = firstWord === 'YES';
+  const reason = resultText.trim();
+
+  return { viable, reason };
 }
 
 async function main(): Promise<void> {
@@ -92,16 +186,41 @@ async function main(): Promise<void> {
 
     if (humanIntents.length > 0) {
       const intent = humanIntents[0]; // FIFO: oldest first
-      log(`Found intent: ${intent.promiseId.slice(0, 8)} "${intent.payload.content}"`);
+      const intentContent = intent.payload.content ?? '';
+      log(`Found intent: ${intent.promiseId.slice(0, 8)} "${intentContent}"`);
 
-      // ---- PROMISE ----
-      const plan = `I will implement: ${intent.payload.content}`;
-      const msg = createPromise(AGENT_ID, intent.promiseId, plan);
-      promiseLog.post(msg);
-      log(`PROMISED on ${intent.promiseId.slice(0, 8)}: ${plan}`);
+      // ---- DELIBERATE: synchronous scope check ----
+      const scopeFailReason = scopeCheck(intentContent);
+      if (scopeFailReason) {
+        log(`[deliberate] Scope check FAILED for ${intent.promiseId.slice(0, 8)}: ${scopeFailReason}`);
+        const declineMsg = createDecline(AGENT_ID, intent.promiseId, scopeFailReason);
+        promiseLog.post(declineMsg);
+        log(`DECLINED ${intent.promiseId.slice(0, 8)}: ${scopeFailReason}`);
+      } else {
+        log(`[deliberate] Scope check passed for ${intent.promiseId.slice(0, 8)}`);
 
-      lastSeq = promiseLog.getLatestSeq();
-      await waitAccept(promiseLog, intent.promiseId, intent.payload.content ?? '', cwd, lastSeq);
+        // ---- DELIBERATE: LLM viability check ----
+        log(`[deliberate] Running viability check for ${intent.promiseId.slice(0, 8)}...`);
+        const { viable, reason } = await viabilityCheck(intentContent, cwd);
+
+        if (!viable) {
+          log(`[deliberate] Viability check FAILED for ${intent.promiseId.slice(0, 8)}: ${reason}`);
+          const declineMsg = createDecline(AGENT_ID, intent.promiseId, reason);
+          promiseLog.post(declineMsg);
+          log(`DECLINED ${intent.promiseId.slice(0, 8)}: ${reason}`);
+        } else {
+          log(`[deliberate] Viability check PASSED for ${intent.promiseId.slice(0, 8)}: ${reason}`);
+
+          // ---- PROMISE ----
+          const plan = `I will implement: ${intentContent}`;
+          const msg = createPromise(AGENT_ID, intent.promiseId, plan);
+          promiseLog.post(msg);
+          log(`PROMISED on ${intent.promiseId.slice(0, 8)}: ${plan}`);
+
+          lastSeq = promiseLog.getLatestSeq();
+          await waitAccept(promiseLog, intent.promiseId, intentContent, cwd, lastSeq);
+        }
+      }
     }
 
     await sleep(POLL_INTERVAL_MS);
