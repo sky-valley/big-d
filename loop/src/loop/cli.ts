@@ -23,6 +23,7 @@ import {
   createIntent,
   createAccept,
   createAssess,
+  createRelease,
 } from '../itp/protocol.ts';
 import type { AssessmentResult } from '../itp/types.ts';
 import { runSupervisor } from './supervisor.ts';
@@ -116,6 +117,47 @@ program
       console.log(JSON.stringify({ promiseId, type: 'ACCEPT' }));
     } else {
       console.log(`ACCEPTED: ${promiseId}`);
+    }
+  });
+
+// ============ release ============
+
+program
+  .command('release <promiseId>')
+  .description('RELEASE a promise — gracefully abandon it')
+  .option('--reason <reason>', 'Reason for releasing the promise')
+  .option('--sender <id>', 'Sender identity', 'human')
+  .option('--json', 'Output JSON')
+  .action((promiseIdPrefix: string, opts) => {
+    const log = new PromiseLog();
+    let promiseId: string;
+    try {
+      promiseId = log.resolvePromiseId(promiseIdPrefix) ?? promiseIdPrefix;
+    } catch (e: any) {
+      if (opts.json) console.log(JSON.stringify({ error: e.message }));
+      else console.error(e.message);
+      log.close();
+      process.exit(1);
+    }
+    const ps = log.getPromiseState(promiseId);
+
+    if (!ps || !['PENDING', 'PROMISED', 'ACCEPTED'].includes(ps.state)) {
+      const err = `Cannot RELEASE: promise ${promiseId.slice(0, 8)} is in state ${ps?.state ?? 'NOT_FOUND'} (must be PENDING, PROMISED, or ACCEPTED)`;
+      if (opts.json) console.log(JSON.stringify({ error: err }));
+      else console.error(err);
+      log.close();
+      process.exit(1);
+    }
+
+    const msg = createRelease(opts.sender, promiseId, opts.reason);
+    const hmac = signMessage(msg);
+    log.post(msg, hmac ?? undefined);
+    log.close();
+
+    if (opts.json) {
+      console.log(JSON.stringify({ promiseId, type: 'RELEASE' }));
+    } else {
+      console.log(`RELEASED: ${promiseId}`);
     }
   });
 
