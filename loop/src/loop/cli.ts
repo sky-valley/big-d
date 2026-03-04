@@ -27,6 +27,7 @@ import {
 } from '../itp/protocol.ts';
 import type { AssessmentResult } from '../itp/types.ts';
 import { runSupervisor } from './supervisor.ts';
+import { printBanner } from './banner.ts';
 
 const program = new Command();
 
@@ -260,6 +261,7 @@ program
   .command('run')
   .description('Start the agent loop (supervisor + agent)')
   .action(() => {
+    printBanner();
     const sourceDir = process.cwd();
     runSupervisor(sourceDir);
   });

@@ -19,6 +19,7 @@ import { PromiseLog } from './promise-log.ts';
 import { createPromise, createComplete, createRevise } from '../itp/protocol.ts';
 import type { StoredMessage } from './promise-log.ts';
 import { doWork } from './work.ts';
+import { printBanner } from './banner.ts';
 
 const AGENT_ID = 'agent';
 const POLL_INTERVAL_MS = 2000;
@@ -32,6 +33,8 @@ function log(msg: string): void {
 }
 
 async function main(): Promise<void> {
+  printBanner();
+
   const now = new Date();
   const timeStr = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   log(`Starting — ${timeStr}`);
