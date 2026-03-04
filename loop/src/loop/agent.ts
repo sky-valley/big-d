@@ -32,6 +32,10 @@ function log(msg: string): void {
 }
 
 async function main(): Promise<void> {
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  log(`Starting — ${timeStr}`);
+
   const promiseLog = new PromiseLog();
   const cwd = process.cwd();
   let lastSeq = promiseLog.getLatestSeq();
