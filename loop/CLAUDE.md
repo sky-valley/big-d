@@ -102,3 +102,4 @@ See `PLAN.md` for the full implementation plan with schema, pseudocode, edge cas
 - Don't skip HMAC verification on ACCEPT/ASSESS messages
 - Don't let the agent process its own auto-generated intents
 - Don't pre-route intents to agents — each agent self-selects (Promise Theory: scoping is the observer's responsibility)
+- Don't roll back source via `git checkout -- .` on crash. The agent restarts with the same compiled binary and can see its partial edits. Resetting throws away work. (Established in 6fe6423.)
