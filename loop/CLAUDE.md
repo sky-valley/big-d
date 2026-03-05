@@ -1,6 +1,6 @@
-# Differ Loop: Self-Modifying Agent
+# Differ Loop: Adaptive Agent Loop
 
-A long-running agent that guards its own source code, modifies itself in response to intent, and restarts as the new version. Coordination through Promise Theory — voluntary commitments, no impositions.
+A long-running agent that wraps any git repository as an adaptive exoskeleton. Guards its own source (self-mode) or external repos (external-mode). Modifies code in response to intent, coordinated through Promise Theory — voluntary commitments, no impositions.
 
 ## Architecture
 
@@ -8,9 +8,9 @@ Three components:
 
 | Component | Role | File |
 |-----------|------|------|
-| **Supervisor** | Fixed-point process. Launches agent, handles rollback. Never self-modifies. | `src/loop/supervisor.ts` |
-| **Agent** | Observes intent space, promises on intents, edits own source, commits, exits for restart. | `src/loop/agent.ts` |
-| **CLI** | Human interface. Posts intents, accepts promises, assesses outcomes. | `src/loop/cli.ts` |
+| **Supervisor** | Fixed-point process. Spawns N agent processes (one per registered project). Handles build, rollback, registry hot-reload. | `src/loop/supervisor.ts` |
+| **Agent** | Observes intent space, self-selects based on project context, promises on intents, edits target repo, commits. Self-mode exits for restart; external-mode loops. | `src/loop/agent.ts` |
+| **CLI** | Human interface. Posts intents, registers projects, accepts promises, assesses outcomes. | `src/loop/cli.ts` |
 
 Shared state: SQLite promise log at `~/.differ/loop/promise-log.db`.
 
@@ -20,9 +20,11 @@ Shared state: SQLite promise log at `~/.differ/loop/promise-log.db`.
 npm install
 cp .env.example .env   # Add your ANTHROPIC_API_KEY
 npm run loop -- init    # Initialize promise log + HMAC key
+npm run loop -- add .   # Register this repo (self-mode: --mode self)
+npm run loop -- add /path/to/other/repo  # Register external repo
 npm run loop -- intent "add a /health endpoint"  # Post an intent
-npm run loop -- run     # Start supervisor + agent
-npm run loop -- status  # See what's happening
+npm run loop -- run     # Start supervisor + agents
+npm run loop -- status  # See intents, promises, projects
 ```
 
 ## Project Structure
@@ -30,15 +32,27 @@ npm run loop -- status  # See what's happening
 ```
 src/
   itp/
-    types.ts        # ITP message types, promise states (from Promise Theory)
+    types.ts        # ITP message types, promise states, ProjectContext
     protocol.ts     # State machine, factory functions, transitions
   loop/
-    promise-log.ts  # PromiseLog: SQLite message log + materialized state
-    supervisor.ts   # Supervisor: spawns agent, handles crash/restart
-    agent.ts        # Agent: observe → promise → work → complete → commit → exit
-    work.ts         # doWork() black box: LLM-driven source edits
-    cli.ts          # Commander CLI: init, intent, accept, assess, status, run
+    promise-log.ts  # PromiseLog: SQLite message log + materialized state + project registry
+    supervisor.ts   # Supervisor: spawns N agents, handles per-agent lifecycle
+    agent.ts        # Agent: observe → deliberate → promise → work → complete → commit
+    work.ts         # doWork() black box: LLM-driven source edits with dynamic prompts
+    cli.ts          # Commander CLI: init, add, remove, intent, accept, assess, status, run
+    banner.ts       # ASCII banner
 ```
+
+## Data Model
+
+Two entity types (Promise Theory alignment):
+
+- **Intent** — Permanent declaration of desired outcome. No state machine. Never transitions.
+- **Promise** — Autonomous agent commitment. Has lifecycle: `PROMISED → ACCEPTED → COMPLETED → FULFILLED/BROKEN`.
+
+`DECLINE` does not create a promise entity — it's recorded in the message log only.
+
+Four tables: `intents`, `promises`, `projects`, `messages`.
 
 ## Key Conventions
 
@@ -48,29 +62,33 @@ src/
 - All CLI commands support `--json` for structured output
 - All CLI write commands support `--sender <id>` (default: `'human'`)
 - HMAC-SHA256 signing on ACCEPT/ASSESS messages (key at `~/.differ/loop/.hmac-key`)
+- Agent identity via env vars: `DIFFER_AGENT_ID`, `DIFFER_TARGET_DIR`, `DIFFER_MODE`
 
 ## Promise Protocol
 
 ```
-human:  INTENT  "add health check endpoint"
-agent:  PROMISE "I'll add /health route"
-human:  ACCEPT                              ← cooperative binding (+b and -b)
-agent:  [edits source files]
+human:  INTENT  "add health check endpoint"       ← permanent declaration
+agent:  PROMISE "I'll add /health route"           ← autonomous commitment (new promiseId)
+human:  ACCEPT                                     ← cooperative binding (+b and -b)
+agent:  [edits target repo files]
 agent:  COMPLETE "done — added /health"
-human:  ASSESS pass                         ← mandatory diff review
-agent:  [git commit, exit 0]
-supervisor: [restarts agent with updated source]
+human:  ASSESS pass                                ← mandatory diff review
+agent:  [git commit]
+  self-mode:     exit(0) → supervisor rebuilds all, restarts
+  external-mode: loop back to observe
 ```
 
 Two human gates: ACCEPT before work, ASSESS (with diff review) after work.
+
+Multiple agents can PROMISE on the same intent. Human picks one to ACCEPT; others self-RELEASE.
 
 ## Exit Codes (Agent → Supervisor)
 
 | Code | Meaning | Supervisor action |
 |------|---------|-------------------|
-| 0 | Source committed, restart | Restart agent |
-| 2 | Clean shutdown | Stop supervisor |
-| Other | Crash | `git checkout -- .`, restart |
+| 0 | Source committed | Self-mode: rebuild all, restart all. External-mode: restart this agent. |
+| 2 | Clean shutdown | Stop this agent |
+| Other | Crash | Self-mode: reset working copy, restart with backoff. External-mode: restart with backoff. |
 
 ## Plan
 
@@ -83,3 +101,4 @@ See `PLAN.md` for the full implementation plan with schema, pseudocode, edge cas
 - Don't use `execSync` with string interpolation for git commands
 - Don't skip HMAC verification on ACCEPT/ASSESS messages
 - Don't let the agent process its own auto-generated intents
+- Don't pre-route intents to agents — each agent self-selects (Promise Theory: scoping is the observer's responsibility)

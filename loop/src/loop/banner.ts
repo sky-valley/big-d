@@ -7,7 +7,7 @@ const BANNER = `
 | |   / _ \\ / _ \\| _ \\
 | |__| (_) | (_) |  _/
 |____|\\___/ \\___/|_|
-  self-modifying agent
+  adaptive agent loop
 `;
 
 export function printBanner(): void {
