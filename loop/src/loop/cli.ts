@@ -11,13 +11,15 @@
 
 import { Command } from 'commander';
 import { execFileSync } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
+import { resolve } from 'path';
 import {
   PromiseLog,
   DEFAULT_DB_PATH,
   HMAC_KEY_PATH,
   generateHmacKey,
   signMessage,
+  archiveOldDb,
 } from './promise-log.ts';
 import {
   createIntent,
@@ -26,6 +28,7 @@ import {
   createRelease,
 } from '../itp/protocol.ts';
 import type { AssessmentResult } from '../itp/types.ts';
+import { TERMINAL_STATES } from '../itp/types.ts';
 import { runSupervisor } from './supervisor.ts';
 import { printBanner } from './banner.ts';
 
@@ -33,16 +36,19 @@ const program = new Command();
 
 program
   .name('loop')
-  .description('Self-modifying agent loop — promise protocol CLI')
-  .version('0.0.1');
+  .description('Differ — adaptive agent loop, promise protocol CLI')
+  .version('0.1.0');
 
 // ============ init ============
 
 program
   .command('init')
-  .description('Initialize promise log and HMAC key')
+  .description('Initialize promise log and HMAC key (archives old DB)')
   .option('--json', 'Output JSON')
   .action((opts) => {
+    // Clean schema break: archive old DB if it exists
+    archiveOldDb();
+
     const log = new PromiseLog();
     log.close();
 
@@ -58,26 +64,149 @@ program
     }
   });
 
+// ============ add ============
+
+program
+  .command('add <path>')
+  .description('Register a repository with Differ')
+  .option('--name <name>', 'Human-readable project name')
+  .option('--mode <mode>', 'Agent mode: self or external', 'external')
+  .option('--json', 'Output JSON')
+  .action((path: string, opts) => {
+    const absPath = resolve(path);
+
+    // Validate directory exists
+    if (!existsSync(absPath) || !statSync(absPath).isDirectory()) {
+      const err = `Not a directory: ${absPath}`;
+      if (opts.json) console.log(JSON.stringify({ error: err }));
+      else console.error(err);
+      process.exit(1);
+    }
+
+    // Validate it's a git repo
+    try {
+      execFileSync('git', ['status'], { cwd: absPath, stdio: 'pipe' });
+    } catch {
+      const err = `Not a git repository: ${absPath}`;
+      if (opts.json) console.log(JSON.stringify({ error: err }));
+      else console.error(err);
+      process.exit(1);
+    }
+
+    const log = new PromiseLog();
+
+    // Check not already registered
+    const existing = log.getProjectByPath(absPath);
+    if (existing) {
+      const err = `Already registered: ${existing.name ?? existing.projectId} (${absPath})`;
+      if (opts.json) console.log(JSON.stringify({ error: err }));
+      else console.error(err);
+      log.close();
+      process.exit(1);
+    }
+
+    const project = log.registerProject(absPath, opts.mode, opts.name);
+    log.close();
+
+    if (opts.json) {
+      console.log(JSON.stringify(project));
+    } else {
+      console.log(`Registered: ${project.name}`);
+      console.log(`  Path:     ${project.repoPath}`);
+      console.log(`  Mode:     ${project.mode}`);
+      console.log(`  Agent ID: ${project.agentId.slice(0, 8)}`);
+    }
+  });
+
+// ============ remove ============
+
+program
+  .command('remove <nameOrId>')
+  .description('Remove a registered repository')
+  .option('--json', 'Output JSON')
+  .action((nameOrId: string, opts) => {
+    const log = new PromiseLog();
+    const project = log.getProject(nameOrId);
+
+    if (!project) {
+      const err = `Project not found: ${nameOrId}`;
+      if (opts.json) console.log(JSON.stringify({ error: err }));
+      else console.error(err);
+      log.close();
+      process.exit(1);
+    }
+
+    // Release any active promises for this agent
+    const active = log.getActivePromiseForAgent(project.agentId);
+    if (active) {
+      const releaseMsg = createRelease(project.agentId, active.promiseId, 'Project removed');
+      const hmac = signMessage(releaseMsg);
+      log.post(releaseMsg, hmac ?? undefined);
+    }
+
+    log.removeProject(project.projectId);
+    log.close();
+
+    if (opts.json) {
+      console.log(JSON.stringify({ removed: project.projectId, name: project.name }));
+    } else {
+      console.log(`Removed: ${project.name} (${project.repoPath})`);
+    }
+  });
+
+// ============ projects ============
+
+program
+  .command('projects')
+  .description('List registered projects')
+  .option('--json', 'Output JSON')
+  .action((opts) => {
+    const log = new PromiseLog();
+    const projects = log.getAllProjects();
+    log.close();
+
+    if (opts.json) {
+      console.log(JSON.stringify({ projects }));
+      return;
+    }
+
+    if (projects.length === 0) {
+      console.log('No projects registered. Use `differ add <path>` to register one.');
+      return;
+    }
+
+    console.log('Projects:\n');
+    for (const p of projects) {
+      const agentShort = p.agentId.slice(0, 8);
+      console.log(`  ${p.name ?? '(unnamed)'}  ${p.repoPath}  ${p.mode}  agent-${agentShort}`);
+    }
+  });
+
 // ============ intent ============
 
 program
   .command('intent <content>')
   .description('Post an INTENT — declare a desired outcome')
   .option('--criteria <criteria>', 'Acceptance criteria')
+  .option('--target <path>', 'Target repository hint')
   .option('--sender <id>', 'Sender identity', 'human')
   .option('--json', 'Output JSON')
   .action((content: string, opts) => {
     const log = new PromiseLog();
-    const msg = createIntent(opts.sender, content, opts.criteria);
+    const targetRepo = opts.target ? resolve(opts.target) : undefined;
+    const msg = createIntent(opts.sender, content, opts.criteria, targetRepo);
     const hmac = signMessage(msg);
     log.post(msg, hmac ?? undefined);
     log.close();
 
     if (opts.json) {
-      console.log(JSON.stringify({ promiseId: msg.promiseId, type: 'INTENT' }));
+      console.log(JSON.stringify({ intentId: msg.intentId, type: 'INTENT' }));
     } else {
-      console.log(`INTENT posted: ${msg.promiseId}`);
+      console.log(`INTENT posted: ${msg.intentId}`);
       console.log(`  "${content}"`);
+      if (targetRepo) {
+        console.log(`  target: ${targetRepo}`);
+      }
     }
   });
 
@@ -142,8 +271,8 @@ program
     }
     const ps = log.getPromiseState(promiseId);
 
-    if (!ps || !['PENDING', 'PROMISED', 'ACCEPTED'].includes(ps.state)) {
-      const err = `Cannot RELEASE: promise ${promiseId.slice(0, 8)} is in state ${ps?.state ?? 'NOT_FOUND'} (must be PENDING, PROMISED, or ACCEPTED)`;
+    if (!ps || !['PROMISED', 'ACCEPTED'].includes(ps.state)) {
+      const err = `Cannot RELEASE: promise ${promiseId.slice(0, 8)} is in state ${ps?.state ?? 'NOT_FOUND'} (must be PROMISED or ACCEPTED)`;
       if (opts.json) console.log(JSON.stringify({ error: err }));
       else console.error(err);
       log.close();
@@ -192,12 +321,14 @@ program
     }
 
     // Mandatory diff review — show actual source changes
+    // Use the promise's target repo if available, otherwise CWD
+    const diffDir = ps.targetRepo ?? process.cwd();
     let diff = '';
     try {
-      diff = execFileSync('git', ['diff', 'HEAD~1'], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+      diff = execFileSync('git', ['diff', 'HEAD~1'], { cwd: diffDir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
     } catch {
       try {
-        diff = execFileSync('git', ['diff'], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+        diff = execFileSync('git', ['diff'], { cwd: diffDir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
       } catch { /* no diff available */ }
     }
 
@@ -224,42 +355,72 @@ program
 
 program
   .command('status')
-  .description('Show promise lifecycle state')
+  .description('Show intent/promise lifecycle state and registered projects')
   .option('--json', 'Output JSON')
   .action((opts) => {
     const log = new PromiseLog();
-    const promises = log.getAllPromises();
+    const intents = log.getAllIntents();
+    const projects = log.getAllProjects();
     const messageCount = log.getLatestSeq();
-    log.close();
 
     if (opts.json) {
-      console.log(JSON.stringify({ promises, messageCount }));
+      const data = intents.map(i => ({
+        ...i,
+        promises: log.getPromisesForIntent(i.intentId),
+      }));
+      console.log(JSON.stringify({ intents: data, projects, messageCount }));
+      log.close();
       return;
     }
 
-    const active = promises.filter(p => !['DECLINED', 'FULFILLED', 'BROKEN', 'REVISED', 'RELEASED'].includes(p.state));
-    const terminal = promises.filter(p => ['DECLINED', 'FULFILLED', 'BROKEN', 'REVISED', 'RELEASED'].includes(p.state));
+    console.log(`Differ Status (${messageCount} messages)\n`);
 
-    console.log(`Promise Log (${messageCount} messages, ${active.length} active)\n`);
+    // Show intents grouped with their promises
+    if (intents.length > 0) {
+      console.log('Intents:');
+      for (const intent of intents) {
+        const iid = intent.intentId.slice(0, 8);
+        const promises = log.getPromisesForIntent(intent.intentId);
+        const fulfilled = promises.some(p => p.state === 'FULFILLED');
+        const status = fulfilled ? 'fulfilled' : 'open';
 
-    for (const p of active) {
-      console.log(`  [${p.state}] ${p.promiseId.slice(0, 8)}  "${p.content ?? ''}"`);
+        console.log(`  ${iid}  "${intent.content}"  (${status})`);
+
+        if (promises.length === 0) {
+          console.log('    (no promises yet)');
+        } else {
+          for (let i = 0; i < promises.length; i++) {
+            const p = promises[i];
+            const prefix = i === promises.length - 1 ? '└─' : '├─';
+            const agentShort = p.agentId.slice(0, 8);
+            const repo = p.targetRepo ? ` (${p.targetRepo})` : '';
+            console.log(`    ${prefix} PROMISE ${p.promiseId.slice(0, 8)} by agent-${agentShort}${repo} — ${p.state}`);
+          }
+        }
+        console.log('');
+      }
+    } else {
+      console.log('  (no intents — post one to get started)\n');
     }
 
-    if (terminal.length > 0) {
-      console.log(`\n  ${terminal.length} completed/terminal promises`);
+    // Show projects
+    if (projects.length > 0) {
+      console.log('Projects:');
+      for (const p of projects) {
+        const agentShort = p.agentId.slice(0, 8);
+        console.log(`  ${p.name ?? '(unnamed)'}  ${p.repoPath}  ${p.mode}  agent-${agentShort}`);
+      }
+      console.log('');
     }
 
-    if (promises.length === 0) {
-      console.log('  (empty — post an intent to get started)');
-    }
+    log.close();
   });
 
 // ============ run ============
 
 program
   .command('run')
-  .description('Start the agent loop (supervisor + agent)')
+  .description('Start the agent loop (supervisor + agents)')
   .action(() => {
     printBanner();
     const sourceDir = process.cwd();

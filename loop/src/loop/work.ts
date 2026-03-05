@@ -8,6 +8,7 @@
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { execFileSync } from 'child_process';
+import type { ProjectContext } from '../itp/types.ts';
 
 export interface WorkResult {
   summary: string;
@@ -19,17 +20,49 @@ function log(msg: string): void {
 }
 
 /** Track files changed during a work session */
-function getChangedFiles(cwd: string): string[] {
+function getChangedFiles(targetDir: string): string[] {
   try {
-    const output = execFileSync('git', ['diff', '--name-only'], { cwd, encoding: 'utf-8' });
-    const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd, encoding: 'utf-8' });
+    const output = execFileSync('git', ['diff', '--name-only'], { cwd: targetDir, encoding: 'utf-8' });
+    const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd: targetDir, encoding: 'utf-8' });
     return [...output.trim().split('\n'), ...untracked.trim().split('\n')].filter(Boolean);
   } catch {
     return [];
   }
 }
 
-export async function doWork(intentContent: string, plan: string, cwd: string): Promise<WorkResult> {
+/** Generate a system prompt from project context */
+function generateSystemPrompt(ctx: ProjectContext): string {
+  const lines = [
+    `You are a coding agent working on ${ctx.name}, a ${ctx.language} project.`,
+  ];
+
+  if (ctx.description) {
+    lines.push(`\nProject description: ${ctx.description}`);
+  }
+
+  lines.push('\nRules:');
+  lines.push('- Read existing files before modifying them to understand context');
+  lines.push('- Follow existing code style and conventions');
+  lines.push('- Keep changes minimal and focused on the intent');
+  lines.push('- Do not modify files outside the project root');
+
+  for (const c of ctx.constraints) {
+    lines.push(`- ${c}`);
+  }
+
+  if (ctx.frameworks.length > 0) {
+    lines.push(`\nFrameworks: ${ctx.frameworks.join(', ')}`);
+  }
+
+  return lines.join('\n');
+}
+
+export async function doWork(
+  intentContent: string,
+  plan: string,
+  targetDir: string,
+  projectContext: ProjectContext,
+): Promise<WorkResult> {
   log('Starting Claude Agent SDK session...');
 
   const prompt = `## Intent\n${intentContent}\n\n## Plan\n${plan}\n\nPlease implement this. Start by reading relevant files, then make the necessary changes.`;
@@ -41,16 +74,8 @@ export async function doWork(intentContent: string, plan: string, cwd: string): 
   for await (const message of query({
     prompt,
     options: {
-      cwd,
-      systemPrompt: `You are a self-modifying coding agent working on a TypeScript project.
-
-Rules:
-- Read existing files before modifying them to understand context
-- Follow existing code style and conventions
-- Use .ts extension on imports
-- Keep changes minimal and focused on the intent
-- Do not modify files outside the project root
-- Do not modify files in the dist/ directory (it contains compiled output)`,
+      cwd: targetDir,
+      systemPrompt: generateSystemPrompt(projectContext),
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
       maxTurns: 20,
@@ -97,7 +122,7 @@ Rules:
     }
   }
 
-  const filesChanged = getChangedFiles(cwd);
+  const filesChanged = getChangedFiles(targetDir);
   log(`Files changed: ${filesChanged.join(', ') || 'none'}`);
 
   return {
