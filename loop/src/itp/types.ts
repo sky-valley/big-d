@@ -1,17 +1,21 @@
 /**
  * ITP Message Types — Differ Runtime
  *
- * Rewritten from scratch for the Differ runtime context.
  * Promise Theory: agents coordinate through voluntary commitments.
  *
- * INTENT   — Declaration of desired outcome
- * PROMISE  — Voluntary commitment to satisfy intent (+b give-promise)
- * ACCEPT   — Commitment to use the promised work (-b use-promise)
- * DECLINE  — Refusal to promise (autonomous agents can say no)
- * COMPLETE — Claim of completion by promisor
- * ASSESS   — Judgment of completion by promisee
- * REVISE   — Proposal to modify an existing promise
- * RELEASE  — Graceful release from a promise
+ * Two distinct entity types:
+ *   INTENT  — Permanent declaration of desired outcome. No state machine.
+ *   PROMISE — Autonomous agent commitment to satisfy an intent. Has lifecycle.
+ *
+ * Message types:
+ *   INTENT   — Declaration of desired outcome (creates an intent)
+ *   PROMISE  — Voluntary commitment to satisfy intent (+b give-promise, creates a promise)
+ *   ACCEPT   — Commitment to use the promised work (-b use-promise)
+ *   DECLINE  — Refusal to promise (autonomous agents can say no, no promise created)
+ *   COMPLETE — Claim of completion by promisor
+ *   ASSESS   — Judgment of completion by promisee
+ *   REVISE   — Proposal to modify an existing promise (creates new promise)
+ *   RELEASE  — Graceful release from a promise
  */
 
 // ============ ITP Protocol Types ============
@@ -29,7 +33,6 @@ export type ITPMessageType =
 export type AssessmentResult = 'FULFILLED' | 'BROKEN';
 
 export type PromiseState =
-  | 'PENDING'
   | 'PROMISED'
   | 'ACCEPTED'
   | 'DECLINED'
@@ -50,7 +53,8 @@ export const TERMINAL_STATES: ReadonlySet<PromiseState> = new Set([
 /** ITP message — the wire format */
 export interface ITPMessage {
   type: ITPMessageType;
-  promiseId: string;
+  promiseId?: string;
+  intentId?: string;
   parentId?: string;
   timestamp: number;
   senderId: string;
@@ -66,6 +70,7 @@ export interface ITPPayload {
   plan?: string;
   filesChanged?: string[];
   summary?: string;
+  targetRepo?: string;
 }
 
 // ============ Meta-Protocol Types ============
@@ -81,6 +86,7 @@ export interface OverlayRequest {
 export interface AgentStatus {
   type: 'AGENT_STATUS';
   agentId: string;
+  targetRepo?: string;
   status: 'idle' | 'observing' | 'deliberating' | 'awaiting' | 'working' | 'error';
   detail?: string;
   filesChanged?: string[];
@@ -126,6 +132,20 @@ export type SpaceMessage =
   | SpaceError
   | SpaceHistory
   | UpstreamChange;
+
+// ============ Project Context ============
+
+/** Project understanding derived from .differ/intent.md */
+export interface ProjectContext {
+  name: string;
+  language: string;
+  description: string;
+  constraints: string[];
+  buildCommand?: string;
+  testCommand?: string;
+  projectType?: string;
+  frameworks: string[];
+}
 
 // ============ Promise Record ============
 

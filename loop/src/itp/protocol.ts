@@ -2,6 +2,12 @@
  * ITP Protocol Utilities — Differ Runtime
  *
  * Factory functions, state transitions, promise lifecycle tracking.
+ *
+ * Two entity types:
+ *   Intent  — Permanent declaration. No state machine. Never transitions.
+ *   Promise — Autonomous agent commitment. Has lifecycle: PROMISED → ... → FULFILLED/BROKEN.
+ *
+ * DECLINE does not create a promise entity. It is recorded in the message log only.
  */
 
 import { randomUUID } from 'crypto';
@@ -15,8 +21,9 @@ import type {
 
 // ============ Valid State Transitions ============
 
+// Intents have no state machine — they are permanent declarations.
+// Only promises have state transitions.
 const TRANSITIONS: Record<PromiseState, Partial<Record<ITPMessageType, PromiseState>>> = {
-  PENDING:   { PROMISE: 'PROMISED', DECLINE: 'DECLINED', RELEASE: 'RELEASED' },
   PROMISED:  { ACCEPT: 'ACCEPTED', REVISE: 'REVISED', RELEASE: 'RELEASED' },
   ACCEPTED:  { COMPLETE: 'COMPLETED', RELEASE: 'RELEASED' },
   COMPLETED: { ASSESS: 'FULFILLED' }, // ASSESS dispatches to FULFILLED or BROKEN
@@ -42,20 +49,26 @@ export function nextState(from: PromiseState, msg: ITPMessage): PromiseState | n
 
 // ============ Factory Functions ============
 
-export function createIntent(senderId: string, content: string, criteria?: string): ITPMessage {
+/** Create an INTENT — a permanent declaration of desired outcome */
+export function createIntent(senderId: string, content: string, criteria?: string, targetRepo?: string): ITPMessage {
   return {
     type: 'INTENT',
-    promiseId: randomUUID(),
+    intentId: randomUUID(),
     timestamp: Date.now(),
     senderId,
-    payload: { content, criteria },
+    payload: { content, criteria, targetRepo },
   };
 }
 
-export function createPromise(senderId: string, promiseId: string, plan?: string): ITPMessage {
+/**
+ * Create a PROMISE — an autonomous agent commitment to satisfy an intent.
+ * Each promise gets its own promiseId. intentId links back to the originating intent.
+ */
+export function createPromise(senderId: string, intentId: string, plan?: string): ITPMessage {
   return {
     type: 'PROMISE',
-    promiseId,
+    promiseId: randomUUID(),
+    intentId,
     timestamp: Date.now(),
     senderId,
     payload: { content: plan },
@@ -72,10 +85,11 @@ export function createAccept(senderId: string, promiseId: string): ITPMessage {
   };
 }
 
-export function createDecline(senderId: string, promiseId: string, reason: string): ITPMessage {
+/** Create a DECLINE — recorded in the log but does NOT create a promise entity */
+export function createDecline(senderId: string, intentId: string, reason: string): ITPMessage {
   return {
     type: 'DECLINE',
-    promiseId,
+    intentId,
     timestamp: Date.now(),
     senderId,
     payload: { reason },
@@ -112,14 +126,20 @@ export function createAssess(
   };
 }
 
+/**
+ * Create a REVISE — creates a new promise (new promiseId) with parentId linking
+ * to the previous promise being revised. intentId propagates from the original.
+ */
 export function createRevise(
   senderId: string,
   parentPromiseId: string,
+  intentId: string,
   revisedContent: string,
 ): ITPMessage {
   return {
     type: 'REVISE',
     promiseId: randomUUID(),
+    intentId,
     parentId: parentPromiseId,
     timestamp: Date.now(),
     senderId,
@@ -139,12 +159,12 @@ export function createRelease(senderId: string, promiseId: string, reason?: stri
 
 // ============ Promise Record Management ============
 
-/** Create a fresh promise record from an INTENT message */
+/** Create a fresh promise record from a PROMISE message */
 export function createPromiseRecord(msg: ITPMessage): PromiseRecord {
   return {
-    promiseId: msg.promiseId,
+    promiseId: msg.promiseId!,
     parentId: msg.parentId,
-    state: 'PENDING',
+    state: 'PROMISED',
     intentFrom: msg.senderId,
     intent: msg.payload.content ?? msg.payload.revisedContent ?? '',
     criteria: msg.payload.criteria,
