@@ -358,17 +358,17 @@ async function main(): Promise<void> {
     }
   } else {
     // Check for dirty working copy
-    try {
-      const status = execFileSync('git', ['status', '--porcelain'], { cwd: targetDir, encoding: 'utf-8' });
-      if (status.trim()) {
-        if (mode === 'self') {
-          log('Dirty working copy detected (crash recovery). Resetting...');
-          execFileSync('git', ['checkout', '--', '.'], { cwd: targetDir });
-        } else {
+    // Source is never rolled back — partial edits from a crash are preserved.
+    // The agent restarts with the same binary and can see its partial work.
+    // For external-mode: refuse to work on a dirty target (user's uncommitted changes).
+    if (mode === 'external') {
+      try {
+        const status = execFileSync('git', ['status', '--porcelain'], { cwd: targetDir, encoding: 'utf-8' });
+        if (status.trim()) {
           log('Target repo has uncommitted changes. Will observe but not work until clean.');
         }
-      }
-    } catch { /* not a git repo or git not available */ }
+      } catch { /* not a git repo or git not available */ }
+    }
   }
 
   // ---- OBSERVE: scan for open intents ----

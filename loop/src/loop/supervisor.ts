@@ -197,16 +197,8 @@ function handleAgentExit(handle: AgentHandle, code: number | null, signal: strin
     return;
   }
 
-  // Reset target repo if dirty (for self-mode only)
-  if (handle.mode === 'self') {
-    try {
-      const status = execFileSync('git', ['status', '--porcelain'], { cwd: handle.repoPath, encoding: 'utf-8' });
-      if (status.trim()) {
-        console.log(`Resetting dirty working copy for ${handle.name}...`);
-        execFileSync('git', ['checkout', '--', '.'], { cwd: handle.repoPath });
-      }
-    } catch { /* ignore */ }
-  }
+  // Source is never rolled back. Partial edits from a crash are preserved.
+  // The agent restarts with the same compiled binary and can see its partial work.
 
   const backoffSec = Math.min(2 ** handle.consecutiveCrashes, 60);
   console.log(`Agent ${handle.name} crashed (code ${code}). Restarting in ${backoffSec}s (${handle.consecutiveCrashes}/${MAX_CONSECUTIVE_CRASHES})...`);
