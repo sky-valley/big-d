@@ -47,7 +47,7 @@ program
   .option('--json', 'Output JSON')
   .action((opts) => {
     // Clean schema break: archive old DB if it exists
-    archiveOldDb();
+    const archived = archiveOldDb();
 
     const log = new PromiseLog();
     log.close();
@@ -59,6 +59,7 @@ program
     if (opts.json) {
       console.log(JSON.stringify({ status: 'initialized', dbPath: DEFAULT_DB_PATH, hmacKeyPath: HMAC_KEY_PATH }));
     } else {
+      if (archived) console.log(`Archived old database to ${archived}`);
       console.log('Initialized promise log:', DEFAULT_DB_PATH);
       console.log('HMAC key:', HMAC_KEY_PATH);
     }

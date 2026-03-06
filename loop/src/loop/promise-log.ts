@@ -19,7 +19,7 @@ import { homedir } from 'os';
 import { nextState } from '../itp/protocol.ts';
 import type { ITPMessage, PromiseState } from '../itp/types.ts';
 
-export const DEFAULT_DB_DIR = join(homedir(), '.differ', 'loop');
+export const DEFAULT_DB_DIR = process.env.DIFFER_DB_DIR ?? join(homedir(), '.differ', 'loop');
 export const DEFAULT_DB_PATH = join(DEFAULT_DB_DIR, 'promise-log.db');
 export const HMAC_KEY_PATH = join(DEFAULT_DB_DIR, '.hmac-key');
 
@@ -419,13 +419,14 @@ export function signMessage(msg: ITPMessage): string | null {
   return computeHmac(key, msg);
 }
 
-/** Archive the old DB (for clean schema break) */
-export function archiveOldDb(dbPath: string = DEFAULT_DB_PATH): void {
+/** Archive the old DB (for clean schema break). Returns backup path or null. */
+export function archiveOldDb(dbPath: string = DEFAULT_DB_PATH): string | null {
   if (existsSync(dbPath)) {
     const backupPath = dbPath + '.bak.' + Date.now();
     renameSync(dbPath, backupPath);
-    console.log(`Archived old database to ${backupPath}`);
+    return backupPath;
   }
+  return null;
 }
 
 // ============ Row Conversion ============
