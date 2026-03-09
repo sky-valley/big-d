@@ -6,6 +6,8 @@ Monorepo for Differ — a self-modifying agent system coordinated through Promis
 
 | Directory | Description |
 |-----------|-------------|
+| `itp/` | Shared ITP types and protocol. See [`itp/CLAUDE.md`](itp/CLAUDE.md). |
+| `intent-space/` | Standalone intent space server. See [`intent-space/CLAUDE.md`](intent-space/CLAUDE.md). |
 | `loop/` | Self-modifying agent loop. Supervisor, agent, CLI. See [`loop/CLAUDE.md`](loop/CLAUDE.md). |
 
 ## Conventions
