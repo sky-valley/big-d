@@ -6,6 +6,7 @@ Loop is an adaptive agent loop coordinated through Promise Theory. A fixed super
 
 - Node.js >= 18
 - npm
+- Intent space running (`cd ../intent-space && npm start`)
 
 ## Setup
 
@@ -15,8 +16,11 @@ npm install
 cp .env.example .env   # add your ANTHROPIC_API_KEY
 npm run loop -- init
 npm run loop -- add . --mode self   # register this repo
+npm run loop -- intent "add a /health endpoint"
 npm run loop -- run    # start the supervisor + agents
 ```
+
+The intent space must be running before posting intents or starting agents. Agents degrade gracefully if the space goes down — they work from cached intents and reconnect with backoff.
 
 ## Command Reference
 

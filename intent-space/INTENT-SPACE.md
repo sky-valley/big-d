@@ -77,8 +77,8 @@ CREATE TABLE intents (
   intent_id   TEXT PRIMARY KEY,
   parent_id   TEXT NOT NULL DEFAULT 'root',
   sender_id   TEXT NOT NULL,
-  content     TEXT NOT NULL,
-  seq         INTEGER AUTOINCREMENT,
+  payload     TEXT NOT NULL,
+  seq         INTEGER NOT NULL,
   timestamp   INTEGER NOT NULL
 );
 
@@ -86,6 +86,8 @@ CREATE INDEX idx_intents_parent_seq ON intents(parent_id, seq);
 ```
 
 One table. One compound index. That's the whole data model.
+
+The `payload` column stores an opaque JSON blob. The space reads the address on the envelope (`intent_id`, `parent_id`, `sender_id`) but never opens the letter. Agents interpret `payload` contents — that's their business, not the space's.
 
 ## Wire Protocol
 
@@ -103,9 +105,9 @@ Two message families on the wire:
 When a client connects, the space introduces itself by sending its service intents as ITP INTENT messages — the same way any agent would declare its capabilities:
 
 ```
-← INTENT { intentId: "space:persist",     senderId: "intent-space", content: "I persist intents to durable storage" }
-← INTENT { intentId: "space:history",     senderId: "intent-space", content: "I serve intent history on request" }
-← INTENT { intentId: "space:containment", senderId: "intent-space", content: "I scope intents by parent space" }
+← INTENT { intentId: "space:persist",     senderId: "intent-space", payload: { content: "I persist intents to durable storage" } }
+← INTENT { intentId: "space:history",     senderId: "intent-space", payload: { content: "I serve intent history on request" } }
+← INTENT { intentId: "space:containment", senderId: "intent-space", payload: { content: "I scope intents by parent space" } }
 ```
 
 These are real intents stored in the space's own log. They are the space's give-promises (+b) about its behavior.
@@ -119,8 +121,8 @@ No new message types. The ordering alone encodes the cooperative binding.
 The client sends a standard ITP INTENT message. The space persists it and echoes it back with its assigned `seq`:
 
 ```
-→ INTENT { type: "INTENT", intentId: "abc", senderId: "agent-1", parentId: "root", content: "add a /health endpoint", timestamp: 1709942400000 }
-← INTENT { type: "INTENT", intentId: "abc", senderId: "agent-1", parentId: "root", content: "add a /health endpoint", timestamp: 1709942400000, seq: 43 }
+→ INTENT { type: "INTENT", intentId: "abc", senderId: "agent-1", parentId: "root", payload: { content: "add a /health endpoint" }, timestamp: 1709942400000 }
+← INTENT { type: "INTENT", intentId: "abc", senderId: "agent-1", parentId: "root", payload: { content: "add a /health endpoint" }, timestamp: 1709942400000, seq: 43 }
 ```
 
 The echo is the space's confirmation: this intent now exists at position 43 in the log. Other clients scanning past seq 42 will see it.
@@ -175,11 +177,11 @@ The space is the body of desire. The promise log is the body of commitment. They
 ← SCAN_RESULT { spaceId: "root", intents: [{...seq:1}, {...seq:2}], latestSeq: 5 }
 
 # Client posts an intent
-→ INTENT { intentId: "x1", senderId: "agent-1", parentId: "root", content: "build auth" }
-← INTENT { intentId: "x1", senderId: "agent-1", parentId: "root", content: "build auth", seq: 6 }
+→ INTENT { intentId: "x1", senderId: "agent-1", parentId: "root", payload: { content: "build auth" } }
+← INTENT { intentId: "x1", senderId: "agent-1", parentId: "root", payload: { content: "build auth" }, seq: 6 }
 
 # Another agent (on a different connection) posts a sub-intent
-← INTENT { intentId: "x2", senderId: "agent-2", parentId: "x1", content: "need OAuth2", seq: 7 }
+← INTENT { intentId: "x2", senderId: "agent-2", parentId: "x1", payload: { content: "need OAuth2" }, seq: 7 }
 
 # Client scans the sub-space
 → SCAN { spaceId: "x1", since: 0 }
