@@ -14,18 +14,26 @@
  *   DIFFER_TARGET_DIR — path to target repo (default: cwd)
  *   DIFFER_MODE       — 'self' or 'external' (default: 'self')
  *
+ * Observes the intent space via IntentSpaceClient:
+ *   - Scans project sub-space + root from persisted cursor
+ *   - Listens for echoed intents in real-time
+ *   - Degrades to cached intents when space disconnects
+ *   - Reconnects with exponential backoff
+ *
  * Exit codes:
  *   0 — Source committed, supervisor should restart (self mode)
  *   2 — Clean shutdown, no more work
- *   1 — Error (supervisor will rollback and restart)
+ *   1 — Error (supervisor will restart with backoff)
  */
 
 import { execFileSync } from 'child_process';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join, basename } from 'path';
-import { PromiseLog } from './promise-log.ts';
-import { createPromise, createComplete, createRevise, createDecline, createRelease } from '../itp/protocol.ts';
-import type { ProjectContext } from '../itp/types.ts';
+import { PromiseLog, INTENT_SOCKET_PATH } from './promise-log.ts';
+import { createPromise, createComplete, createRevise, createDecline, createRelease } from '@differ/itp/src/protocol.ts';
+import type { ProjectContext } from '@differ/itp/src/types.ts';
+import { IntentSpaceClient } from '@differ/intent-space/src/client.ts';
+import type { StoredIntent } from '@differ/intent-space/src/types.ts';
 import { doWork } from './work.ts';
 import { printBanner } from './banner.ts';
 import { query } from '@anthropic-ai/claude-agent-sdk';
@@ -35,8 +43,9 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 const agentId = process.env.DIFFER_AGENT_ID ?? 'agent';
 const targetDir = process.env.DIFFER_TARGET_DIR ?? process.cwd();
 const mode: 'self' | 'external' = (process.env.DIFFER_MODE as 'self' | 'external') ?? 'self';
+const projectSpaceId = basename(targetDir);
 
-const POLL_INTERVAL_MS = 2000;
+const RECONNECT_DELAYS = [5_000, 10_000, 30_000, 60_000]; // Backoff schedule
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -311,6 +320,22 @@ async function viabilityCheck(
   return { viable, reason };
 }
 
+// ---- Intent Queue & Filtering ----
+
+/** Check if an intent should be processed by this agent */
+function shouldProcess(intent: StoredIntent, promiseLog: PromiseLog): boolean {
+  // Exclude service intents (deterministic IDs like 'intent-space:persist')
+  if (intent.intentId.includes(':')) return false;
+  // Exclude agent-generated intents (prevent self-directed loops)
+  if (intent.senderId.startsWith('agent')) return false;
+  // Exclude already-fulfilled intents
+  if (promiseLog.isIntentFulfilled(intent.intentId)) return false;
+  // Exclude intents this agent already acted on
+  const existing = promiseLog.getPromisesForIntent(intent.intentId);
+  if (existing.some(p => p.agentId === agentId)) return false;
+  return true;
+}
+
 // ---- Main Loop ----
 
 async function main(): Promise<void> {
@@ -322,6 +347,7 @@ async function main(): Promise<void> {
   log(`Agent ID: ${agentId}`);
   log(`Target: ${targetDir}`);
   log(`Mode: ${mode}`);
+  log(`Space ID: ${projectSpaceId}`);
 
   const promiseLog = new PromiseLog();
 
@@ -359,7 +385,6 @@ async function main(): Promise<void> {
   } else {
     // Check for dirty working copy
     // Source is never rolled back — partial edits from a crash are preserved.
-    // The agent restarts with the same binary and can see its partial work.
     // For external-mode: refuse to work on a dirty target (user's uncommitted changes).
     if (mode === 'external') {
       try {
@@ -371,91 +396,168 @@ async function main(): Promise<void> {
     }
   }
 
-  // ---- OBSERVE: scan for open intents ----
+  // ---- OBSERVE: connect to intent space ----
 
   log('Observing intent space...');
 
+  const intentQueue: StoredIntent[] = [];
+  let connected = false;
+  let intentClient: IntentSpaceClient | null = null;
+
+  async function connectToSpace(): Promise<boolean> {
+    try {
+      intentClient = new IntentSpaceClient(INTENT_SOCKET_PATH);
+
+      intentClient.on('intent', (echo) => {
+        // Echo is an IntentEcho — ITPMessage & { seq: number }
+        const stored: StoredIntent = {
+          intentId: echo.intentId!,
+          parentId: echo.parentId ?? 'root',
+          senderId: echo.senderId,
+          payload: echo.payload as Record<string, unknown>,
+          seq: echo.seq,
+          timestamp: echo.timestamp,
+        };
+        if (shouldProcess(stored, promiseLog)) {
+          log(`Echo: ${stored.intentId.slice(0, 8)} "${stored.payload.content ?? ''}"`);
+          intentQueue.push(stored);
+        }
+      });
+
+      intentClient.on('disconnect', () => {
+        connected = false;
+        log('Intent space disconnected. Working from cached intents.');
+        attemptReconnect();
+      });
+
+      await intentClient.connect();
+      connected = true;
+      log('Connected to intent space.');
+
+      // Scan project sub-space + root from persisted cursors
+      const projectCursor = promiseLog.getCursor(agentId, projectSpaceId);
+      const rootCursor = promiseLog.getCursor(agentId, 'root');
+
+      const projectIntents = await intentClient.scan(projectSpaceId, projectCursor);
+      const rootIntents = await intentClient.scan('root', rootCursor);
+
+      for (const intent of projectIntents) {
+        if (shouldProcess(intent, promiseLog)) intentQueue.push(intent);
+      }
+      for (const intent of rootIntents) {
+        if (shouldProcess(intent, promiseLog)) intentQueue.push(intent);
+      }
+
+      // Persist cursor (latestSeq is tracked by the client across all scans)
+      const latestSeq = intentClient.latestSeq;
+      promiseLog.setCursor(agentId, projectSpaceId, latestSeq);
+      promiseLog.setCursor(agentId, 'root', latestSeq);
+
+      log(`Loaded ${intentQueue.length} open intents from intent space.`);
+      return true;
+    } catch (err) {
+      log(`Cannot connect to intent space: ${err}`);
+      connected = false;
+      return false;
+    }
+  }
+
+  function attemptReconnect(): void {
+    let attempt = 0;
+    const tryReconnect = async () => {
+      if (connected) return;
+      const delay = RECONNECT_DELAYS[Math.min(attempt, RECONNECT_DELAYS.length - 1)];
+      log(`Reconnecting in ${delay / 1000}s (attempt ${attempt + 1})...`);
+      await sleep(delay);
+      if (connected) return;
+      attempt++;
+      const ok = await connectToSpace();
+      if (!ok) tryReconnect();
+    };
+    tryReconnect();
+  }
+
+  // Initial connection
+  const initialConnected = await connectToSpace();
+  if (!initialConnected) {
+    log('Starting in degraded mode (no intent space).');
+    attemptReconnect();
+  }
+
+  // Serial processing loop — drain queue one intent at a time
   while (true) {
-    const intents = promiseLog.getOpenIntents();
-
-    // Filter out agent-generated intents (prevent self-directed loops)
-    const humanIntents = intents.filter(i => !i.senderId.startsWith('agent'));
-
-    for (const intent of humanIntents) {
-      const intentContent = intent.content;
-      const iid = intent.intentId.slice(0, 8);
-
-      // Skip intents with a target hint that doesn't match this agent's target
-      if (intent.targetHint && intent.targetHint !== targetDir) {
-        continue;
-      }
-
-      // Skip intents this agent has already promised or declined on
-      const existingPromises = promiseLog.getPromisesForIntent(intent.intentId);
-      if (existingPromises.some(p => p.agentId === agentId)) {
-        continue;
-      }
-
-      // Check if this agent already declined this intent (in message log)
-      const messages = promiseLog.getMessages(intent.intentId);
-      // Messages for intents are stored with intent_id — use getMessagesSince or check manually
-      // For now, skip if we find a DECLINE from this agent in messages
-      // Actually, getMessages takes promiseId, not intentId. We check existingPromises above.
-
-      log(`Found intent: ${iid} "${intentContent}"`);
-
-      // ---- DELIBERATE: scope check ----
-      const scopeFailReason = scopeCheck(intentContent, ctx);
-      if (scopeFailReason) {
-        log(`[deliberate] Scope check FAILED for ${iid}: ${scopeFailReason}`);
-        const declineMsg = createDecline(agentId, intent.intentId, scopeFailReason);
-        promiseLog.post(declineMsg);
-        log(`DECLINED ${iid}: ${scopeFailReason}`);
-        continue;
-      }
-
-      log(`[deliberate] Scope check passed for ${iid}`);
-
-      // Check target repo is clean before promising (external mode)
-      if (mode === 'external') {
-        try {
-          const status = execFileSync('git', ['status', '--porcelain'], { cwd: targetDir, encoding: 'utf-8' });
-          if (status.trim()) {
-            log(`Target repo dirty — skipping intent ${iid}`);
-            continue;
-          }
-        } catch { /* ignore */ }
-      }
-
-      // ---- DELIBERATE: LLM viability check ----
-      log(`[deliberate] Running viability check for ${iid}...`);
-      const { viable, reason } = await viabilityCheck(intentContent, targetDir, ctx);
-
-      if (!viable) {
-        log(`[deliberate] Viability check FAILED for ${iid}: ${reason}`);
-        const declineMsg = createDecline(agentId, intent.intentId, reason);
-        promiseLog.post(declineMsg);
-        log(`DECLINED ${iid}: ${reason}`);
-        continue;
-      }
-
-      log(`[deliberate] Viability check PASSED for ${iid}: ${reason}`);
-
-      // ---- PROMISE ----
-      const plan = `I will implement: ${intentContent}`;
-      const msg = createPromise(agentId, intent.intentId, plan);
-      promiseLog.post(msg);
-      log(`PROMISED on ${iid}: ${plan}`);
-
-      lastSeq = promiseLog.getLatestSeq();
-      await waitAccept(promiseLog, msg.promiseId!, intent.intentId, intentContent, targetDir, ctx, lastSeq);
-
-      if (mode === 'self') return;
-      // external mode: continue observe loop
-      break; // Re-scan intents from scratch after completing a cycle
+    if (intentQueue.length === 0) {
+      await sleep(500);
+      continue;
     }
 
-    await sleep(POLL_INTERVAL_MS);
+    const intent = intentQueue.shift()!;
+
+    // Re-check filters (state may have changed since queued)
+    if (!shouldProcess(intent, promiseLog)) continue;
+
+    const intentContent = (intent.payload.content as string) ?? '';
+    const iid = intent.intentId.slice(0, 8);
+
+    log(`Found intent: ${iid} "${intentContent}"`);
+
+    // Mirror intent into PromiseLog before any action (satisfies FK constraint)
+    promiseLog.ensureIntent({
+      intentId: intent.intentId,
+      senderId: intent.senderId,
+      content: intentContent,
+      criteria: intent.payload.criteria as string | undefined,
+      timestamp: intent.timestamp,
+    });
+
+    // ---- DELIBERATE: scope check ----
+    const scopeFailReason = scopeCheck(intentContent, ctx);
+    if (scopeFailReason) {
+      log(`[deliberate] Scope check FAILED for ${iid}: ${scopeFailReason}`);
+      const declineMsg = createDecline(agentId, intent.intentId, scopeFailReason);
+      promiseLog.post(declineMsg);
+      log(`DECLINED ${iid}: ${scopeFailReason}`);
+      continue;
+    }
+
+    log(`[deliberate] Scope check passed for ${iid}`);
+
+    // Check target repo is clean before promising (external mode)
+    if (mode === 'external') {
+      try {
+        const status = execFileSync('git', ['status', '--porcelain'], { cwd: targetDir, encoding: 'utf-8' });
+        if (status.trim()) {
+          log(`Target repo dirty — skipping intent ${iid}`);
+          continue;
+        }
+      } catch { /* ignore */ }
+    }
+
+    // ---- DELIBERATE: LLM viability check ----
+    log(`[deliberate] Running viability check for ${iid}...`);
+    const { viable, reason } = await viabilityCheck(intentContent, targetDir, ctx);
+
+    if (!viable) {
+      log(`[deliberate] Viability check FAILED for ${iid}: ${reason}`);
+      const declineMsg = createDecline(agentId, intent.intentId, reason);
+      promiseLog.post(declineMsg);
+      log(`DECLINED ${iid}: ${reason}`);
+      continue;
+    }
+
+    log(`[deliberate] Viability check PASSED for ${iid}: ${reason}`);
+
+    // ---- PROMISE ----
+    const plan = `I will implement: ${intentContent}`;
+    const msg = createPromise(agentId, intent.intentId, plan);
+    promiseLog.post(msg);
+    log(`PROMISED on ${iid}: ${plan}`);
+
+    lastSeq = promiseLog.getLatestSeq();
+    await waitAccept(promiseLog, msg.promiseId!, intent.intentId, intentContent, targetDir, ctx, lastSeq);
+
+    if (mode === 'self') return;
+    // external mode: continue processing queue
   }
 }
 

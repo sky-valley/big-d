@@ -16,12 +16,13 @@ import { createHmac, randomBytes, randomUUID } from 'crypto';
 import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync } from 'fs';
 import { dirname, join, basename } from 'path';
 import { homedir } from 'os';
-import { nextState } from '../itp/protocol.ts';
-import type { ITPMessage, PromiseState } from '../itp/types.ts';
+import { nextState } from '@differ/itp/src/protocol.ts';
+import type { ITPMessage, PromiseState } from '@differ/itp/src/types.ts';
 
 export const DEFAULT_DB_DIR = process.env.DIFFER_DB_DIR ?? join(homedir(), '.differ', 'loop');
 export const DEFAULT_DB_PATH = join(DEFAULT_DB_DIR, 'promise-log.db');
 export const HMAC_KEY_PATH = join(DEFAULT_DB_DIR, '.hmac-key');
+export const INTENT_SOCKET_PATH = join(DEFAULT_DB_DIR, 'intent-space.sock');
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS intents (
@@ -80,6 +81,13 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_promise ON messages(promise_id);
 CREATE INDEX IF NOT EXISTS idx_messages_intent ON messages(intent_id);
 CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(type);
+
+CREATE TABLE IF NOT EXISTS agent_cursors (
+  agent_id  TEXT NOT NULL,
+  space_id  TEXT NOT NULL,
+  last_seq  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (agent_id, space_id)
+);
 `;
 
 export interface StoredMessage extends ITPMessage {
@@ -211,6 +219,29 @@ export class PromiseLog {
     });
 
     txn();
+  }
+
+  // ============ Intent Mirroring ============
+
+  /** Insert an intent record if it doesn't already exist.
+   *  Used by the agent to mirror intents from the intent space before promising. */
+  ensureIntent(record: { intentId: string; senderId: string; content: string; criteria?: string; targetHint?: string; timestamp: number }): void {
+    this.db.prepare(`
+      INSERT OR IGNORE INTO intents (intent_id, sender_id, content, criteria, target_hint, timestamp, payload)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      record.intentId, record.senderId, record.content,
+      record.criteria ?? null, record.targetHint ?? null,
+      record.timestamp, JSON.stringify(record),
+    );
+  }
+
+  /** Check if any promise for this intent has reached FULFILLED. */
+  isIntentFulfilled(intentId: string): boolean {
+    const row = this.db.prepare(
+      `SELECT 1 FROM promises WHERE intent_id = ? AND current_state = 'FULFILLED' LIMIT 1`
+    ).get(intentId);
+    return !!row;
   }
 
   // ============ Intent Queries ============
@@ -373,6 +404,24 @@ export class PromiseLog {
     ).get(idOrName, idOrName, idOrName) as Record<string, unknown> | undefined;
     if (!row) return null;
     return rowToProject(row);
+  }
+
+  // ============ Cursor Persistence ============
+
+  /** Get the persisted cursor for an agent scanning a space. Returns 0 if not set. */
+  getCursor(agentId: string, spaceId: string): number {
+    const row = this.db.prepare(
+      `SELECT last_seq FROM agent_cursors WHERE agent_id = ? AND space_id = ?`
+    ).get(agentId, spaceId) as { last_seq: number } | undefined;
+    return row?.last_seq ?? 0;
+  }
+
+  /** Persist the cursor for an agent scanning a space. */
+  setCursor(agentId: string, spaceId: string, lastSeq: number): void {
+    this.db.prepare(`
+      INSERT INTO agent_cursors (agent_id, space_id, last_seq) VALUES (?, ?, ?)
+      ON CONFLICT(agent_id, space_id) DO UPDATE SET last_seq = excluded.last_seq
+    `).run(agentId, spaceId, lastSeq);
   }
 
   // ============ HMAC ============

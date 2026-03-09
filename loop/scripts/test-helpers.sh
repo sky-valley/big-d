@@ -150,13 +150,29 @@ get_promise_id() {
 
 # ============ Message Injection ============
 
+# Inject an INTENT message directly into the promise log.
+# Usage: inject_intent <senderId> <content> [criteria]
+# Returns the intentId on stdout.
+inject_intent() {
+  local sender_id=$1 content=$2 criteria=${3:-}
+  node --import tsx -e "
+    import { PromiseLog } from '$LOOP_DIR/src/loop/promise-log.ts';
+    import { createIntent } from '$LOOP_DIR/../itp/src/protocol.ts';
+    const log = new PromiseLog();
+    const msg = createIntent('$sender_id', '$content', '$criteria' || undefined);
+    log.post(msg);
+    console.log(msg.intentId);
+    log.close();
+  "
+}
+
 # Inject a PROMISE message directly into the promise log.
 # Usage: inject_promise <agentId> <intentId> [plan]
 inject_promise() {
   local agent_id=$1 intent_id=$2 plan=${3:-"Will do the work"}
   node --import tsx -e "
     import { PromiseLog } from '$LOOP_DIR/src/loop/promise-log.ts';
-    import { createPromise } from '$LOOP_DIR/src/itp/protocol.ts';
+    import { createPromise } from '$LOOP_DIR/../itp/src/protocol.ts';
     const log = new PromiseLog();
     const msg = createPromise('$agent_id', '$intent_id', '$plan');
     log.post(msg);
@@ -171,7 +187,7 @@ inject_complete() {
   local agent_id=$1 promise_id=$2 summary=${3:-"Work done"}
   node --import tsx -e "
     import { PromiseLog } from '$LOOP_DIR/src/loop/promise-log.ts';
-    import { createComplete } from '$LOOP_DIR/src/itp/protocol.ts';
+    import { createComplete } from '$LOOP_DIR/../itp/src/protocol.ts';
     const log = new PromiseLog();
     const msg = createComplete('$agent_id', '$promise_id', '$summary', []);
     log.post(msg);
@@ -185,7 +201,7 @@ inject_decline() {
   local agent_id=$1 intent_id=$2 reason=$3
   node --import tsx -e "
     import { PromiseLog } from '$LOOP_DIR/src/loop/promise-log.ts';
-    import { createDecline } from '$LOOP_DIR/src/itp/protocol.ts';
+    import { createDecline } from '$LOOP_DIR/../itp/src/protocol.ts';
     const log = new PromiseLog();
     const msg = createDecline('$agent_id', '$intent_id', '$reason');
     log.post(msg);

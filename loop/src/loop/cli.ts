@@ -12,11 +12,12 @@
 import { Command } from 'commander';
 import { execFileSync } from 'child_process';
 import { existsSync, statSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, basename } from 'path';
 import {
   PromiseLog,
   DEFAULT_DB_PATH,
   HMAC_KEY_PATH,
+  INTENT_SOCKET_PATH,
   generateHmacKey,
   signMessage,
   archiveOldDb,
@@ -26,9 +27,10 @@ import {
   createAccept,
   createAssess,
   createRelease,
-} from '../itp/protocol.ts';
-import type { AssessmentResult } from '../itp/types.ts';
-import { TERMINAL_STATES } from '../itp/types.ts';
+} from '@differ/itp/src/protocol.ts';
+import type { AssessmentResult } from '@differ/itp/src/types.ts';
+import { TERMINAL_STATES } from '@differ/itp/src/types.ts';
+import { IntentSpaceClient } from '@differ/intent-space/src/client.ts';
 import { runSupervisor } from './supervisor.ts';
 import { printBanner } from './banner.ts';
 
@@ -192,13 +194,32 @@ program
   .option('--target <path>', 'Target repository hint')
   .option('--sender <id>', 'Sender identity', 'human')
   .option('--json', 'Output JSON')
-  .action((content: string, opts) => {
-    const log = new PromiseLog();
+  .action(async (content: string, opts) => {
     const targetRepo = opts.target ? resolve(opts.target) : undefined;
-    const msg = createIntent(opts.sender, content, opts.criteria, targetRepo);
-    const hmac = signMessage(msg);
-    log.post(msg, hmac ?? undefined);
-    log.close();
+    const projectSpaceId = opts.target
+      ? basename(resolve(opts.target))
+      : 'root';
+
+    const msg = createIntent(opts.sender, content, opts.criteria, targetRepo, projectSpaceId);
+
+    // Post to intent space — the canonical store of desire
+    try {
+      const client = new IntentSpaceClient(INTENT_SOCKET_PATH);
+      client.on('error', () => {}); // Suppress EventEmitter crash — we handle via try/catch
+      await client.connect();
+      client.post(msg);
+      // Wait for echo to confirm persistence
+      await new Promise(r => setTimeout(r, 200));
+      client.disconnect();
+    } catch {
+      const err = 'Intent space not running. Start it with: cd intent-space && npm start';
+      if (opts.json) {
+        console.log(JSON.stringify({ error: err }));
+      } else {
+        console.error(err);
+      }
+      process.exit(1);
+    }
 
     if (opts.json) {
       console.log(JSON.stringify({ intentId: msg.intentId, type: 'INTENT' }));
@@ -206,7 +227,7 @@ program
       console.log(`INTENT posted: ${msg.intentId}`);
       console.log(`  "${content}"`);
       if (targetRepo) {
-        console.log(`  target: ${targetRepo}`);
+        console.log(`  target: ${targetRepo} (space: ${projectSpaceId})`);
       }
     }
   });

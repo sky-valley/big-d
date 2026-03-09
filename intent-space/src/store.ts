@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS intents (
   intent_id   TEXT PRIMARY KEY,
   parent_id   TEXT NOT NULL DEFAULT 'root',
   sender_id   TEXT NOT NULL,
-  content     TEXT NOT NULL,
+  payload     TEXT NOT NULL,
   seq         INTEGER NOT NULL,
   timestamp   INTEGER NOT NULL
 );
@@ -29,11 +29,13 @@ CREATE INDEX IF NOT EXISTS idx_intents_parent_seq ON intents(parent_id, seq);
 `;
 
 function rowToIntent(row: Record<string, unknown>): StoredIntent {
+  let payload: Record<string, unknown> = {};
+  try { payload = JSON.parse(row.payload as string); } catch { /* ignore */ }
   return {
     intentId: row.intent_id as string,
     parentId: row.parent_id as string,
     senderId: row.sender_id as string,
-    content: row.content as string,
+    payload,
     seq: row.seq as number,
     timestamp: row.timestamp as number,
   };
@@ -79,13 +81,13 @@ export class IntentStore {
     const seq = this._seq;
 
     this.db.prepare(`
-      INSERT INTO intents (intent_id, parent_id, sender_id, content, seq, timestamp)
+      INSERT INTO intents (intent_id, parent_id, sender_id, payload, seq, timestamp)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       msg.intentId,
       msg.parentId ?? 'root',
       msg.senderId,
-      msg.payload.content ?? '',
+      JSON.stringify(msg.payload),
       seq,
       msg.timestamp,
     );

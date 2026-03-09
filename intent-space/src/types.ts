@@ -14,7 +14,7 @@ export interface StoredIntent {
   intentId: string;
   parentId: string;
   senderId: string;
-  content: string;
+  payload: Record<string, unknown>;
   seq: number;
   timestamp: number;
 }

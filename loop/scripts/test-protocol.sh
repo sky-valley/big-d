@@ -35,11 +35,10 @@ COUNT=$(echo "$PROJ_OUT" | node -e "
 [ "$COUNT" -ge 1 ] || { echo "FAIL: expected >=1 projects, got $COUNT"; exit 1; }
 pass
 
-# ---- 4. intent ----
+# ---- 4. intent (injected directly — CLI posts to intent space, not PromiseLog) ----
 step "intent"
-INTENT_OUT=$($CLI intent "add a /health endpoint that returns { status: ok }" --json)
-INTENT_ID=$(get_intent_id "$INTENT_OUT")
-[ -n "$INTENT_ID" ] || { echo "FAIL: no intentId in output"; exit 1; }
+INTENT_ID=$(inject_intent "human" "add a /health endpoint that returns { status: ok }")
+[ -n "$INTENT_ID" ] || { echo "FAIL: no intentId from injection"; exit 1; }
 echo "  intentId: ${INTENT_ID:0:8}"
 pass
 
@@ -131,8 +130,7 @@ pass
 
 # ---- 14. RELEASE happy path (separate intent) ----
 step "RELEASE happy path"
-INTENT2_OUT=$($CLI intent "second intent for release test" --json)
-INTENT2_ID=$(get_intent_id "$INTENT2_OUT")
+INTENT2_ID=$(inject_intent "human" "second intent for release test")
 PROMISE2_ID=$(inject_promise "test-agent" "$INTENT2_ID" "Will work on this")
 $CLI release "$PROMISE2_ID" --reason "no longer needed" --json > /dev/null
 STATE=$($CLI status --json | node -e "
@@ -148,8 +146,7 @@ pass
 
 # ---- 15. RELEASE from ACCEPTED ----
 step "RELEASE from ACCEPTED"
-INTENT3_OUT=$($CLI intent "third intent for accepted release" --json)
-INTENT3_ID=$(get_intent_id "$INTENT3_OUT")
+INTENT3_ID=$(inject_intent "human" "third intent for accepted release")
 PROMISE3_ID=$(inject_promise "test-agent" "$INTENT3_ID" "Will do it")
 $CLI accept "$PROMISE3_ID" --json > /dev/null
 $CLI release "$PROMISE3_ID" --reason "changed mind" --json > /dev/null
@@ -180,7 +177,7 @@ step "all commands produce valid JSON"
 $CLI init --json | node -e "JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'))" > /dev/null
 $CLI projects --json | node -e "JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'))" > /dev/null
 $CLI status --json | node -e "JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'))" > /dev/null
-$CLI intent "json validity check" --json | node -e "JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'))" > /dev/null
+# Note: `intent` command requires intent space — tested separately
 pass
 
 # Cleanup temp repo

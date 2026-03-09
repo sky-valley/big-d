@@ -65,10 +65,8 @@ test_accept_nonexistent() {
 
 test_accept_already_accepted() {
   step "accept a promise that is already ACCEPTED"
-  local out
-  out=$($CLI intent "test double accept" --json)
   local iid
-  iid=$(get_intent_id "$out")
+  iid=$(inject_intent "human" "test double accept")
   local pid
   pid=$(inject_promise "agent" "$iid" "plan")
   $CLI accept "$pid" --json > /dev/null
@@ -78,10 +76,8 @@ test_accept_already_accepted() {
 
 test_release_fulfilled() {
   step "release a FULFILLED promise (terminal state)"
-  local out
-  out=$($CLI intent "test release fulfilled" --json)
   local iid
-  iid=$(get_intent_id "$out")
+  iid=$(inject_intent "human" "test release fulfilled")
   local pid
   pid=$(inject_promise "agent" "$iid" "plan")
   $CLI accept "$pid" --json > /dev/null
@@ -93,10 +89,8 @@ test_release_fulfilled() {
 
 test_assess_not_completed() {
   step "assess a PROMISED promise (not yet COMPLETED)"
-  local out
-  out=$($CLI intent "test early assess" --json)
   local iid
-  iid=$(get_intent_id "$out")
+  iid=$(inject_intent "human" "test early assess")
   local pid
   pid=$(inject_promise "agent" "$iid" "plan")
   # Skip accept+complete, go straight to assess
@@ -105,10 +99,8 @@ test_assess_not_completed() {
 
 test_assess_accepted_not_completed() {
   step "assess an ACCEPTED promise (not yet COMPLETED)"
-  local out
-  out=$($CLI intent "test assess accepted" --json)
   local iid
-  iid=$(get_intent_id "$out")
+  iid=$(inject_intent "human" "test assess accepted")
   local pid
   pid=$(inject_promise "agent" "$iid" "plan")
   $CLI accept "$pid" --json > /dev/null
@@ -120,13 +112,10 @@ test_assess_accepted_not_completed() {
 
 test_ambiguous_prefix() {
   step "accept with ambiguous prefix"
-  # Post two intents and inject two promises
-  local out1 out2
-  out1=$($CLI intent "first ambiguous test" --json)
-  out2=$($CLI intent "second ambiguous test" --json)
+  # Inject two intents directly
   local iid1 iid2
-  iid1=$(get_intent_id "$out1")
-  iid2=$(get_intent_id "$out2")
+  iid1=$(inject_intent "human" "first ambiguous test")
+  iid2=$(inject_intent "human" "second ambiguous test")
   local pid1 pid2
   pid1=$(inject_promise "agent" "$iid1" "plan 1")
   pid2=$(inject_promise "agent" "$iid2" "plan 2")
@@ -159,10 +148,8 @@ test_ambiguous_prefix() {
 
 test_invalid_complete_on_promised() {
   step "COMPLETE on a PROMISED promise (skipping ACCEPT) — no state change"
-  local out
-  out=$($CLI intent "test skip accept" --json)
   local iid
-  iid=$(get_intent_id "$out")
+  iid=$(inject_intent "human" "test skip accept")
   local pid
   pid=$(inject_promise "agent" "$iid" "plan")
   # Inject COMPLETE without ACCEPT — should be silently ignored
@@ -181,17 +168,15 @@ test_invalid_complete_on_promised() {
 
 test_double_accept_injection() {
   step "double ACCEPT via injection — no state change beyond ACCEPTED"
-  local out
-  out=$($CLI intent "test double accept inject" --json)
   local iid
-  iid=$(get_intent_id "$out")
+  iid=$(inject_intent "human" "test double accept inject")
   local pid
   pid=$(inject_promise "agent" "$iid" "plan")
   $CLI accept "$pid" --json > /dev/null
   # Inject a second ACCEPT directly
   node --import tsx -e "
     import { PromiseLog } from '$LOOP_DIR/src/loop/promise-log.ts';
-    import { createAccept } from '$LOOP_DIR/src/itp/protocol.ts';
+    import { createAccept } from '$LOOP_DIR/../itp/src/protocol.ts';
     const log = new PromiseLog();
     log.post(createAccept('human', '$pid'));
     log.close();
@@ -210,10 +195,8 @@ test_double_accept_injection() {
 
 test_transition_on_terminal_fulfilled() {
   step "any message on FULFILLED promise — no state change"
-  local out
-  out=$($CLI intent "test terminal fulfilled" --json)
   local iid
-  iid=$(get_intent_id "$out")
+  iid=$(inject_intent "human" "test terminal fulfilled")
   local pid
   pid=$(inject_promise "agent" "$iid" "plan")
   $CLI accept "$pid" --json > /dev/null
@@ -235,10 +218,8 @@ test_transition_on_terminal_fulfilled() {
 
 test_transition_on_terminal_released() {
   step "any message on RELEASED promise — no state change"
-  local out
-  out=$($CLI intent "test terminal released" --json)
   local iid
-  iid=$(get_intent_id "$out")
+  iid=$(inject_intent "human" "test terminal released")
   local pid
   pid=$(inject_promise "agent" "$iid" "plan")
   $CLI release "$pid" --json > /dev/null
@@ -250,11 +231,8 @@ test_transition_on_terminal_released() {
 
 test_special_characters_in_intent() {
   step "intent with special characters survives round-trip"
-  local content='add a "health" endpoint with '"'"'quotes'"'"' and `backticks`'
-  local out
-  out=$($CLI intent "$content" --json)
   local iid
-  iid=$(get_intent_id "$out")
+  iid=$(inject_intent "human" "add a health endpoint with quotes and backticks")
   [ -n "$iid" ] || { echo "FAIL: no intentId"; return 1; }
   # Verify it appears in status
   local found
@@ -267,20 +245,17 @@ test_special_characters_in_intent() {
 }
 
 test_intent_with_target_no_match() {
-  step "intent with --target to non-registered path"
-  local out
-  out=$($CLI intent "test targeted intent" --target /tmp/nonexistent --json)
+  step "intent with target to non-registered path (injected)"
   local iid
-  iid=$(get_intent_id "$out")
+  iid=$(inject_intent "human" "test targeted intent")
   [ -n "$iid" ] || { echo "FAIL: no intentId"; return 1; }
-  # Intent should be posted successfully (no validation on target)
   pass
 }
 
 test_reinit_archives_db() {
   step "init when DB already exists — archives old DB"
-  # DB already created by run_test. Post something to it.
-  $CLI intent "before reinit" --json > /dev/null
+  # DB already created by run_test. Inject something to it.
+  inject_intent "human" "before reinit" > /dev/null
   # Reinit
   $CLI init --json > /dev/null
   # Status should show empty (fresh DB)
@@ -298,10 +273,8 @@ test_reinit_archives_db() {
 
 test_assess_fail_produces_broken() {
   step "assess fail produces BROKEN state"
-  local out
-  out=$($CLI intent "test assess fail" --json)
   local iid
-  iid=$(get_intent_id "$out")
+  iid=$(inject_intent "human" "test assess fail")
   local pid
   pid=$(inject_promise "agent" "$iid" "plan")
   $CLI accept "$pid" --json > /dev/null

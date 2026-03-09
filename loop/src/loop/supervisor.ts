@@ -23,12 +23,15 @@
  *   2     — Clean shutdown, no more work.
  *   SIGINT/SIGTERM — User stopped it. Clean exit.
  *   other — Crash. Restart same binary with backoff.
+ *
+ * The intent space is an independent process — not managed by the supervisor.
+ * If the socket is missing on startup, a warning is logged but agents start anyway.
  */
 
 import { spawn, execFileSync, ChildProcess } from 'child_process';
 import { writeFileSync, unlinkSync, readFileSync, existsSync, rmSync, cpSync } from 'fs';
 import { join } from 'path';
-import { PromiseLog, DEFAULT_DB_DIR } from './promise-log.ts';
+import { PromiseLog, DEFAULT_DB_DIR, INTENT_SOCKET_PATH } from './promise-log.ts';
 
 const PID_PATH = join(DEFAULT_DB_DIR, 'supervisor.pid');
 const MAX_CONSECUTIVE_CRASHES = 5;
@@ -305,7 +308,7 @@ function cleanup(): void {
 
 // ============ Supervisor Entry ============
 
-export function runSupervisor(sourceDir: string): void {
+export async function runSupervisor(sourceDir: string): Promise<void> {
   agentDir = sourceDir;
 
   acquirePid();
@@ -319,6 +322,13 @@ export function runSupervisor(sourceDir: string): void {
   if (!build(sourceDir)) {
     console.error('Initial build failed. Exiting.');
     return;
+  }
+
+  // Warn if intent space socket is missing
+  if (!existsSync(INTENT_SOCKET_PATH)) {
+    console.log('Warning: intent space socket not found. Agents will start in degraded mode.');
+    console.log(`  Expected: ${INTENT_SOCKET_PATH}`);
+    console.log('  Start it with: cd intent-space && npm start');
   }
 
   // Initial registry sync

@@ -143,7 +143,7 @@ export class IntentSpace {
         parentId: intent.parentId,
         senderId: intent.senderId,
         timestamp: intent.timestamp,
-        payload: { content: intent.content },
+        payload: intent.payload,
         seq: intent.seq,
       };
       this.send(client, msg);

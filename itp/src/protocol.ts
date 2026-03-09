@@ -50,10 +50,17 @@ export function nextState(from: PromiseState, msg: ITPMessage): PromiseState | n
 // ============ Factory Functions ============
 
 /** Create an INTENT — a permanent declaration of desired outcome */
-export function createIntent(senderId: string, content: string, criteria?: string, targetRepo?: string): ITPMessage {
+export function createIntent(
+  senderId: string,
+  content: string,
+  criteria?: string,
+  targetRepo?: string,
+  parentId?: string,
+): ITPMessage {
   return {
     type: 'INTENT',
     intentId: randomUUID(),
+    parentId: parentId ?? 'root',
     timestamp: Date.now(),
     senderId,
     payload: { content, criteria, targetRepo },

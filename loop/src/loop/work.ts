@@ -8,7 +8,7 @@
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { execFileSync } from 'child_process';
-import type { ProjectContext } from '../itp/types.ts';
+import type { ProjectContext } from '@differ/itp/src/types.ts';
 
 export interface WorkResult {
   summary: string;
