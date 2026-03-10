@@ -22,7 +22,8 @@ import type { ITPMessage, PromiseState } from '@differ/itp/src/types.ts';
 export const DEFAULT_DB_DIR = process.env.DIFFER_DB_DIR ?? join(homedir(), '.differ', 'loop');
 export const DEFAULT_DB_PATH = join(DEFAULT_DB_DIR, 'promise-log.db');
 export const HMAC_KEY_PATH = join(DEFAULT_DB_DIR, '.hmac-key');
-export const INTENT_SOCKET_PATH = join(DEFAULT_DB_DIR, 'intent-space.sock');
+export const INTENT_SOCKET_PATH = process.env.DIFFER_INTENT_SOCKET
+  ?? join(homedir(), '.differ', 'intent-space', 'intent-space.sock');
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS intents (

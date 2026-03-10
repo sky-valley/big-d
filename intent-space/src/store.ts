@@ -12,7 +12,7 @@ import { homedir } from 'os';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
 import type { StoredIntent } from './types.ts';
 
-export const DEFAULT_DB_DIR = process.env.DIFFER_DB_DIR ?? join(homedir(), '.differ', 'loop');
+export const DEFAULT_DB_DIR = process.env.DIFFER_INTENT_SPACE_DIR ?? join(homedir(), '.differ', 'intent-space');
 export const DEFAULT_DB_PATH = join(DEFAULT_DB_DIR, 'intent-space.db');
 
 const SCHEMA = `

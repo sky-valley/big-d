@@ -36,13 +36,13 @@ npm install
 npm start
 ```
 
-Listens on `~/.differ/loop/intent-space.sock` by default.
+Listens on `~/.differ/intent-space/intent-space.sock` by default.
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DIFFER_DB_DIR` | `~/.differ/loop/` | Data directory for SQLite DB and socket |
+| `DIFFER_INTENT_SPACE_DIR` | `~/.differ/intent-space/` | Data directory for SQLite DB and socket |
 | `INTENT_SPACE_PORT` | *(not set)* | Set to enable TCP listener (e.g. `4000`) |
 | `INTENT_SPACE_HOST` | `0.0.0.0` | TCP bind address |
 | `DIFFER_INTENT_SPACE_ID` | `intent-space` | Agent identity for service intents |

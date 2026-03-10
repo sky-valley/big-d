@@ -51,7 +51,7 @@ export class IntentSpace {
   constructor(opts: IntentSpaceOptions = {}) {
     this._agentId = opts.agentId ?? process.env.DIFFER_INTENT_SPACE_ID ?? 'intent-space';
     this._socketPath = opts.socketPath ?? join(
-      process.env.DIFFER_DB_DIR ?? DEFAULT_DB_DIR,
+      process.env.DIFFER_INTENT_SPACE_DIR ?? DEFAULT_DB_DIR,
       'intent-space.sock',
     );
     this._tcpPort = opts.tcpPort ?? (process.env.INTENT_SPACE_PORT ? parseInt(process.env.INTENT_SPACE_PORT, 10) : undefined);
