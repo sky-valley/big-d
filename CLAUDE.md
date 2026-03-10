@@ -10,6 +10,20 @@ Monorepo for Differ — a self-modifying agent system coordinated through Promis
 | `intent-space/` | Standalone intent space server. See [`intent-space/CLAUDE.md`](intent-space/CLAUDE.md). |
 | `loop/` | Self-modifying agent loop. Supervisor, agent, CLI. See [`loop/CLAUDE.md`](loop/CLAUDE.md). |
 
+## Current Docs
+
+Use dated docs and subproject docs as the current source of truth.
+
+- `loop/docs/solutions/architecture/self-modifying-agent-loop-promise-theory.md`
+- `loop/docs/plans/2026-03-03-feat-bun-build-step-supervisor-plan.md`
+- `docs/plans/2026-03-10-feat-generalize-intent-space-for-promise-events-plan.md`
+- `intent-space/INTENT-SPACE.md`
+- `intent-space/README.md`
+
+Early root-level `loop/` drafts were explicitly archived to:
+
+- `loop/docs/archive/root-docs/`
+
 ## Conventions
 
 - Each subproject has its own `package.json`, `CLAUDE.md`, and `node_modules/`

@@ -2,7 +2,7 @@
  * Intent Space wire protocol.
  *
  * Two message families:
- *   1. ITP INTENT messages — semantic content, persisted, echoed to all
+ *   1. Stored ITP messages — persisted, echoed to all
  *   2. SCAN queries — private reads, client-to-space, not persisted
  */
 
@@ -10,14 +10,19 @@ import type { ITPMessage } from '@differ/itp/src/types.ts';
 
 // ============ Stored Record ============
 
-export interface StoredIntent {
-  intentId: string;
+export interface StoredMessage {
+  type: string;
+  intentId?: string;
+  promiseId?: string;
   parentId: string;
   senderId: string;
   payload: Record<string, unknown>;
   seq: number;
   timestamp: number;
 }
+
+// Backward-compat alias for existing loop imports.
+export type StoredIntent = StoredMessage;
 
 // ============ Client → Server ============
 
@@ -34,7 +39,7 @@ export type ClientMessage = ITPMessage | ScanRequest;
 export interface ScanResult {
   type: 'SCAN_RESULT';
   spaceId: string;
-  intents: StoredIntent[];
+  messages: StoredMessage[];
   latestSeq: number;
 }
 
@@ -43,7 +48,10 @@ export interface SpaceError {
   message: string;
 }
 
-/** ITP INTENT with seq attached (echoed after persist) */
-export type IntentEcho = ITPMessage & { seq: number };
+/** ITP message with seq attached (echoed after persist) */
+export type MessageEcho = ITPMessage & { seq: number };
 
-export type ServerMessage = IntentEcho | ScanResult | SpaceError;
+// Backward-compat alias for existing listeners/tests.
+export type IntentEcho = MessageEcho;
+
+export type ServerMessage = MessageEcho | ScanResult | SpaceError;

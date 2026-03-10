@@ -31,7 +31,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join, basename } from 'path';
 import { PromiseLog, INTENT_SOCKET_PATH } from './promise-log.ts';
 import { createPromise, createComplete, createRevise, createDecline, createRelease } from '@differ/itp/src/protocol.ts';
-import type { ProjectContext } from '@differ/itp/src/types.ts';
+import type { ITPMessage, ProjectContext } from '@differ/itp/src/types.ts';
 import { IntentSpaceClient } from '@differ/intent-space/src/client.ts';
 import type { StoredIntent } from '@differ/intent-space/src/types.ts';
 import { doWork } from './work.ts';
@@ -44,6 +44,7 @@ const agentId = process.env.DIFFER_AGENT_ID ?? 'agent';
 const targetDir = process.env.DIFFER_TARGET_DIR ?? process.cwd();
 const mode: 'self' | 'external' = (process.env.DIFFER_MODE as 'self' | 'external') ?? 'self';
 const projectSpaceId = basename(targetDir);
+let projectionClient: IntentSpaceClient | null = null;
 
 const RECONNECT_DELAYS = [5_000, 10_000, 30_000, 60_000]; // Backoff schedule
 
@@ -53,6 +54,15 @@ function sleep(ms: number): Promise<void> {
 
 function log(msg: string): void {
   console.log(`[agent] ${msg}`);
+}
+
+function projectToIntentSpace(client: IntentSpaceClient | null, msg: ITPMessage, intentId: string): void {
+  if (!client) return;
+  try {
+    client.post({ ...msg, parentId: intentId });
+  } catch (err) {
+    log(`Intent space projection failed (non-fatal): ${err}`);
+  }
 }
 
 // ---- Project Context ----
@@ -324,6 +334,7 @@ async function viabilityCheck(
 
 /** Check if an intent should be processed by this agent */
 function shouldProcess(intent: StoredIntent, promiseLog: PromiseLog): boolean {
+  if (intent.type !== 'INTENT' || !intent.intentId) return false;
   // Exclude service intents (deterministic IDs like 'intent-space:persist')
   if (intent.intentId.includes(':')) return false;
   // Exclude agent-generated intents (prevent self-directed loops)
@@ -411,6 +422,7 @@ async function main(): Promise<void> {
       intentClient.on('intent', (echo) => {
         // Echo is an IntentEcho — ITPMessage & { seq: number }
         const stored: StoredIntent = {
+          type: echo.type,
           intentId: echo.intentId!,
           parentId: echo.parentId ?? 'root',
           senderId: echo.senderId,
@@ -419,19 +431,21 @@ async function main(): Promise<void> {
           timestamp: echo.timestamp,
         };
         if (shouldProcess(stored, promiseLog)) {
-          log(`Echo: ${stored.intentId.slice(0, 8)} "${stored.payload.content ?? ''}"`);
+          log(`Echo: ${stored.intentId!.slice(0, 8)} "${stored.payload.content ?? ''}"`);
           intentQueue.push(stored);
         }
       });
 
       intentClient.on('disconnect', () => {
         connected = false;
+        projectionClient = null;
         log('Intent space disconnected. Working from cached intents.');
         attemptReconnect();
       });
 
       await intentClient.connect();
       connected = true;
+      projectionClient = intentClient;
       log('Connected to intent space.');
 
       // Scan project sub-space + root from persisted cursors
@@ -495,15 +509,16 @@ async function main(): Promise<void> {
 
     // Re-check filters (state may have changed since queued)
     if (!shouldProcess(intent, promiseLog)) continue;
+    const intentId = intent.intentId!;
 
     const intentContent = (intent.payload.content as string) ?? '';
-    const iid = intent.intentId.slice(0, 8);
+    const iid = intentId.slice(0, 8);
 
     log(`Found intent: ${iid} "${intentContent}"`);
 
     // Mirror intent into PromiseLog before any action (satisfies FK constraint)
     promiseLog.ensureIntent({
-      intentId: intent.intentId,
+      intentId,
       senderId: intent.senderId,
       content: intentContent,
       criteria: intent.payload.criteria as string | undefined,
@@ -514,8 +529,9 @@ async function main(): Promise<void> {
     const scopeFailReason = scopeCheck(intentContent, ctx);
     if (scopeFailReason) {
       log(`[deliberate] Scope check FAILED for ${iid}: ${scopeFailReason}`);
-      const declineMsg = createDecline(agentId, intent.intentId, scopeFailReason);
+      const declineMsg = createDecline(agentId, intentId, scopeFailReason);
       promiseLog.post(declineMsg);
+      projectToIntentSpace(projectionClient, declineMsg, intentId);
       log(`DECLINED ${iid}: ${scopeFailReason}`);
       continue;
     }
@@ -539,8 +555,9 @@ async function main(): Promise<void> {
 
     if (!viable) {
       log(`[deliberate] Viability check FAILED for ${iid}: ${reason}`);
-      const declineMsg = createDecline(agentId, intent.intentId, reason);
+      const declineMsg = createDecline(agentId, intentId, reason);
       promiseLog.post(declineMsg);
+      projectToIntentSpace(projectionClient, declineMsg, intentId);
       log(`DECLINED ${iid}: ${reason}`);
       continue;
     }
@@ -549,12 +566,13 @@ async function main(): Promise<void> {
 
     // ---- PROMISE ----
     const plan = `I will implement: ${intentContent}`;
-    const msg = createPromise(agentId, intent.intentId, plan);
+    const msg = createPromise(agentId, intentId, plan);
     promiseLog.post(msg);
+    projectToIntentSpace(projectionClient, msg, intentId);
     log(`PROMISED on ${iid}: ${plan}`);
 
     lastSeq = promiseLog.getLatestSeq();
-    await waitAccept(promiseLog, msg.promiseId!, intent.intentId, intentContent, targetDir, ctx, lastSeq);
+    await waitAccept(promiseLog, msg.promiseId!, intentId, intentContent, targetDir, ctx, lastSeq);
 
     if (mode === 'self') return;
     // external mode: continue processing queue
@@ -595,6 +613,7 @@ async function waitAccept(
         if (otherPromise && otherPromise.intentId === intentId) {
           const releaseMsg = createRelease(agentId, promiseId, 'Another agent was accepted');
           promiseLog.post(releaseMsg);
+          projectToIntentSpace(projectionClient, releaseMsg, intentId);
           log('Another agent accepted for this intent. Self-releasing.');
           return;
         }
@@ -628,6 +647,7 @@ async function workPhase(
 
   const completeMsg = createComplete(agentId, promiseId, result.summary, result.filesChanged);
   promiseLog.post(completeMsg);
+  projectToIntentSpace(projectionClient, completeMsg, intentId);
   log(`COMPLETED ${promiseId.slice(0, 8)}: ${result.summary.slice(0, 100)}`);
 
   const lastSeq = promiseLog.getLatestSeq();
@@ -716,6 +736,7 @@ async function revise(
   const revisedPlan = `Revising based on feedback: ${feedback}. Will re-implement: ${intentContent}`;
   const msg = createRevise(agentId, promiseId, intentId, revisedPlan);
   promiseLog.post(msg);
+  projectToIntentSpace(projectionClient, msg, intentId);
   log(`REVISED: new promise ${msg.promiseId!.slice(0, 8)}`);
 
   const lastSeq = promiseLog.getLatestSeq();

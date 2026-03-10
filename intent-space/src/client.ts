@@ -10,7 +10,7 @@
 
 import { connect as netConnect, type Socket } from 'net';
 import { EventEmitter } from 'events';
-import type { ServerMessage, StoredIntent, IntentEcho } from './types.ts';
+import type { ServerMessage, StoredMessage, MessageEcho } from './types.ts';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
 
 export type ClientTarget =
@@ -57,13 +57,13 @@ export class IntentSpaceClient extends EventEmitter {
     }
   }
 
-  /** Post an ITP INTENT message. */
+  /** Post an ITP message. */
   post(msg: ITPMessage): void {
     this.writeLine(msg);
   }
 
-  /** Scan a space. Returns intents with parentId = spaceId and seq > since. */
-  scan(spaceId: string, since?: number): Promise<StoredIntent[]> {
+  /** Scan a space. Returns stored messages with parentId = spaceId and seq > since. */
+  scan(spaceId: string, since?: number): Promise<StoredMessage[]> {
     return new Promise((resolve, reject) => {
       const handler = (msg: ServerMessage) => {
         if (msg.type === 'SCAN_RESULT' && msg.spaceId === spaceId) {
@@ -71,7 +71,7 @@ export class IntentSpaceClient extends EventEmitter {
           if (msg.latestSeq > this._latestSeq) {
             this._latestSeq = msg.latestSeq;
           }
-          resolve(msg.intents);
+          resolve(msg.messages);
         } else if (msg.type === 'ERROR') {
           cleanup();
           reject(new Error(msg.message));
@@ -115,14 +115,21 @@ export class IntentSpaceClient extends EventEmitter {
     // Emit raw message for scan promise resolution
     this.emit('_message', msg);
 
-    if (msg.type === 'INTENT') {
-      const echo = msg as IntentEcho;
-      if (echo.seq > this._latestSeq) {
-        this._latestSeq = echo.seq;
-      }
-      this.emit('intent', echo);
-    } else if (msg.type === 'ERROR') {
+    if (msg.type === 'ERROR') {
       this.emit('error', new Error(msg.message));
+      return;
+    }
+    if (msg.type === 'SCAN_RESULT') {
+      return;
+    }
+
+    const echo = msg as MessageEcho;
+    if (echo.seq > this._latestSeq) {
+      this._latestSeq = echo.seq;
+    }
+    this.emit('message', echo);
+    if (msg.type === 'INTENT') {
+      this.emit('intent', echo);
     }
   }
 

@@ -211,6 +211,17 @@ If assessment fails, the agent receives feedback, posts a REVISE with a new prom
 
 ---
 
+## Current Docs
+
+- [`docs/solutions/architecture/self-modifying-agent-loop-promise-theory.md`](/Users/noam/work/skyvalley/big-d/loop/docs/solutions/architecture/self-modifying-agent-loop-promise-theory.md)
+- [`docs/plans/2026-03-03-feat-bun-build-step-supervisor-plan.md`](/Users/noam/work/skyvalley/big-d/loop/docs/plans/2026-03-03-feat-bun-build-step-supervisor-plan.md)
+- [`../intent-space/INTENT-SPACE.md`](/Users/noam/work/skyvalley/big-d/intent-space/INTENT-SPACE.md)
+- [`../intent-space/README.md`](/Users/noam/work/skyvalley/big-d/intent-space/README.md)
+
+Archived root-level drafts from the early design phase live under [`docs/archive/root-docs/`](/Users/noam/work/skyvalley/big-d/loop/docs/archive/root-docs).
+
+---
+
 ## Learn More
 
 [memetic.software](https://memetic.software)

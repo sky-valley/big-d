@@ -10,7 +10,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { IntentSpace } from '../src/space.ts';
 import { IntentSpaceClient } from '../src/client.ts';
-import { createIntent } from '@differ/itp/src/protocol.ts';
+import { createIntent, createPromise } from '@differ/itp/src/protocol.ts';
 
 const testDir = mkdtempSync(join(tmpdir(), 'intent-space-test-'));
 const socketPath = join(testDir, 'test.sock');
@@ -112,8 +112,8 @@ test('Scan root space — containment');
   await client.connect();
   await new Promise((r) => setTimeout(r, 50));
 
-  const intents = await client.scan('root');
-  const ids = intents.map((i) => i.intentId);
+  const messages = await client.scan('root');
+  const ids = messages.map((i) => i.intentId);
   assert(
     ids.includes('test-1') && !ids.includes('test-2'),
     `Root should have test-1 but not test-2, got: ${ids.join(', ')}`,
@@ -128,8 +128,8 @@ test('Scan sub-space');
   await client.connect();
   await new Promise((r) => setTimeout(r, 50));
 
-  const intents = await client.scan('test-1');
-  const ids = intents.map((i) => i.intentId);
+  const messages = await client.scan('test-1');
+  const ids = messages.map((i) => i.intentId ?? i.promiseId);
   assert(ids.includes('test-2'), `Sub-space should have test-2, got: ${ids.join(', ')}`);
   client.disconnect();
 }
@@ -141,8 +141,8 @@ test('Scan with since cursor (past end)');
   await client.connect();
   await new Promise((r) => setTimeout(r, 50));
 
-  const intents = await client.scan('root', 9999);
-  assert(intents.length === 0, `Expected empty, got ${intents.length}`);
+  const messages = await client.scan('root', 9999);
+  assert(messages.length === 0, `Expected empty, got ${messages.length}`);
   client.disconnect();
 }
 
@@ -190,23 +190,24 @@ test('Second client sees echoed intent');
   client2.disconnect();
 }
 
-// --- Test 9: reject PROMISE ---
-test('Reject PROMISE message');
+// --- Test 9: projected PROMISE is accepted ---
+test('Projected PROMISE is accepted');
 {
-  const errors: string[] = [];
+  const received: any[] = [];
   const client = new IntentSpaceClient(socketPath);
-  client.on('error', (err: Error) => errors.push(err.message));
+  client.on('message', (msg: unknown) => received.push(msg));
   await client.connect();
   await new Promise((r) => setTimeout(r, 50));
 
-  // Send raw PROMISE message
-  (client as any).writeLine({
-    type: 'PROMISE', promiseId: 'p-1', intentId: 'test-1',
-    senderId: 'agent-1', timestamp: Date.now(), payload: {},
-  });
+  received.length = 0;
+  const msg = createPromise('agent-1', 'test-1', 'I will build auth');
+  msg.promiseId = 'p-1';
+  msg.parentId = 'test-1';
+  client.post(msg);
   await new Promise((r) => setTimeout(r, 100));
 
-  assert(errors.some((e) => e.includes('INTENT and SCAN')), `Expected rejection, got: ${errors.join(', ')}`);
+  const echo = received.find((m) => m.type === 'PROMISE' && m.promiseId === 'p-1');
+  assert(echo && echo.parentId === 'test-1' && typeof echo.seq === 'number', 'Expected projected PROMISE echo with seq');
   client.disconnect();
 }
 
@@ -332,6 +333,18 @@ test('TCP and Unix clients see each other');
   assert(
     unixReceived.some((m) => m.intentId === 'cross-test-2'),
     'Unix client should see intent posted from TCP client',
+  );
+
+  const projected = createPromise('agent-2', 'cross-test-1', 'I will do local work');
+  projected.promiseId = 'cross-test-3';
+  projected.parentId = 'cross-test-1';
+  tcpClient.post(projected);
+  await new Promise((r) => setTimeout(r, 100));
+
+  const subspace = await unixClient.scan('cross-test-1');
+  assert(
+    subspace.some((m) => m.type === 'PROMISE' && m.promiseId === 'cross-test-3'),
+    'Sub-space scan should contain projected promise event',
   );
 
   tcpClient.disconnect();

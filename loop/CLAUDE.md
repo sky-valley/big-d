@@ -90,9 +90,15 @@ Multiple agents can PROMISE on the same intent. Human picks one to ACCEPT; other
 | 2 | Clean shutdown | Stop this agent |
 | Other | Crash | Self-mode: reset working copy, restart with backoff. External-mode: restart with backoff. |
 
-## Plan
+## Current Docs
 
-See `PLAN.md` for the full implementation plan with schema, pseudocode, edge cases, and acceptance criteria.
+- `docs/solutions/architecture/self-modifying-agent-loop-promise-theory.md`
+- `docs/plans/2026-03-03-feat-bun-build-step-supervisor-plan.md`
+- `../intent-space/INTENT-SPACE.md`
+- `../intent-space/README.md`
+- `../docs/plans/2026-03-10-feat-generalize-intent-space-for-promise-events-plan.md`
+
+Early root-level drafts were archived to `docs/archive/root-docs/`. Do not use the archived root drafts as the current architecture source of truth.
 
 ## What NOT to Do
 

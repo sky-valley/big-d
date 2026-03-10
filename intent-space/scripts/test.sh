@@ -113,7 +113,7 @@ step "Scan with since cursor"
 # Get the seq of test-1 first — scan root with since=0, then scan again with that seq
 SCAN_CURSOR='{"type":"SCAN","spaceId":"root","since":100}'
 RESULT=$(echo "$SCAN_CURSOR" | socat -t1 - UNIX-CONNECT:"$SOCKET" 2>/dev/null || true)
-if echo "$RESULT" | grep -q '"intents":\[\]'; then
+if echo "$RESULT" | grep -q '"messages":\[\]'; then
   pass
 else
   fail "Scan past latest seq should return empty"
@@ -133,15 +133,15 @@ else
   echo "  Got: $RESULT"
 fi
 
-# ============ Test: reject non-INTENT/SCAN ============
+# ============ Test: projected PROMISE ============
 
-step "Reject PROMISE message"
-PROMISE='{"type":"PROMISE","promiseId":"p-1","intentId":"test-1","senderId":"agent-1","timestamp":3000,"payload":{}}'
+step "Projected PROMISE is accepted"
+PROMISE='{"type":"PROMISE","promiseId":"p-1","intentId":"test-1","parentId":"test-1","senderId":"agent-1","timestamp":3000,"payload":{"content":"I will build auth"}}'
 RESULT=$(echo "$PROMISE" | socat -t1 - UNIX-CONNECT:"$SOCKET" 2>/dev/null || true)
-if echo "$RESULT" | grep -q '"type":"ERROR"'; then
+if echo "$RESULT" | grep -q '"type":"PROMISE"' && echo "$RESULT" | grep -q '"promiseId":"p-1"' && echo "$RESULT" | grep -q '"seq"'; then
   pass
 else
-  fail "Should reject PROMISE with ERROR"
+  fail "Projected PROMISE should be accepted"
   echo "  Got: $RESULT"
 fi
 

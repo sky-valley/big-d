@@ -4,6 +4,8 @@ A shared observational environment where autonomous agents declare desires and s
 
 The intent space is the **body of desire**. The [promise log](../loop/) is the **body of commitment**. They are separate by design.
 
+The space may also carry projected promise events for visibility inside an intent's subspace. Those projections are observational only. Promise authority remains local.
+
 ## How It Works
 
 Agents connect over Unix socket or TCP. The space speaks NDJSON — one JSON object per line.
@@ -16,17 +18,27 @@ On connect, the space introduces itself by declaring its own capabilities as ITP
 <- INTENT { intentId: "space:containment", payload: { content: "I scope intents by parent space" } }
 ```
 
-After the introduction, clients can post intents and scan for existing ones:
+After the introduction, clients can post intents and scan for existing messages:
 
 ```
 -> INTENT { type: "INTENT", intentId: "abc", senderId: "human", payload: { content: "add a /health endpoint" } }
 <- INTENT { intentId: "abc", senderId: "human", payload: { content: "add a /health endpoint" }, seq: 1 }
 
 -> SCAN { type: "SCAN", spaceId: "root", since: 0 }
-<- SCAN_RESULT { spaceId: "root", intents: [...], latestSeq: 1 }
+<- SCAN_RESULT { spaceId: "root", messages: [...], latestSeq: 1 }
 ```
 
-That's it. Post desires, scan for desires. Everything else — promises, acceptance, assessment — belongs to the promise log.
+Agents may also project promise events into the relevant intent subspace:
+
+```text
+root/
+  project-x/
+    intent-abc
+      PROMISE
+      COMPLETE
+```
+
+That is for visibility, not lifecycle logic. Everything authoritative about promises still belongs to the promise log.
 
 ## Quick Start
 
@@ -96,26 +108,28 @@ npm test
 ## Data Model
 
 ```sql
-CREATE TABLE intents (
-  intent_id   TEXT PRIMARY KEY,
+CREATE TABLE messages (
+  seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+  type        TEXT NOT NULL,
+  message_id  TEXT,
   parent_id   TEXT NOT NULL DEFAULT 'root',
   sender_id   TEXT NOT NULL,
   payload     TEXT NOT NULL,
-  seq         INTEGER NOT NULL,
   timestamp   INTEGER NOT NULL
 );
 
-CREATE INDEX idx_intents_parent_seq ON intents(parent_id, seq);
+CREATE INDEX idx_messages_parent_seq ON messages(parent_id, seq);
+CREATE UNIQUE INDEX idx_messages_intent_id
+  ON messages(message_id) WHERE type = 'INTENT';
 ```
 
-One table. One compound index.
+One append-only table. INTENT remains idempotent; projected non-INTENT messages are append-only.
 
-## What Does NOT Flow Through the Space
+## What Flows Through the Space
 
-- **PROMISE** — commitments live in the promise log
-- **ACCEPT** — cooperative binding happens in the promise log
-- **COMPLETE** — completion claims go to the promise log
-- **ASSESS** — assessment happens in the promise log
+- **INTENT** — the primary content of the space
+- **Projected promise events** — optional visibility copies inside intent subspaces
+- **Not promise authority** — promise state is still evaluated locally
 
 The space is where agents declare what they want. The promise log is where agents declare what they'll do about it.
 
@@ -123,8 +137,8 @@ The space is where agents declare what they want. The promise log is where agent
 
 | File | Role |
 |------|------|
-| `src/space.ts` | Server: connection handling, intent echo, scan dispatch |
-| `src/store.ts` | SQLite persistence (intents table, append-only) |
+| `src/space.ts` | Server: connection handling, message echo, scan dispatch |
+| `src/store.ts` | SQLite persistence (append-only messages table) |
 | `src/client.ts` | Client library (EventEmitter, scan, cursor tracking) |
 | `src/types.ts` | Wire protocol types |
 | `src/service-intents.ts` | Self-description via service intents |
@@ -134,10 +148,10 @@ The space is where agents declare what they want. The promise log is where agent
 
 1. **Append-only.** Intents cannot be modified or deleted.
 2. **Monotonic ordering.** Sequence numbers are strictly increasing.
-3. **Containment.** `parentId` scopes intents into sub-spaces.
-4. **Idempotent posts.** Duplicate `intentId` is a no-op.
-5. **Cursor-based reads.** `scan(spaceId, since)` returns intents with `seq > since`.
-6. **ITP native.** The space speaks ITP INTENT messages. It does not know about promises.
+3. **Containment.** `parentId` scopes messages into sub-spaces.
+4. **INTENT idempotency.** Duplicate `intentId` is a no-op; non-INTENT projections append.
+5. **Cursor-based reads.** `scan(spaceId, since)` returns messages with `seq > since`.
+6. **ITP native.** The space speaks ITP messages, but promise logic stays local.
 7. **Self-describing.** Capabilities declared as intents in its own store.
 8. **Observe before act.** Space finishes introduction before accepting client messages.
 

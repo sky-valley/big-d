@@ -2,8 +2,8 @@
  * IntentSpace — NDJSON server over Unix socket and/or TCP.
  *
  * Two message families:
- *   - ITP INTENT: persisted, echoed to all connected clients
- *   - SCAN: private read, returns intents scoped by parentId
+ *   - Stored ITP messages: persisted, echoed to all connected clients
+ *   - SCAN: private read, returns messages scoped by parentId
  *
  * The space is an ITP participant. It introduces itself on connect
  * by sending its service intents as ITP INTENT messages.
@@ -19,7 +19,7 @@ import { existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { IntentStore, DEFAULT_DB_DIR } from './store.ts';
 import { buildServiceIntents } from './service-intents.ts';
-import type { ClientMessage, ServerMessage, ScanRequest, IntentEcho, SpaceError } from './types.ts';
+import type { ClientMessage, ServerMessage, ScanRequest, MessageEcho } from './types.ts';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
 
 const MAX_LINE_LENGTH = 1024 * 1024; // 1MB
@@ -133,13 +133,13 @@ export class IntentSpace {
 
   private sendServiceIntents(client: ClientConnection): void {
     const serviceIntents = this.store.scan('root', 0).filter(
-      (i) => i.senderId === this._agentId,
+      (i) => i.type === 'INTENT' && i.senderId === this._agentId,
     );
     for (const intent of serviceIntents) {
       // Send as ITP INTENT with seq — same format as echoed intents
-      const msg: IntentEcho = {
+      const msg: MessageEcho = {
         type: 'INTENT',
-        intentId: intent.intentId,
+        intentId: intent.intentId!,
         parentId: intent.parentId,
         senderId: intent.senderId,
         timestamp: intent.timestamp,
@@ -186,22 +186,19 @@ export class IntentSpace {
       return;
     }
 
-    if (msg.type === 'INTENT') {
-      this.handleIntent(client, msg as ITPMessage);
-    } else if (msg.type === 'SCAN') {
+    if (msg.type === 'SCAN') {
       this.handleScan(client, msg as ScanRequest);
-    } else {
-      this.send(client, {
-        type: 'ERROR',
-        message: `Intent space accepts INTENT and SCAN, got: ${msg.type}`,
-      });
+      return;
     }
+    this.handlePost(client, msg as ITPMessage);
   }
 
-  private handleIntent(client: ClientConnection, msg: ITPMessage): void {
+  private handlePost(client: ClientConnection, msg: ITPMessage): void {
     if (!msg.intentId) {
-      this.send(client, { type: 'ERROR', message: 'INTENT must have an intentId' });
-      return;
+      if (msg.type === 'INTENT') {
+        this.send(client, { type: 'ERROR', message: 'INTENT must have an intentId' });
+        return;
+      }
     }
 
     let seq: number;
@@ -216,16 +213,16 @@ export class IntentSpace {
     }
 
     // Echo to ALL connected clients (including sender) with seq
-    const echo: IntentEcho = { ...msg, seq };
+    const echo: MessageEcho = { ...msg, seq };
     this.broadcast(echo);
   }
 
   private handleScan(client: ClientConnection, msg: ScanRequest): void {
-    const intents = this.store.scan(msg.spaceId, msg.since ?? 0);
+    const messages = this.store.scan(msg.spaceId, msg.since ?? 0);
     this.send(client, {
       type: 'SCAN_RESULT',
       spaceId: msg.spaceId,
-      intents,
+      messages,
       latestSeq: this.store.latestSeq,
     });
   }
