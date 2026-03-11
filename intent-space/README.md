@@ -71,7 +71,7 @@ Now accepts connections on both the Unix socket and TCP port 4000.
 
 ```bash
 # Connect to the Unix socket
-socat - UNIX-CONNECT:~/.differ/loop/intent-space.sock
+socat - UNIX-CONNECT:~/.differ/intent-space/intent-space.sock
 
 # Connect over TCP
 socat - TCP:localhost:4000
@@ -89,7 +89,7 @@ You'll see the service intent introduction immediately. Then you can type NDJSON
 npm test
 ```
 
-17 assertions across 13 tests. No LLM calls, no external dependencies.
+No LLM calls, no external dependencies.
 
 ## Key Properties
 

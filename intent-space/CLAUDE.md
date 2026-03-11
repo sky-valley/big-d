@@ -21,7 +21,7 @@ The intent space is an autonomous agent. On startup it declares its own capabili
 
 ```bash
 npm install
-npm start                 # Listen on ~/.differ/loop/intent-space.sock
+npm start                 # Listen on ~/.differ/intent-space/intent-space.sock
 npm test                  # Run tests (no LLM calls)
 ```
 
