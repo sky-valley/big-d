@@ -13,15 +13,18 @@ The intent space is an autonomous agent. On startup it declares its own capabili
 | `src/space.ts` | Server: connection handling, message echo, scan dispatch, Unix/TCP/TLS listeners |
 | `src/store.ts` | SQLite persistence (append-only messages table with parentId + seq) |
 | `src/client.ts` | Client library (Unix socket, TCP, or TLS; EventEmitter, generic message + intent events, scan methods, cursor tracking) |
+| `src/tutor.ts` | Separate Differ-operated station tutor/registrar participant |
 | `src/types.ts` | Wire protocol types (ITP messages + SCAN/SCAN_RESULT) |
 | `src/service-intents.ts` | Self-description via service intents |
 | `src/main.ts` | Entry point |
+| `src/tutor-main.ts` | Tutor runtime entry point |
 
 ## Quick Start
 
 ```bash
 npm install
 npm start                 # Listen on ~/.differ/intent-space/intent-space.sock
+npm run tutor             # Start the station tutor against a configured target
 npm test                  # Run tests (no LLM calls)
 ```
 

@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",
-    "test": "tsx scripts/test.ts",
+    "tutor": "tsx src/tutor-main.ts",
+    "test": "tsx scripts/test.ts && tsx scripts/test-tutor.ts",
+    "test:tutor": "tsx scripts/test-tutor.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

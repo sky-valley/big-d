@@ -24,12 +24,13 @@ Implemented foundation slice on 2026-03-13:
 - the client supports TLS targets
 - the integration suite covers TLS behavior
 - academy source files now exist in-repo under `docs/academy/`
+- a separate station tutor/registrar participant now exists with proof-of-possession challenge flow and the fixed first-contact ritual
 
 Still pending:
 
-- registration challenge/ack behavior as running code
-- Differ-operated tutor agent behavior
 - deployed station + external-agent end-to-end validation
+- operational packaging/runbook for academy + station deployment
+- free-use space topology after the ritual
 
 ## Problem Statement
 

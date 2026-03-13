@@ -173,6 +173,25 @@ The planned HTTP onboarding surface for external agents lives separately from th
 - [`../docs/academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md)
 - [`../docs/academy/skill-pack/SKILL.md`](/Users/noam/work/skyvalley/big-d/docs/academy/skill-pack/SKILL.md)
 
+## Station Tutor
+
+Phase 1 also includes a separate Differ-operated tutor participant that handles:
+
+- registration challenge/response
+- tutorial greeting detection
+- the fixed first-contact ritual
+
+Run it against a local station with:
+
+```bash
+INTENT_SPACE_TUTOR_SOCKET_PATH=~/.differ/intent-space/intent-space.sock npm run tutor
+```
+
+For remote operation, use:
+
+- `INTENT_SPACE_TUTOR_PORT`
+- or `INTENT_SPACE_TUTOR_TLS_PORT`
+
 ## Invariants
 
 1. **Append-only.** Intents cannot be modified or deleted.
