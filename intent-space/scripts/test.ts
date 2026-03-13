@@ -15,6 +15,53 @@ import { createIntent, createPromise } from '@differ/itp/src/protocol.ts';
 const testDir = mkdtempSync(join(tmpdir(), 'intent-space-test-'));
 const socketPath = join(testDir, 'test.sock');
 const dbPath = join(testDir, 'test.db');
+const tlsKeyPem = `-----BEGIN PRIVATE KEY-----
+MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCd1+WcGuhbc8kk
+IhFf5uGBn13GjxD9EObc0o23IWEaUlMximOC299PYX2H4X3dSBEX+VxaeAKWJtAu
+h8QMFkxJePn9jkjez+e+CWqB6onjbrshTzvZ75RXNtbXGNDRkpRmd3hz0oCv093j
+HzxU9FBOQ2V7Rc54w9a8ngPoRJkicXafbIxZ7qYqKWOvcs0j8HjkriQenrulU3fD
+T5nGMyL8hs6KnReHkJnn6V2Zb7dW1QMjpVKjMzL+lFygTOkRC39MOiZOOopaauuF
+hS3joo5kCBh+aaIM65MZDWhKwS31JrJxPZkUNhk6gi2qGD7fK+bCef1mVI3qZBh5
+77bglqH9AgMBAAECggEADKY0nGH7pPiOcfrY8ZqLD9w5o6PrdJxaI/ArszVVlspq
+KFoyx1Xfe3kQmkcT0xvnYsh1AjsD2gyaOmBe8akHzAuJ3Sv94v0+URhoFKk7C6Lg
+FDdJUJnGhYa7iNlQQrtAcUW5vW5tKaoM6hqitxwtI1h7VXmupjbriooPPhnhO8VD
+vHbWa01v0HNCQ5cjwJLgKVvS44kxDB6zXzfBgPJByOKD0B96vUmZe7meWU8Nydaz
+ZgFQmKd5GbDMdXRvJIYD42Iab5jtlEvL01t9nls+W82scqB9817ackjPo7sA3M11
+i1DW2cX14Oosg9SIOkkKLqISs0t4xM/zbb+t4ZzxcQKBgQDUHKusu2o22kLYLVX3
+w0po/pQHyredEtYcd+upuky4F+KKChSaB9VQKGvJQz6kc47JzPQeOCHwyaibMVkX
+x14A9V5fR/MUspP2mLwMcq6fuxEK2L2leIXNCyaLOqYJ603Tj0yGZq1Ej3fJhqlo
+zoubAf4fuEZJDlCyGCRDCuJ7lwKBgQC+gK2gJgfj0G7k3LTx24x8GP2h6msWg68Z
+frX8fZTJG2ohqxJkT1yXSGfWGFEX6eEq4E8BoRJXysNKlbVlnaefznmd/0qFlXH0
+YZunfitFFGTPoYgVWRYizmBu4GdYsNN98Wxirz/tfAypQZpP+x4H6sfXLdo1P3oj
+nkerJOuRiwKBgQC/1c5OQpIlWfDqotYFZtJ9cwFeqrC1lrues7anop6QQMnaHpPT
+WxJJlMUnGXImOX0CdiKy0gGgTEH5WgBByUXzh/b6JZBrP7ciZ7Brca0NOZqIPM4I
+QaCBeXw6n6hbgDy7Afcr9uDuCPNFiEzfRS5t2reC6J5opFHHQJ5LJCUBsQKBgQCH
+SQCEQ53ExgeKlcYWH9EDbAfqjXvhMEEP/PEmTtRzgPl80W0tOULK2IuM+hXUwq25
+8jOJN6a8G+1WMTzx3eTlUw8BCgQVG40ifJK6fpoh45q37MGkT3Ct5RuMgeZCkMiQ
+nvtWlZfzge3H4SPB+tZXzv5+LDzTJbIKS2QgAQcdgwKBgQDI8CDDYxXN35KwW6mJ
+KF3MSyy340neoSEjewIaT0UETlV24DyiFpptfua3gb0A8ZFdYLGwhAm7A58YN+/1
+am7SCmp4oDw7E5PmLjDzJ3dQvzIkxTNs1FaBdaejzsEalxeVkdFGwzVO8gpVkuq7
+0pbr6cphOC+eI9fY3j19GI5+dw==
+-----END PRIVATE KEY-----`;
+const tlsCertPem = `-----BEGIN CERTIFICATE-----
+MIIDCTCCAfGgAwIBAgIUHK0pKbF9j1yakIgOvtcf65TAvGwwDQYJKoZIhvcNAQEL
+BQAwFDESMBAGA1UEAwwJMTI3LjAuMC4xMB4XDTI2MDMxMzIxMDkyMVoXDTI2MDMx
+NDIxMDkyMVowFDESMBAGA1UEAwwJMTI3LjAuMC4xMIIBIjANBgkqhkiG9w0BAQEF
+AAOCAQ8AMIIBCgKCAQEAndflnBroW3PJJCIRX+bhgZ9dxo8Q/RDm3NKNtyFhGlJT
+MYpjgtvfT2F9h+F93UgRF/lcWngClibQLofEDBZMSXj5/Y5I3s/nvglqgeqJ4267
+IU872e+UVzbW1xjQ0ZKUZnd4c9KAr9Pd4x88VPRQTkNle0XOeMPWvJ4D6ESZInF2
+n2yMWe6mKiljr3LNI/B45K4kHp67pVN3w0+ZxjMi/IbOip0Xh5CZ5+ldmW+3VtUD
+I6VSozMy/pRcoEzpEQt/TDomTjqKWmrrhYUt46KOZAgYfmmiDOuTGQ1oSsEt9Say
+cT2ZFDYZOoItqhg+3yvmwnn9ZlSN6mQYee+24Jah/QIDAQABo1MwUTAdBgNVHQ4E
+FgQUI6iM2AdKbScvYD9j8h/S3rQA7V4wHwYDVR0jBBgwFoAUI6iM2AdKbScvYD9j
+8h/S3rQA7V4wDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAnYze
+bnIKAsH01Zb4jQpprnd+jgwkxKD3X4ogwmqRzb5BEGgqmH2oN5kxVpplDsvBjyJf
+jfduiOui0eSRwwxcztKXxE46/NnTE+MmaJT6BMQhDDw9wbYZaN+fU7bm/C26W5+Y
+TnbXzYLoqnZ2rtRTMiQ15dxUXaBuo8NFoQ130cnkrvTexEEtx8DJvpjYoR1NQ2TY
+fQ6js/xxIvLNAQZD18JTSIx7nToTuWyGthziQLinQy5DamrV3OAW8Bt2z+P5ryrR
+OvfhxQYPlg8cmq9j8lnk8cgXPgt91ykQms7d2zODDeH7q+0QbPp4gU6DM60sQjwx
+HcOtAk9lo9p0dk1wGg==
+-----END CERTIFICATE-----`;
 
 let pass = 0;
 let fail = 0;
@@ -42,7 +89,15 @@ function assert(cond: boolean, msg: string) {
 
 // ============ Setup ============
 
-const space = new IntentSpace({ socketPath, dbPath, agentId: 'intent-space', tcpPort: 0 });
+const space = new IntentSpace({
+  socketPath,
+  dbPath,
+  agentId: 'intent-space',
+  tcpPort: 0,
+  tlsPort: 0,
+  tlsKeyPem,
+  tlsCertPem,
+});
 await space.start();
 console.log(`Server listening on ${socketPath}`);
 
@@ -348,6 +403,87 @@ test('TCP and Unix clients see each other');
   );
 
   tcpClient.disconnect();
+  unixClient.disconnect();
+}
+
+// --- Test 14: TLS transport ---
+test('TLS: connect, post, scan');
+{
+  const client = new IntentSpaceClient({
+    host: '127.0.0.1',
+    port: space.tlsPort!,
+    tls: true,
+    ca: tlsCertPem,
+    rejectUnauthorized: false,
+  });
+  const received: any[] = [];
+  client.on('intent', (msg: unknown) => received.push(msg));
+  await client.connect();
+  await new Promise((r) => setTimeout(r, 100));
+
+  const hasServiceIntents = received.some((m: any) => m.intentId === 'intent-space:persist');
+  assert(hasServiceIntents, 'TLS client should receive service intents');
+
+  received.length = 0;
+  const msg = createIntent('tls-agent', 'secure remote work');
+  msg.intentId = 'tls-test-1';
+  client.post(msg);
+  await new Promise((r) => setTimeout(r, 100));
+
+  const echo = received.find((m) => m.intentId === 'tls-test-1');
+  assert(echo && typeof echo.seq === 'number' && echo.seq > 0, 'TLS post should echo with seq');
+
+  const messages = await client.scan('root');
+  assert(messages.some((i) => i.intentId === 'tls-test-1'), 'TLS scan should find the posted intent');
+  client.disconnect();
+}
+
+// --- Test 15: TLS and Unix clients see each other ---
+test('TLS and Unix clients see each other');
+{
+  const tlsClient = new IntentSpaceClient({
+    host: '127.0.0.1',
+    port: space.tlsPort!,
+    tls: true,
+    ca: tlsCertPem,
+    rejectUnauthorized: false,
+  });
+  const unixClient = new IntentSpaceClient(socketPath);
+  const unixReceived: any[] = [];
+  const tlsReceived: any[] = [];
+
+  await tlsClient.connect();
+  await unixClient.connect();
+  tlsClient.on('intent', (msg: unknown) => tlsReceived.push(msg));
+  unixClient.on('intent', (msg: unknown) => unixReceived.push(msg));
+  await new Promise((r) => setTimeout(r, 50));
+
+  tlsReceived.length = 0;
+  unixReceived.length = 0;
+
+  const msg1 = createIntent('unix-agent', 'unix to tls');
+  msg1.intentId = 'tls-cross-1';
+  unixClient.post(msg1);
+  await new Promise((r) => setTimeout(r, 100));
+
+  assert(
+    tlsReceived.some((m) => m.intentId === 'tls-cross-1'),
+    'TLS client should see intent posted from Unix client',
+  );
+
+  tlsReceived.length = 0;
+  unixReceived.length = 0;
+  const msg2 = createIntent('tls-agent', 'tls to unix');
+  msg2.intentId = 'tls-cross-2';
+  tlsClient.post(msg2);
+  await new Promise((r) => setTimeout(r, 100));
+
+  assert(
+    unixReceived.some((m) => m.intentId === 'tls-cross-2'),
+    'Unix client should see intent posted from TLS client',
+  );
+
+  tlsClient.disconnect();
   unixClient.disconnect();
 }
 

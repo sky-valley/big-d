@@ -15,7 +15,8 @@
  */
 
 import { createServer, connect as netConnect, type Socket, type Server } from 'net';
-import { existsSync, unlinkSync } from 'fs';
+import { createServer as createTlsServer, type Server as TlsServer, type TlsOptions } from 'tls';
+import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { IntentStore, DEFAULT_DB_DIR } from './store.ts';
 import { buildServiceIntents } from './service-intents.ts';
@@ -36,17 +37,29 @@ export interface IntentSpaceOptions {
   agentId?: string;
   tcpPort?: number;
   tcpHost?: string;
+  tlsPort?: number;
+  tlsHost?: string;
+  tlsKeyPath?: string;
+  tlsCertPath?: string;
+  tlsCaPath?: string;
+  tlsKeyPem?: string;
+  tlsCertPem?: string;
+  tlsCaPem?: string;
 }
 
 export class IntentSpace {
   private server: Server | null = null;
   private tcpServer: Server | null = null;
+  private tlsServer: TlsServer | null = null;
   private store: IntentStore;
   private clients = new Set<ClientConnection>();
   private _socketPath: string;
   private _agentId: string;
   private _tcpPort?: number;
   private _tcpHost: string;
+  private _tlsPort?: number;
+  private _tlsHost: string;
+  private _tlsOptions?: TlsOptions;
 
   constructor(opts: IntentSpaceOptions = {}) {
     this._agentId = opts.agentId ?? process.env.DIFFER_INTENT_SPACE_ID ?? 'intent-space';
@@ -56,12 +69,16 @@ export class IntentSpace {
     );
     this._tcpPort = opts.tcpPort ?? (process.env.INTENT_SPACE_PORT ? parseInt(process.env.INTENT_SPACE_PORT, 10) : undefined);
     this._tcpHost = opts.tcpHost ?? process.env.INTENT_SPACE_HOST ?? '0.0.0.0';
+    this._tlsPort = opts.tlsPort ?? (process.env.INTENT_SPACE_TLS_PORT ? parseInt(process.env.INTENT_SPACE_TLS_PORT, 10) : undefined);
+    this._tlsHost = opts.tlsHost ?? process.env.INTENT_SPACE_TLS_HOST ?? '0.0.0.0';
+    this._tlsOptions = loadTlsOptions(opts);
     this.store = new IntentStore(opts.dbPath);
   }
 
   get socketPath(): string { return this._socketPath; }
   get agentId(): string { return this._agentId; }
   get tcpPort(): number | undefined { return this._tcpPort; }
+  get tlsPort(): number | undefined { return this._tlsPort; }
   get clientCount(): number { return this.clients.size; }
 
   async start(): Promise<void> {
@@ -90,6 +107,24 @@ export class IntentSpace {
         });
       });
     }
+
+    if (this._tlsPort != null) {
+      if (!this._tlsOptions?.key || !this._tlsOptions?.cert) {
+        throw new Error('TLS listener requires certificate and key material');
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        this.tlsServer = createTlsServer(this._tlsOptions!, (socket) => this.handleConnection(socket));
+        this.tlsServer.on('error', reject);
+        this.tlsServer.listen(this._tlsPort!, this._tlsHost, () => {
+          const addr = this.tlsServer!.address();
+          if (addr && typeof addr === 'object') {
+            this._tlsPort = addr.port;
+          }
+          resolve();
+        });
+      });
+    }
   }
 
   async stop(): Promise<void> {
@@ -101,6 +136,11 @@ export class IntentSpace {
     if (this.tcpServer) {
       await new Promise<void>((resolve) => this.tcpServer!.close(() => resolve()));
       this.tcpServer = null;
+    }
+
+    if (this.tlsServer) {
+      await new Promise<void>((resolve) => this.tlsServer!.close(() => resolve()));
+      this.tlsServer = null;
     }
 
     if (this.server) {
@@ -276,4 +316,24 @@ export class IntentSpace {
 
     unlinkSync(this._socketPath);
   }
+}
+
+function loadTlsOptions(opts: IntentSpaceOptions): TlsOptions | undefined {
+  const key = opts.tlsKeyPem
+    ?? (opts.tlsKeyPath ? readFileSync(opts.tlsKeyPath, 'utf8') : undefined)
+    ?? (process.env.INTENT_SPACE_TLS_KEY ? readFileSync(process.env.INTENT_SPACE_TLS_KEY, 'utf8') : undefined);
+  const cert = opts.tlsCertPem
+    ?? (opts.tlsCertPath ? readFileSync(opts.tlsCertPath, 'utf8') : undefined)
+    ?? (process.env.INTENT_SPACE_TLS_CERT ? readFileSync(process.env.INTENT_SPACE_TLS_CERT, 'utf8') : undefined);
+  const ca = opts.tlsCaPem
+    ?? (opts.tlsCaPath ? readFileSync(opts.tlsCaPath, 'utf8') : undefined)
+    ?? (process.env.INTENT_SPACE_TLS_CA ? readFileSync(process.env.INTENT_SPACE_TLS_CA, 'utf8') : undefined);
+
+  if (!key && !cert && !ca) return undefined;
+
+  return {
+    key,
+    cert,
+    ca,
+  };
 }

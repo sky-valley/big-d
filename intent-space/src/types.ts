@@ -55,3 +55,22 @@ export type MessageEcho = ITPMessage & { seq: number };
 export type IntentEcho = MessageEcho;
 
 export type ServerMessage = MessageEcho | ScanResult | SpaceError;
+
+export interface TcpClientTarget {
+  host: string;
+  port: number;
+  tls?: false;
+}
+
+export interface TlsClientTarget {
+  host: string;
+  port: number;
+  tls: true;
+  servername?: string;
+  ca?: string | Buffer;
+  cert?: string | Buffer;
+  key?: string | Buffer;
+  rejectUnauthorized?: boolean;
+}
+
+export type ClientTarget = string | TcpClientTarget | TlsClientTarget;

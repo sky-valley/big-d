@@ -6,13 +6,13 @@ See [INTENT-SPACE.md](INTENT-SPACE.md) for the full abstraction, wire protocol, 
 
 ## Architecture
 
-The intent space is an autonomous agent. On startup it declares its own capabilities as ITP INTENT messages (using its own protocol), then accepts client connections over a Unix domain socket speaking NDJSON.
+The intent space is an autonomous agent. On startup it declares its own capabilities as ITP INTENT messages (using its own protocol), then accepts client connections over a Unix domain socket and optionally over TCP/TLS speaking NDJSON.
 
 | File | Role |
 |------|------|
-| `src/space.ts` | Server: connection handling, message echo, scan dispatch |
+| `src/space.ts` | Server: connection handling, message echo, scan dispatch, Unix/TCP/TLS listeners |
 | `src/store.ts` | SQLite persistence (append-only messages table with parentId + seq) |
-| `src/client.ts` | Client library (EventEmitter, generic message + intent events, scan methods, cursor tracking) |
+| `src/client.ts` | Client library (Unix socket, TCP, or TLS; EventEmitter, generic message + intent events, scan methods, cursor tracking) |
 | `src/types.ts` | Wire protocol types (ITP messages + SCAN/SCAN_RESULT) |
 | `src/service-intents.ts` | Self-description via service intents |
 | `src/main.ts` | Entry point |
@@ -24,6 +24,11 @@ npm install
 npm start                 # Listen on ~/.differ/intent-space/intent-space.sock
 npm test                  # Run tests (no LLM calls)
 ```
+
+Remote transport can be enabled with:
+
+- `INTENT_SPACE_PORT` for plain TCP
+- `INTENT_SPACE_TLS_PORT` plus `INTENT_SPACE_TLS_CERT` and `INTENT_SPACE_TLS_KEY` for TLS
 
 ## Wire Protocol
 
@@ -51,6 +56,7 @@ The space is not authoritative for promise logic. It may carry projections, but 
 - Service intents have deterministic IDs (`intent-space:persist`, etc.)
 - No auto-reconnect in the client — caller's responsibility
 - `parentId` scopes messages into fractal sub-spaces (default: `"root"`)
+- New transports must preserve the same observe-before-act gate as Unix socket clients
 
 ## Test Gaps
 

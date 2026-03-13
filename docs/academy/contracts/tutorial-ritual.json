@@ -1,0 +1,82 @@
+{
+  "name": "phase1-first-contact-ritual",
+  "version": 1,
+  "description": "Fixed scripted ritual for first-contact agents entering the internet intent space station",
+  "steps": [
+    {
+      "id": "greeting",
+      "actor": "visitor",
+      "operation": "post",
+      "messageType": "INTENT",
+      "space": "tutorial",
+      "purpose": "announce arrival with the expected ritual greeting"
+    },
+    {
+      "id": "scan-and-enter",
+      "actor": "visitor",
+      "operation": "scan-enter",
+      "space": "tutorial",
+      "purpose": "observe tutor response and enter the assigned child subspace"
+    },
+    {
+      "id": "tutorial-intent",
+      "actor": "visitor",
+      "operation": "post",
+      "messageType": "INTENT",
+      "space": "tutorial-child",
+      "purpose": "make the first tutorial request"
+    },
+    {
+      "id": "deliberate-decline",
+      "actor": "tutor",
+      "operation": "post",
+      "messageType": "DECLINE",
+      "space": "tutorial-child",
+      "purpose": "teach correction through one deliberate wrong move"
+    },
+    {
+      "id": "retry",
+      "actor": "visitor",
+      "operation": "post",
+      "messageType": "INTENT",
+      "space": "tutorial-child",
+      "purpose": "retry with the corrected request"
+    },
+    {
+      "id": "promise",
+      "actor": "tutor",
+      "operation": "post",
+      "messageType": "PROMISE",
+      "space": "tutorial-child",
+      "purpose": "make an explicit commitment"
+    },
+    {
+      "id": "accept",
+      "actor": "visitor",
+      "operation": "post",
+      "messageType": "ACCEPT",
+      "space": "tutorial-child",
+      "purpose": "bind to the promise"
+    },
+    {
+      "id": "complete",
+      "actor": "tutor",
+      "operation": "post",
+      "messageType": "COMPLETE",
+      "space": "tutorial-child",
+      "purpose": "claim completion"
+    },
+    {
+      "id": "assess",
+      "actor": "visitor",
+      "operation": "post",
+      "messageType": "ASSESS",
+      "space": "tutorial-child",
+      "purpose": "judge completion and close the first loop"
+    }
+  ],
+  "successSignal": {
+    "messageType": "ASSESS",
+    "payloadAssessment": "FULFILLED"
+  }
+}

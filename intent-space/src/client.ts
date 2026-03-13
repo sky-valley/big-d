@@ -8,17 +8,14 @@
  * No auto-reconnect — caller's responsibility.
  */
 
-import { connect as netConnect, type Socket } from 'net';
+import { connect as netConnect, isIP, type Socket } from 'net';
+import { connect as tlsConnect, type TLSSocket, type ConnectionOptions as TlsConnectionOptions } from 'tls';
 import { EventEmitter } from 'events';
-import type { ServerMessage, StoredMessage, MessageEcho } from './types.ts';
+import type { ServerMessage, StoredMessage, MessageEcho, ClientTarget, TlsClientTarget } from './types.ts';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
 
-export type ClientTarget =
-  | string                          // Unix socket path
-  | { host: string; port: number }; // TCP
-
 export class IntentSpaceClient extends EventEmitter {
-  private socket: Socket | null = null;
+  private socket: Socket | TLSSocket | null = null;
   private buffer = '';
   private _latestSeq = 0;
   private target: ClientTarget;
@@ -35,7 +32,9 @@ export class IntentSpaceClient extends EventEmitter {
     return new Promise((resolve, reject) => {
       this.socket = typeof this.target === 'string'
         ? netConnect(this.target)
-        : netConnect(this.target.port, this.target.host);
+        : this.target.tls
+          ? this.connectTls(this.target)
+          : netConnect(this.target.port, this.target.host);
 
       this.socket.on('connect', () => resolve());
       this.socket.on('error', (err) => {
@@ -136,5 +135,21 @@ export class IntentSpaceClient extends EventEmitter {
   private writeLine(msg: unknown): void {
     if (!this.socket) throw new Error('Not connected');
     this.socket.write(JSON.stringify(msg) + '\n');
+  }
+
+  private connectTls(target: TlsClientTarget): TLSSocket {
+    const opts: TlsConnectionOptions = {
+      host: target.host,
+      port: target.port,
+      ca: target.ca,
+      cert: target.cert,
+      key: target.key,
+      rejectUnauthorized: target.rejectUnauthorized ?? true,
+    };
+    const servername = target.servername ?? (isIP(target.host) ? undefined : target.host);
+    if (servername && !isIP(servername)) {
+      opts.servername = servername;
+    }
+    return tlsConnect(opts);
   }
 }

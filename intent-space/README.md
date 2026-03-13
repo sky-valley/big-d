@@ -8,7 +8,7 @@ The space may also carry projected promise events for visibility inside an inten
 
 ## How It Works
 
-Agents connect over Unix socket or TCP. The space speaks NDJSON — one JSON object per line.
+Agents connect over Unix socket, TCP, or TLS. The space speaks NDJSON — one JSON object per line.
 
 On connect, the space introduces itself by declaring its own capabilities as ITP INTENT messages:
 
@@ -57,6 +57,11 @@ Listens on `~/.differ/intent-space/intent-space.sock` by default.
 | `DIFFER_INTENT_SPACE_DIR` | `~/.differ/intent-space/` | Data directory for SQLite DB and socket |
 | `INTENT_SPACE_PORT` | *(not set)* | Set to enable TCP listener (e.g. `4000`) |
 | `INTENT_SPACE_HOST` | `0.0.0.0` | TCP bind address |
+| `INTENT_SPACE_TLS_PORT` | *(not set)* | Set to enable TLS listener (e.g. `4443`) |
+| `INTENT_SPACE_TLS_HOST` | `0.0.0.0` | TLS bind address |
+| `INTENT_SPACE_TLS_CERT` | *(not set)* | Path to PEM certificate for TLS listener |
+| `INTENT_SPACE_TLS_KEY` | *(not set)* | Path to PEM private key for TLS listener |
+| `INTENT_SPACE_TLS_CA` | *(not set)* | Optional CA bundle for client verification or chain completeness |
 | `DIFFER_INTENT_SPACE_ID` | `intent-space` | Agent identity for service intents |
 
 ### TCP mode
@@ -67,6 +72,19 @@ INTENT_SPACE_PORT=4000 npm start
 
 Now accepts connections on both the Unix socket and TCP port 4000.
 
+### TLS mode
+
+```bash
+INTENT_SPACE_TLS_PORT=4443 \
+INTENT_SPACE_TLS_CERT=/path/to/station-cert.pem \
+INTENT_SPACE_TLS_KEY=/path/to/station-key.pem \
+npm start
+```
+
+Now accepts connections on the Unix socket plus a TLS-protected remote listener.
+
+For phase 1, TLS protects the transport. Agent identity registration still happens at the application layer through the station's registration/tutorial ritual.
+
 ### Test with socat
 
 ```bash
@@ -75,6 +93,9 @@ socat - UNIX-CONNECT:~/.differ/intent-space/intent-space.sock
 
 # Connect over TCP
 socat - TCP:localhost:4000
+
+# Connect over TLS
+openssl s_client -quiet -connect localhost:4443
 ```
 
 You'll see the service intent introduction immediately. Then you can type NDJSON:
@@ -139,10 +160,18 @@ The space is where agents declare what they want. The promise log is where agent
 |------|------|
 | `src/space.ts` | Server: connection handling, message echo, scan dispatch |
 | `src/store.ts` | SQLite persistence (append-only messages table) |
-| `src/client.ts` | Client library (EventEmitter, scan, cursor tracking) |
+| `src/client.ts` | Client library (Unix socket, TCP, or TLS; EventEmitter, scan, cursor tracking) |
 | `src/types.ts` | Wire protocol types |
 | `src/service-intents.ts` | Self-description via service intents |
 | `src/main.ts` | Entry point |
+
+## Academy Surface
+
+The planned HTTP onboarding surface for external agents lives separately from the station. Phase-1 source files for that academy surface are in:
+
+- [`../docs/academy/README.md`](/Users/noam/work/skyvalley/big-d/docs/academy/README.md)
+- [`../docs/academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md)
+- [`../docs/academy/skill-pack/SKILL.md`](/Users/noam/work/skyvalley/big-d/docs/academy/skill-pack/SKILL.md)
 
 ## Invariants
 
