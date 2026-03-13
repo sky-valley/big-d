@@ -23,6 +23,7 @@ interface RegistrationSession {
   publicKeyPem: string;
   challenge: string;
   verified: boolean;
+  createdAt: number;
 }
 
 interface TutorialSession {
@@ -30,6 +31,8 @@ interface TutorialSession {
   visitorId: string;
   phase: 'awaiting-first-intent' | 'declined-once' | 'promised' | 'completed' | 'assessed';
   promiseId?: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface StationTutorOptions {
@@ -38,11 +41,14 @@ export interface StationTutorOptions {
 }
 
 export class StationTutor {
+  private static readonly MAX_SEEN_MESSAGES = 10_000;
+  private static readonly SESSION_TTL_MS = 15 * 60 * 1000;
   private client: IntentSpaceClient;
   private agentId: string;
   private registrations = new Map<string, RegistrationSession>();
   private tutorialSessions = new Map<string, TutorialSession>();
   private seenMessages = new Set<string>();
+  private verifiedAgents = new Set<string>();
 
   constructor(opts: StationTutorOptions) {
     this.client = new IntentSpaceClient(opts.target);
@@ -59,9 +65,12 @@ export class StationTutor {
   }
 
   private handleMessage(msg: MessageEcho): void {
+    this.pruneExpiredState(msg.timestamp);
+
     const key = messageKey(msg);
     if (this.seenMessages.has(key)) return;
     this.seenMessages.add(key);
+    this.pruneSeenMessages();
 
     if (msg.senderId === this.agentId) return;
 
@@ -112,6 +121,7 @@ export class StationTutor {
       publicKeyPem: payload.publicKeyPem!,
       challenge,
       verified: false,
+      createdAt: msg.timestamp,
     });
 
     const challengeIntent = createIntent(
@@ -144,6 +154,8 @@ export class StationTutor {
     }
 
     registration.verified = true;
+    this.verifiedAgents.add(msg.senderId);
+    this.registrations.delete(registration.registrationIntentId);
     const ack = createIntent(
       this.agentId,
       `Registration accepted. Go to ${TUTORIAL_SPACE_ID} and post the ritual greeting.`,
@@ -159,10 +171,23 @@ export class StationTutor {
   }
 
   private handleTutorialGreeting(msg: MessageEcho): void {
+    if (!this.verifiedAgents.has(msg.senderId)) {
+      const decline = createDecline(
+        this.agentId,
+        msg.intentId!,
+        'Complete registration and proof-of-possession before entering the tutorial ritual.',
+      );
+      decline.parentId = TUTORIAL_SPACE_ID;
+      this.client.post(decline);
+      return;
+    }
+
     this.tutorialSessions.set(msg.intentId!, {
       greetingIntentId: msg.intentId!,
       visitorId: msg.senderId,
       phase: 'awaiting-first-intent',
+      createdAt: msg.timestamp,
+      updatedAt: msg.timestamp,
     });
 
     const instruction = createIntent(
@@ -177,6 +202,8 @@ export class StationTutor {
   }
 
   private handleTutorialIntent(msg: MessageEcho, tutorial: TutorialSession): void {
+    tutorial.updatedAt = msg.timestamp;
+
     if (tutorial.phase === 'awaiting-first-intent') {
       tutorial.phase = 'declined-once';
       const decline = createDecline(
@@ -202,6 +229,7 @@ export class StationTutor {
     for (const tutorial of this.tutorialSessions.values()) {
       if (tutorial.promiseId === msg.promiseId && tutorial.phase === 'promised') {
         tutorial.phase = 'completed';
+        tutorial.updatedAt = msg.timestamp;
         const complete = createComplete(
           this.agentId,
           msg.promiseId!,
@@ -218,6 +246,7 @@ export class StationTutor {
     for (const tutorial of this.tutorialSessions.values()) {
       if (tutorial.promiseId === msg.promiseId && tutorial.phase === 'completed') {
         tutorial.phase = 'assessed';
+        tutorial.updatedAt = msg.timestamp;
         const ack = createIntent(
           this.agentId,
           'Tutorial complete. You can now proceed beyond the ritual.',
@@ -226,6 +255,38 @@ export class StationTutor {
           tutorial.greetingIntentId,
         );
         this.client.post(ack);
+        this.tutorialSessions.delete(tutorial.greetingIntentId);
+      }
+    }
+  }
+
+  getStateCounts(): { registrations: number; tutorials: number; seenMessages: number; verifiedAgents: number } {
+    return {
+      registrations: this.registrations.size,
+      tutorials: this.tutorialSessions.size,
+      seenMessages: this.seenMessages.size,
+      verifiedAgents: this.verifiedAgents.size,
+    };
+  }
+
+  private pruneSeenMessages(): void {
+    while (this.seenMessages.size > StationTutor.MAX_SEEN_MESSAGES) {
+      const oldest = this.seenMessages.values().next().value;
+      if (oldest === undefined) return;
+      this.seenMessages.delete(oldest);
+    }
+  }
+
+  private pruneExpiredState(now: number): void {
+    for (const [registrationId, registration] of this.registrations.entries()) {
+      if (now - registration.createdAt > StationTutor.SESSION_TTL_MS) {
+        this.registrations.delete(registrationId);
+      }
+    }
+
+    for (const [greetingId, tutorial] of this.tutorialSessions.entries()) {
+      if (now - tutorial.updatedAt > StationTutor.SESSION_TTL_MS) {
+        this.tutorialSessions.delete(greetingId);
       }
     }
   }

@@ -54,6 +54,21 @@ const visitor = new IntentSpaceClient(socketPath);
 await visitor.connect();
 await new Promise((r) => setTimeout(r, 100));
 
+test('Tutorial greeting is rejected before registration');
+{
+  const bypassGreeting = createIntent('bypass-agent', RITUAL_GREETING_CONTENT);
+  bypassGreeting.intentId = 'tutorial-bypass-1';
+  bypassGreeting.parentId = TUTORIAL_SPACE_ID;
+  visitor.post(bypassGreeting);
+
+  await new Promise((r) => setTimeout(r, 150));
+  const tutorialMessages = await visitor.scan(TUTORIAL_SPACE_ID);
+  const decline = tutorialMessages.find(
+    (msg) => msg.type === 'DECLINE' && msg.intentId === bypassGreeting.intentId,
+  );
+  assert(Boolean(decline), 'Tutor should reject tutorial entry before successful registration');
+}
+
 test('Registration challenge and ritual flow');
 {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 4096 });
@@ -148,6 +163,10 @@ test('Registration challenge and ritual flow');
     (msg) => msg.type === 'INTENT' && msg.payload.content === 'Tutorial complete. You can now proceed beyond the ritual.',
   );
   assert(Boolean(finalAck), 'Tutor should acknowledge successful tutorial completion');
+
+  const stateCounts = tutor.getStateCounts();
+  assert(stateCounts.registrations === 0, 'Registration session should be cleaned up after successful verification');
+  assert(stateCounts.tutorials === 0, 'Tutorial session should be cleaned up after successful completion');
 }
 
 visitor.disconnect();
