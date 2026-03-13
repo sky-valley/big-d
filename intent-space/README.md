@@ -191,6 +191,7 @@ For remote operation, use:
 
 - `INTENT_SPACE_TUTOR_PORT`
 - or `INTENT_SPACE_TUTOR_TLS_PORT`
+- optionally `INTENT_SPACE_TUTOR_TLS_CA` to trust a specific CA bundle
 
 ## Invariants
 

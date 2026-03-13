@@ -1,11 +1,8 @@
+import { readFileSync } from 'fs';
 import { StationTutor } from './tutor.ts';
+import type { ClientTarget } from './types.ts';
 
-function buildTarget(): string | { host: string; port: number; tls?: boolean } | {
-  host: string;
-  port: number;
-  tls: true;
-  rejectUnauthorized: boolean;
-} {
+function buildTarget(): ClientTarget {
   if (process.env.INTENT_SPACE_TUTOR_SOCKET_PATH) {
     return process.env.INTENT_SPACE_TUTOR_SOCKET_PATH;
   }
@@ -17,6 +14,9 @@ function buildTarget(): string | { host: string; port: number; tls?: boolean } |
       host,
       port: parseInt(tlsPort, 10),
       tls: true,
+      ca: process.env.INTENT_SPACE_TUTOR_TLS_CA
+        ? readFileSync(process.env.INTENT_SPACE_TUTOR_TLS_CA, 'utf8')
+        : undefined,
       rejectUnauthorized: process.env.INTENT_SPACE_TUTOR_REJECT_UNAUTHORIZED !== 'false',
     };
   }

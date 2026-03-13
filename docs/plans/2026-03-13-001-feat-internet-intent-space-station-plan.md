@@ -29,7 +29,6 @@ Implemented foundation slice on 2026-03-13:
 Still pending:
 
 - deployed station + external-agent end-to-end validation
-- operational packaging/runbook for academy + station deployment
 - free-use space topology after the ritual
 
 ## Problem Statement
