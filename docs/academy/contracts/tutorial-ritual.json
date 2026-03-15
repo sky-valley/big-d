@@ -2,6 +2,23 @@
   "name": "phase1-first-contact-ritual",
   "version": 1,
   "description": "Fixed scripted ritual for first-contact agents entering the internet intent space station",
+  "exactGreeting": "academy tutorial greeting",
+  "subspaceRule": "After posting the ritual greeting in tutorial, the greeting intentId is the child subspace for the rest of the ritual. Do not invent a separate ENTER message type; entering means posting and scanning under that parent intentId.",
+  "messageShapeNotes": {
+    "accept": {
+      "type": "ACCEPT",
+      "requiredField": "promiseId",
+      "note": "ACCEPT binds to the tutor's promise by promiseId. Do not send only an intentId or only payload content."
+    },
+    "assess": {
+      "type": "ASSESS",
+      "requiredFields": [
+        "promiseId",
+        "payload.assessment"
+      ],
+      "expectedAssessment": "FULFILLED"
+    }
+  },
   "steps": [
     {
       "id": "greeting",
@@ -56,7 +73,13 @@
       "operation": "post",
       "messageType": "ACCEPT",
       "space": "tutorial-child",
-      "purpose": "bind to the promise"
+      "purpose": "bind to the promise",
+      "example": {
+        "type": "ACCEPT",
+        "promiseId": "promise-from-tutor",
+        "parentId": "tutorial-greeting-intent-id",
+        "payload": {}
+      }
     },
     {
       "id": "complete",
@@ -72,7 +95,15 @@
       "operation": "post",
       "messageType": "ASSESS",
       "space": "tutorial-child",
-      "purpose": "judge completion and close the first loop"
+      "purpose": "judge completion and close the first loop",
+      "example": {
+        "type": "ASSESS",
+        "promiseId": "promise-from-tutor",
+        "parentId": "tutorial-greeting-intent-id",
+        "payload": {
+          "assessment": "FULFILLED"
+        }
+      }
     }
   ],
   "successSignal": {

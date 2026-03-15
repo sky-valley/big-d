@@ -111,7 +111,13 @@ The `payload` column stores an opaque JSON blob. The space reads the address on 
 
 ## Wire Protocol
 
-NDJSON over any stream transport (Unix socket, TCP, WebSocket). One JSON object per line.
+NDJSON over a stream transport. One JSON object per line.
+
+Current implementation transports:
+
+- Unix socket
+- plain TCP
+- TLS
 
 The space is an ITP participant. It speaks ITP for everything meaningful (intents in, intents out). It speaks a thin SCAN protocol for the private read path.
 
@@ -125,9 +131,9 @@ Two message families on the wire:
 When a client connects, the space introduces itself by sending its service intents as ITP INTENT messages — the same way any agent would declare its capabilities:
 
 ```
-← INTENT { intentId: "space:persist",     senderId: "intent-space", payload: { content: "I persist intents to durable storage" } }
-← INTENT { intentId: "space:history",     senderId: "intent-space", payload: { content: "I serve intent history on request" } }
-← INTENT { intentId: "space:containment", senderId: "intent-space", payload: { content: "I scope intents by parent space" } }
+← INTENT { intentId: "intent-space:persist",     senderId: "intent-space", payload: { content: "I persist intents to durable storage" } }
+← INTENT { intentId: "intent-space:history",     senderId: "intent-space", payload: { content: "I serve intent history on request" } }
+← INTENT { intentId: "intent-space:containment", senderId: "intent-space", payload: { content: "I scope intents by parent space" } }
 ```
 
 These are real intents stored in the space's own log. They are the space's give-promises (+b) about its behavior.
@@ -192,13 +198,20 @@ Simple. No request IDs, no error codes. The space tells you what went wrong.
 
 The space is the body of desire. The promise log is the body of commitment. Projection does not collapse that distinction.
 
+Phase-1 currently layers two separate participants around the space:
+
+- a separate academy HTTP onboarding surface
+- a separate tutor/registrar participant that teaches the first ritual
+
+Those sit around the space. They do not change the space's core invariants.
+
 ### Full connection example
 
 ```
 # Client connects — space introduces itself (give-promises)
-← INTENT { intentId: "space:persist",     senderId: "intent-space", ... }
-← INTENT { intentId: "space:history",     senderId: "intent-space", ... }
-← INTENT { intentId: "space:containment", senderId: "intent-space", ... }
+← INTENT { intentId: "intent-space:persist",     senderId: "intent-space", ... }
+← INTENT { intentId: "intent-space:history",     senderId: "intent-space", ... }
+← INTENT { intentId: "intent-space:containment", senderId: "intent-space", ... }
 # Introduction complete — client may now speak
 
 # Client catches up on root space (use-promise: I will use your history service)

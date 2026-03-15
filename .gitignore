@@ -1,3 +1,7 @@
 node_modules/
 dist/
 .env
+intent-space/.env.pi
+.DS_Store
+compound-engineering.local.md
+intent-space/tmp/

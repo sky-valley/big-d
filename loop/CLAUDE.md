@@ -20,12 +20,14 @@ Shared state: SQLite promise log at `~/.differ/loop/promise-log.db`.
 npm install
 cp .env.example .env   # Add your ANTHROPIC_API_KEY
 npm run loop -- init    # Initialize promise log + HMAC key
-npm run loop -- add .   # Register this repo (self-mode: --mode self)
+npm run loop -- add . --mode self   # Register this repo in self-mode
 npm run loop -- add /path/to/other/repo  # Register external repo
 npm run loop -- intent "add a /health endpoint"  # Post an intent
 npm run loop -- run     # Start supervisor + agents
 npm run loop -- status  # See intents, promises, projects
 ```
+
+Prerequisite: `npm run loop` uses `bun build` under the hood for the supervisor build step, so Bun must be installed for the normal supervisor workflow.
 
 ## Project Structure
 

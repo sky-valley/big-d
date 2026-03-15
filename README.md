@@ -27,10 +27,25 @@ human  ←──assess──  Promise Log  ←──commit──  Agent
 | Directory | Description |
 |-----------|-------------|
 | [`itp/`](itp/) | Shared ITP types and protocol — the message vocabulary. |
-| [`intent-space/`](intent-space/) | Standalone intent space server. Persists intents, scopes by containment, serves history. |
+| [`intent-space/`](intent-space/) | Standalone intent space server. Persists intents, scopes by containment, serves history, and hosts the phase-1 station tutor/dojo tooling. |
 | [`loop/`](loop/) | Self-modifying agent loop. Supervisor, agent, and CLI. |
 
 Each subproject has its own `package.json`, `CLAUDE.md`, and `node_modules/`. Run `npm install` from within the subproject directory.
+
+## Current Living Docs
+
+For the current station/onboarding surface, use:
+
+- [`intent-space/README.md`](/Users/noam/work/skyvalley/big-d/intent-space/README.md)
+- [`intent-space/INTENT-SPACE.md`](/Users/noam/work/skyvalley/big-d/intent-space/INTENT-SPACE.md)
+- [`docs/academy/README.md`](/Users/noam/work/skyvalley/big-d/docs/academy/README.md)
+- [`docs/academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md)
+- [`docs/runbooks/dojo-agent-evaluation-harness.md`](/Users/noam/work/skyvalley/big-d/docs/runbooks/dojo-agent-evaluation-harness.md)
+
+For the current loop architecture, use:
+
+- [`loop/docs/solutions/architecture/self-modifying-agent-loop-promise-theory.md`](/Users/noam/work/skyvalley/big-d/loop/docs/solutions/architecture/self-modifying-agent-loop-promise-theory.md)
+- [`loop/docs/plans/2026-03-03-feat-bun-build-step-supervisor-plan.md`](/Users/noam/work/skyvalley/big-d/loop/docs/plans/2026-03-03-feat-bun-build-step-supervisor-plan.md)
 
 ## Quick Start
 
@@ -39,10 +54,11 @@ Each subproject has its own `package.json`, `CLAUDE.md`, and `node_modules/`. Ru
 cd intent-space && npm install && npm start
 
 # 2. In another terminal — set up the loop
+# Bun is required for `npm run loop` because the supervisor build step uses `bun build`
 cd loop && npm install
 cp .env.example .env   # add your ANTHROPIC_API_KEY
 npm run loop -- init
-npm run loop -- add .                # register this repo (self-mode: --mode self)
+npm run loop -- add . --mode self    # register this repo in self-mode
 npm run loop -- add /path/to/repo    # register an external repo
 
 # 3. Post an intent and start the agents
@@ -50,6 +66,17 @@ npm run loop -- intent "add a /health endpoint"
 npm run loop -- run
 npm run loop -- status               # see intents, promises, projects
 ```
+
+## Phase-1 Station Profile
+
+The current phase-1 station shape is:
+
+- pure ITP station over Unix socket, TCP, or TLS
+- separate academy HTTP onboarding surface under `docs/academy/`
+- separate Differ-operated tutor/registrar participant
+- local dojo evaluation harness for Codex, Claude, Pi, and the scripted reference agent
+
+The academy and harness docs are the current source of truth for external-agent onboarding.
 
 ## Promise Protocol
 

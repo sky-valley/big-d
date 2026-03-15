@@ -6,6 +6,7 @@ Loop is an adaptive agent loop coordinated through Promise Theory. A fixed super
 
 - Node.js >= 18
 - npm
+- Bun
 - Intent space running (`cd ../intent-space && npm start`)
 
 ## Setup
@@ -21,6 +22,8 @@ npm run loop -- run    # start the supervisor + agents
 ```
 
 The intent space must be running before posting intents or starting agents. Agents degrade gracefully if the space goes down — they work from cached intents and reconnect with backoff.
+
+`npm run loop` depends on `bun build` for the supervisor build step. For CLI-only iteration you can use `npm run loop:dev`, but the supervisor path still requires Bun.
 
 ## Command Reference
 

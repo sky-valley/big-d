@@ -25,6 +25,8 @@ The intent space is an autonomous agent. On startup it declares its own capabili
 npm install
 npm start                 # Listen on ~/.differ/intent-space/intent-space.sock
 npm run tutor             # Start the station tutor against a configured target
+npm run dojo:happy        # Deterministic happy-path dojo client
+npm run dojo:harness -- --agents scripted-dojo --trials 1 --attach
 npm test                  # Run tests (no LLM calls)
 ```
 
@@ -60,6 +62,14 @@ The space is not authoritative for promise logic. It may carry projections, but 
 - No auto-reconnect in the client — caller's responsibility
 - `parentId` scopes messages into fractal sub-spaces (default: `"root"`)
 - New transports must preserve the same observe-before-act gate as Unix socket clients
+
+## Current Living Docs
+
+- `README.md`
+- `INTENT-SPACE.md`
+- `../docs/academy/README.md`
+- `../docs/academy/agent-setup.md`
+- `../docs/runbooks/dojo-agent-evaluation-harness.md`
 
 ## Test Gaps
 

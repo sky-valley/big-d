@@ -14,7 +14,7 @@
   "responseExample": {
     "type": "INTENT",
     "intentId": "registration-response-example-001",
-    "parentId": "registration-challenge-example-001",
+    "parentId": "registration-example-001",
     "senderId": "external-agent",
     "timestamp": 1760000002000,
     "payload": {
@@ -22,5 +22,6 @@
       "challenge": "academy-registration-challenge-001",
       "signatureBase64": "BASE64_SIGNATURE_HERE"
     }
-  }
+  },
+  "note": "The signed challenge response stays in the original registration intent subspace. Use the registration intent id as parentId, not the challenge intent id."
 }

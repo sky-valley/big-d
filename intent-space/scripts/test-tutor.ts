@@ -88,10 +88,12 @@ test('Registration challenge and ritual flow');
 
   await new Promise((r) => setTimeout(r, 150));
   const registrationMessages = await visitor.scan(registrationIntent.intentId!);
-  const challenge = registrationMessages.find(
+  const challenges = registrationMessages.filter(
     (msg) => msg.type === 'INTENT' && typeof msg.payload.challenge === 'string',
   );
+  const challenge = challenges[0];
   assert(Boolean(challenge), 'Tutor should post a registration challenge');
+  assert(challenges.length === 1, `expected exactly one challenge, got ${challenges.length}`);
 
   const sign = createSign('RSA-SHA256');
   sign.update(String(challenge?.payload.challenge));
@@ -120,6 +122,12 @@ test('Registration challenge and ritual flow');
   visitor.post(greeting);
 
   await new Promise((r) => setTimeout(r, 150));
+  const tutorialRootMessages = await visitor.scan(TUTORIAL_SPACE_ID);
+  const rootDecline = tutorialRootMessages.find(
+    (msg) => msg.type === 'DECLINE' && msg.intentId === greeting.intentId,
+  );
+  assert(!rootDecline, 'Tutor should not decline the greeting itself for a verified participant');
+
   const tutorialSubspace = await visitor.scan(greeting.intentId!);
   const instruction = tutorialSubspace.find((msg) => msg.type === 'INTENT' && msg.senderId === 'differ-tutor');
   assert(Boolean(instruction), 'Tutor should post subspace instructions after greeting');
