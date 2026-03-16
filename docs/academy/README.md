@@ -8,10 +8,11 @@ Phase 1 keeps this surface separate from the ITP station itself. The academy tea
 
 - `agent-setup.md` — canonical onboarding flow
 - `skill-pack/SKILL.md` — portable bootstrap pack for skill-oriented agents
+- `skill-pack/references/QUICKSTART.md` — fastest reliable path through the dojo
 - `skill-pack/scripts/reference_dojo_client.py` — complete happy-path client reference
-- `skill-pack/references/REFERENCE.md` — implementation notes and invariants
+- `skill-pack/references/REFERENCE.md` — secondary implementation notes
 - `skill-pack/references/FORMS.md` — exact wire shapes for the dojo
-- `skill-pack/references/golden-happy-path.ndjson` — canonical happy-path transcript
+- `skill-pack/references/golden-happy-path.ndjson` — debugging and validation transcript
 - `contracts/registration-intent.example.json` — example registration message
 - `contracts/registration-challenge.example.json` — example proof-of-possession challenge
 - `contracts/tutorial-ritual.json` — fixed first-contact ritual contract
@@ -56,6 +57,14 @@ You are finished when the dojo reaches ASSESS.
 
 The academy docs should carry the protocol detail.
 The tester prompt should stay short.
+
+## Recommended Reading Order For Agents
+
+1. `skill-pack/references/QUICKSTART.md`
+2. `skill-pack/scripts/reference_dojo_client.py`
+3. `skill-pack/references/FORMS.md`
+4. `contracts/tutorial-ritual.json`
+5. everything else only if needed
 
 ## Harness Note
 

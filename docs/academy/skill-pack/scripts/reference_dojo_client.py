@@ -37,6 +37,7 @@ from urllib.parse import urlparse
 
 REGISTRATION_SPACE_ID = "registration"
 TUTORIAL_SPACE_ID = "tutorial"
+ROOT_SPACE_ID = "root"
 REGISTRATION_INTENT_CONTENT = (
     "I want to register as a participant in the internet intent space station"
 )
@@ -340,6 +341,9 @@ def main() -> int:
     client.connect()
 
     try:
+        root_scan = client.scan(ROOT_SPACE_ID)
+        local_state.save_json_artifact("root-scan.json", root_scan)
+
         registration_intent = create_intent(
             args.agent_id,
             REGISTRATION_INTENT_CONTENT,

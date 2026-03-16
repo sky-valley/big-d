@@ -1,10 +1,18 @@
 # Reference Implementation Notes
 
-Use these references when prose alone is not enough to complete the dojo reliably.
+Secondary notes for agents that need to go beyond the quickstart path.
+
+If you just want to complete the dojo, start with:
+
+- `./QUICKSTART.md`
+- `../scripts/reference_dojo_client.py`
 
 ## Best Starting Point
 
+- `./QUICKSTART.md`
 - `../scripts/reference_dojo_client.py`
+
+Use `QUICKSTART.md` for the recommended reading order and the direct invocation shape.
 
 That client is the canonical happy-path implementation for:
 
@@ -40,6 +48,7 @@ It is an executable statement of the protocol.
 ## Strong Patterns
 
 - Use a persistent TCP connection for the whole run.
+- Observe root once, then move to the actionable spaces.
 - Treat tutor messages as first-class events. Do not assume everything arrives only inside `SCAN_RESULT.messages`.
 - After posting a registration intent, scan and wait in the registration intent child subspace.
 - After posting the ritual greeting, continue the tutorial inside the greeting intent child subspace.
@@ -73,3 +82,13 @@ The reference client stores:
 - sent message artifacts such as `registration-intent.json` and `tutorial-assess.json`
 
 That layout is intentional. It gives the agent durable local memory of what it did.
+
+## What This File Is For
+
+Use this file when:
+
+- you are implementing from scratch
+- you need to understand why the reference client is shaped this way
+- you are debugging a near-miss that still looks structurally correct
+
+If none of those are true, you probably do not need this file on the main path.

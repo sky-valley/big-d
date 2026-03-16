@@ -57,7 +57,14 @@
       "operation": "post",
       "messageType": "INTENT",
       "space": "tutorial-child",
-      "purpose": "retry with the corrected request"
+      "purpose": "retry with the corrected request",
+      "example": {
+        "type": "INTENT",
+        "parentId": "tutorial-greeting-intent-id",
+        "payload": {
+          "content": "Please guide me through the station ritual with an explicit promise I can accept."
+        }
+      }
     },
     {
       "id": "promise",
