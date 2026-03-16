@@ -11,6 +11,7 @@ interface CliOptions {
   port: number;
   academyPort: number;
   timeoutMs: number;
+  idleTimeoutMs: number;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -42,11 +43,12 @@ function parseArgs(argv: string[]): CliOptions {
     port: Number(opts.get('port') ?? '4000'),
     academyPort: Number(opts.get('academy-port') ?? '8080'),
     timeoutMs: Number(opts.get('timeout-ms') ?? String(8 * 60 * 1000)),
+    idleTimeoutMs: Number(opts.get('idle-timeout-ms') ?? String(90 * 1000)),
   };
 }
 
 async function main(): Promise<void> {
-  const repoRoot = resolve(process.cwd(), '..', '..');
+  const repoRoot = resolve(process.cwd(), '..');
   loadEnvFile(join(process.cwd(), '.env.pi'));
   loadEnvFile(join(repoRoot, 'intent-space/.env.pi'));
   const options = parseArgs(process.argv.slice(2));
@@ -60,6 +62,7 @@ async function main(): Promise<void> {
     port: options.port,
     academyPort: options.academyPort,
     timeoutMs: options.timeoutMs,
+    idleTimeoutMs: options.idleTimeoutMs,
   });
 
   console.log(`dojo-harness: report ${result.reportPath}`);

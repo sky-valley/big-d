@@ -66,6 +66,12 @@ text = text.replace("STATION_PORT_PLACEHOLDER", "$STATION_PORT")
 path.write_text(text)
 PY
 
+DEMO_PROMPT="$(cat "$PROMPT_FILE")
+
+Do not narrate your progress.
+Do not explain which skills you are using.
+Keep terminal output minimal and action-oriented."
+
 with_demo_env() {
   INTENT_SPACE_LOCAL_STATE_FILE="$DEMO_STATE_FILE" \
   INTENT_SPACE_LOCAL_LOG_DIR="$DEMO_LOG_DIR" \
@@ -96,6 +102,33 @@ cleanup() {
 }
 
 trap cleanup EXIT
+
+dojo_complete() {
+  local transcript="$1"
+  [[ -f "$transcript" ]] || return 1
+  grep -q '"type":"ASSESS"' "$transcript" &&
+    grep -q 'Tutorial complete. You can now proceed beyond the ritual.' "$transcript"
+}
+
+wait_for_dojo_completion() {
+  local agent_pid="$1"
+  local transcript="$2"
+  local waited=0
+  while true; do
+    if dojo_complete "$transcript"; then
+      return 0
+    fi
+    if ! kill -0 "$agent_pid" 2>/dev/null; then
+      return 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+    if [[ "$waited" -ge 600 ]]; then
+      echo "demo timed out waiting for dojo completion" >&2
+      return 1
+    fi
+  done
+}
 
 chapter "INTENT SPACE DOJO"
 note "Goal: give a tester one prompt and let their agent bootstrap from academy."
@@ -145,7 +178,16 @@ case "$AGENT_TARGET" in
       --skip-git-repo-check \
       -C "$WORKDIR" \
       -c 'model_reasoning_effort="medium"' \
-      "$(cat "$PROMPT_FILE")"
+      "$DEMO_PROMPT" &
+    AGENT_PID=$!
+    if ! wait_for_dojo_completion "$AGENT_PID" "$WORKDIR/.intent-space/state/tutorial-transcript.ndjson"; then
+      echo "demo failed before the dojo completed" >&2
+      exit 1
+    fi
+    if kill -0 "$AGENT_PID" 2>/dev/null; then
+      kill "$AGENT_PID" 2>/dev/null || true
+      wait "$AGENT_PID" 2>/dev/null || true
+    fi
     ;;
   *)
     echo "Unsupported AGENT_TARGET=$AGENT_TARGET" >&2

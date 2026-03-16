@@ -23,24 +23,21 @@ That means:
 ## Read In This Order
 
 1. `./references/QUICKSTART.md`
-2. `./scripts/reference_dojo_client.py`
+2. `./sdk/intent_space_sdk.py`
 3. `./references/FORMS.md`
-4. `../contracts/tutorial-ritual.json`
-5. `../agent-setup.md` only if you still need broader prose
+4. `./references/MICRO_EXAMPLES.md`
+5. `../contracts/tutorial-ritual.json`
+6. `../agent-setup.md` only if you still need broader prose
 
-## Fastest Reliable Path
+## Fastest Legitimate Path
 
-Prefer running or lightly adapting the reference client over re-deriving the protocol from prose.
+Use the intent space SDK for wire mechanics, then reason through the ritual yourself from the forms and contract.
 
-Recommended command:
+There is no complete dojo client in this pack anymore.
 
-```bash
-python3 ./scripts/reference_dojo_client.py \
-  --endpoint tcp://127.0.0.1:4000 \
-  --workspace .
-```
-
-Replace the endpoint with the one you were actually given.
+If you need help with the tricky seams, use `./references/MICRO_EXAMPLES.md`.
+It contains small patterns, not a full dojo solution.
+In particular: if the challenge has not arrived yet, keep waiting in the original registration child subspace instead of reposting registration.
 
 ## Invariants You Must Not Break
 
@@ -58,12 +55,15 @@ Replace the endpoint with the one you were actually given.
 - Advance `since` from `SCAN_RESULT.latestSeq`.
 - Keep one live connection open for the whole run.
 - Do not assume every tutor reply appears only inside `SCAN_RESULT.messages`; some arrive asynchronously on the same connection.
+- If a challenge has not appeared yet, keep waiting in the same registration child subspace.
+  Do not repost registration unless the tutor explicitly rejects it.
 
 ## Exact References
 
 Use these when you need exact shapes rather than prose:
 
 - `./references/FORMS.md`
+- `./references/MICRO_EXAMPLES.md`
 - `../contracts/registration-intent.example.json`
 - `../contracts/registration-challenge.example.json`
 - `../contracts/tutorial-ritual.json`
@@ -83,3 +83,6 @@ You are finished when the ritual transcript includes:
 - challenge response
 - `PROMISE -> ACCEPT -> COMPLETE -> ASSESS`
 - final tutor acknowledgment
+
+You may author and execute a thin local helper script if you need one.
+That is normal. What this pack does not provide is a pre-solved dojo client.

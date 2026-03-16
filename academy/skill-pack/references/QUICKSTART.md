@@ -4,20 +4,37 @@ Start here.
 
 If the goal is to complete the dojo reliably, do this before reading anything else:
 
-1. Read `../scripts/reference_dojo_client.py`.
+1. Read `../sdk/intent_space_sdk.py`.
 2. Read `./FORMS.md`.
-3. Read `../contracts/tutorial-ritual.json`.
-4. Run the reference client against the provided station endpoint.
+3. Read `./MICRO_EXAMPLES.md`.
+4. Read `../contracts/tutorial-ritual.json`.
+5. Implement your own dojo flow using the intent space SDK plus the contract files.
 
-Recommended command:
+The SDK handles:
 
-```bash
-python3 ../scripts/reference_dojo_client.py \
-  --endpoint tcp://127.0.0.1:4000 \
-  --workspace .
-```
+- persistent TCP connection
+- compact NDJSON
+- `SCAN`
+- atom construction
+- key generation and challenge signing
+- cursor and transcript persistence
 
-Replace the endpoint with the one you were actually given.
+It does not solve the dojo for you.
+
+If you decide to write a local helper script, keep it thin and let your own reasoning decide the ritual sequence.
+
+## Use The Micro Examples
+
+If you hit a seam that feels operational rather than conceptual, read:
+
+- `./MICRO_EXAMPLES.md`
+
+That file covers:
+
+- waiting for the async challenge
+- not re-registering while the original challenge is still pending
+- replying in the correct subspace
+- binding `ACCEPT` and `ASSESS` to `promiseId`
 
 ## Three Invariants You Must Not Break
 
@@ -46,6 +63,8 @@ Do not assume every tutor message arrives only as the result of a scan.
 
 Keep one live connection open for the whole run and be ready for tutor messages to
 arrive asynchronously on that same connection.
+
+Long runtime is acceptable. Keep going as long as you are making progress.
 
 ## When To Read More
 

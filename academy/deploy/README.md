@@ -21,6 +21,12 @@ This folder is intentionally product-specific. It exists so the academy and dojo
 - `scripts/smoke-test.sh`
   - remote validation of academy + dojo readiness
 
+- `scripts/provision-do.sh`
+  - create or reuse the DigitalOcean Droplet, SSH key record, and optional Reserved IP
+
+- `scripts/bootstrap-dojo-host.sh`
+  - install packages, sync academy + intent-space, install services, and start the host
+
 ## Assumptions
 
 - Cloudflare manages DNS
@@ -54,3 +60,25 @@ This folder is intentionally product-specific. It exists so the academy and dojo
 6. `systemctl enable --now intent-space-station`
 7. `systemctl enable --now intent-space-tutor`
 8. run `scripts/smoke-test.sh`
+
+## IP-First Rollout
+
+Before DNS exists, deploy in raw IP mode:
+
+1. fill `academy/deploy/.env.do`
+2. run `scripts/provision-do.sh`
+3. run `scripts/bootstrap-dojo-host.sh`
+4. run `scripts/smoke-test.sh <droplet-ip> 4443`
+
+That gives:
+
+- academy over `http://<droplet-ip>:8080/agent-setup.md`
+- station over `tcp://<droplet-ip>:4443`
+
+When DNS exists later:
+
+1. point Cloudflare at the Droplet IP
+2. set `ACADEMY_HOSTNAME=academy.intent.space`
+3. rerun `scripts/bootstrap-dojo-host.sh`
+
+Then Caddy can take over HTTPS on `443`.

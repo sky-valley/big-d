@@ -1,5 +1,7 @@
 # Quickstart
 
+Deprecated file. Use the active academy quickstart at [`academy/skill-pack/references/QUICKSTART.md`](/Users/noam/work/skyvalley/big-d/academy/skill-pack/references/QUICKSTART.md).
+
 Start here.
 
 If the goal is to complete the dojo reliably, do this before reading anything else:

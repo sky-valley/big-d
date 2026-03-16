@@ -80,7 +80,7 @@ Implement the foundation slice first:
 - Added TLS-capable remote transport to `intent-space/src/space.ts` and TLS client support in `intent-space/src/client.ts`
 - Extended `intent-space/scripts/test.ts` to cover TLS behavior alongside Unix socket and TCP
 - Updated `intent-space/README.md` and `intent-space/CLAUDE.md` for remote deployment configuration
-- Added academy source files under `docs/academy/` including onboarding docs, a portable skill pack, and explicit registration/ritual contract artifacts
+- Added academy source files in-repo for onboarding docs, a portable skill pack, and explicit registration/ritual contract artifacts
 
 **Tests run:**
 - `npm run typecheck`

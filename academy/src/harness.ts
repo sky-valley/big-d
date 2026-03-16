@@ -21,6 +21,8 @@ export type FailureStage =
   | 'unavailable'
   | 'unknown';
 
+export type TerminationReason = 'completed' | 'process-exit' | 'idle-timeout' | 'wall-timeout' | 'unavailable';
+
 export type RunCleanliness = 'single-pass' | 'self-repaired';
 export type HelperMode = 'none' | 'generated-not-executed' | 'generated-executed';
 
@@ -34,6 +36,7 @@ export interface HarnessOptions {
   port?: number;
   academyPort?: number;
   timeoutMs?: number;
+  idleTimeoutMs?: number;
 }
 
 export interface StageHandle {
@@ -69,6 +72,7 @@ export interface RunSummary {
   helperFiles: string[];
   helperLanguage?: string;
   sessionRef?: string;
+  terminationReason: TerminationReason;
   interviewStatus: 'completed' | 'failed' | 'unavailable';
   interviewFile?: string;
   interviewStdoutPath?: string;
@@ -124,6 +128,7 @@ interface LaunchSpec {
 }
 
 const DEFAULT_TIMEOUT_MS = 8 * 60 * 1000;
+const DEFAULT_IDLE_TIMEOUT_MS = 90 * 1000;
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_STATION_PORT = 4000;
 const DEFAULT_ACADEMY_PORT = 8080;
@@ -152,6 +157,7 @@ export async function runHarness(options: HarnessOptions): Promise<{ reportPath:
           outputDir,
           stage,
           timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+          idleTimeoutMs: options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS,
         }));
       }
     }
@@ -173,6 +179,7 @@ async function runSingleTrial(
     outputDir: string;
     stage: StageHandle;
     timeoutMs: number;
+    idleTimeoutMs: number;
   },
 ): Promise<RunSummary> {
   const runDir = join(ctx.outputDir, agent, `trial-${String(trial).padStart(2, '0')}`);
@@ -222,6 +229,7 @@ async function runSingleTrial(
         stderrPath,
         transcriptPath,
         generatedFiles: listFiles(workspaceDir),
+        terminationReason: 'unavailable',
         interviewStatus: 'unavailable',
         ...DEFAULT_RUN_CLASSIFICATION,
       };
@@ -247,6 +255,7 @@ async function runSingleTrial(
         stderrPath,
         transcriptPath,
         generatedFiles: listFiles(workspaceDir),
+        terminationReason: 'unavailable',
         interviewStatus: 'unavailable',
         ...DEFAULT_RUN_CLASSIFICATION,
       };
@@ -273,6 +282,7 @@ async function runSingleTrial(
         stderrPath,
         transcriptPath,
         generatedFiles: listFiles(workspaceDir),
+        terminationReason: 'unavailable',
         interviewStatus: 'unavailable',
         ...DEFAULT_RUN_CLASSIFICATION,
       };
@@ -283,7 +293,14 @@ async function runSingleTrial(
       stdoutPath,
       stderrPath,
     });
-    const execution = await awaitRunCompletion(processHandle, monitor, ctx.timeoutMs);
+    const execution = await awaitRunCompletion(
+      processHandle,
+      monitor,
+      ctx.timeoutMs,
+      ctx.idleTimeoutMs,
+      stdoutPath,
+      stderrPath,
+    );
     await sleep(300);
 
     const endedAt = new Date();
@@ -312,11 +329,7 @@ async function runSingleTrial(
       trial,
       prompt,
       status,
-      failureStage: classification.failureStage === 'completed'
-        ? 'completed'
-        : execution.timedOut
-          ? 'timeout'
-          : classification.failureStage,
+      failureStage: classification.failureStage === 'completed' ? 'completed' : classification.failureStage,
       startedAt: startedAt.toISOString(),
       endedAt: endedAt.toISOString(),
       durationMs: endedAt.getTime() - startedAt.getTime(),
@@ -336,6 +349,9 @@ async function runSingleTrial(
       helperFiles: classification.helperFiles,
       helperLanguage: classification.helperLanguage,
       sessionRef,
+      terminationReason: classification.failureStage === 'completed'
+        ? 'completed'
+        : execution.terminationReason,
       interviewStatus: interview.status,
       interviewFile: interview.interviewFile,
       interviewStdoutPath: interview.stdoutPath,
@@ -356,6 +372,7 @@ function buildPrompt(input: {
   stationEndpoint: string;
   workspaceDir: string;
 }): string {
+  const microExamplesPath = join(dirname(input.skillPackPath), 'references', 'MICRO_EXAMPLES.md');
   return [
     `Use the skill pack at ${input.skillPackPath} and complete the dojo.`,
     `The academy reference is at ${input.academyDocPath} and also served at ${input.academyUrl}.`,
@@ -371,6 +388,7 @@ function buildPrompt(input: {
     'Only scan spaces that are part of your own live run: root for initial observation, your registration intent subspace for the challenge, tutorial for your own greeting, and your greeting intent subspace for the ritual.',
     'Treat since as a sequence cursor. Advance it from each SCAN_RESULT.latestSeq, not from timestamps.',
     'Read scan results from SCAN_RESULT.messages.',
+    `If you hit a tricky seam around async challenges, subspace placement, or promise binding, consult ${microExamplesPath}.`,
     'Use the ritual greeting string exactly as specified in the live contract files.',
     'After posting the ritual greeting in tutorial, continue the ritual in that greeting intent subspace by using the greeting intentId as parentId.',
     'Do not invent a separate ENTER message type.',
@@ -462,11 +480,11 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
       promptTransform: (prompt, ctx) => [
         prompt,
         `Codex-specific execution rules for this harness run:`,
-        `Prefer the published reference client at ${join(ctx.repoRoot, 'academy/skill-pack/scripts/reference_dojo_client.py')}.`,
+        `Prefer the published intent space SDK at ${join(ctx.repoRoot, 'academy/skill-pack/sdk/intent_space_sdk.py')}.`,
         `If you need a local helper, create at most one executable helper script at ${join(ctx.workspaceDir, 'dojo_client.py')}.`,
-        'Use the reference client directly if it fits the task; adapting it is better than re-deriving the protocol from prose.',
+        'Use the SDK for wire mechanics only. Do not embed a pre-solved dojo state machine copied from a reference client.',
         'If you do write a local helper, use Python 3 standard library only.',
-        'After reading the required docs and contract files, stop reading and execute the reference flow immediately.',
+        'After reading the required docs and contract files, stop reading and implement your own flow immediately.',
         'Do not perform extra reconnaissance, historical analysis, or exploratory scans beyond root and your own live subspaces.',
         'Do not stop at planning, explanation, or partial setup.',
       ].join(' '),
@@ -603,8 +621,13 @@ async function awaitRunCompletion(
   processHandle: RunningProcess,
   monitor: MonitorHandle,
   timeoutMs: number,
-): Promise<{ exitCode: number | null; timedOut: boolean }> {
+  idleTimeoutMs: number,
+  stdoutPath: string,
+  stderrPath: string,
+): Promise<{ exitCode: number | null; timedOut: boolean; terminationReason: Exclude<TerminationReason, 'completed' | 'unavailable'> }> {
   const started = Date.now();
+  let lastProgressAt = started;
+  let lastActivity = snapshotRunActivity(monitor.transcript, stdoutPath, stderrPath);
   let exitCode: number | null = null;
   let exited = false;
   processHandle.waitForExit.then((code) => {
@@ -618,10 +641,21 @@ async function awaitRunCompletion(
     if (classifyRun(monitor.transcript).failureStage === 'completed') {
       processHandle.child.kill('SIGTERM');
       await sleep(200);
-      return { exitCode, timedOut: false };
+      return { exitCode, timedOut: false, terminationReason: 'process-exit' };
     }
     if (exited) {
-      return { exitCode, timedOut: false };
+      return { exitCode, timedOut: false, terminationReason: 'process-exit' };
+    }
+    const currentActivity = snapshotRunActivity(monitor.transcript, stdoutPath, stderrPath);
+    if (currentActivity !== lastActivity) {
+      lastActivity = currentActivity;
+      lastProgressAt = Date.now();
+    }
+    if (Date.now() - lastProgressAt > idleTimeoutMs) {
+      processHandle.child.kill('SIGTERM');
+      await sleep(500);
+      processHandle.child.kill('SIGKILL');
+      return { exitCode, timedOut: true, terminationReason: 'idle-timeout' };
     }
     await sleep(200);
   }
@@ -629,7 +663,31 @@ async function awaitRunCompletion(
   processHandle.child.kill('SIGTERM');
   await sleep(500);
   processHandle.child.kill('SIGKILL');
-  return { exitCode, timedOut: true };
+  return { exitCode, timedOut: true, terminationReason: 'wall-timeout' };
+}
+
+function snapshotRunActivity(
+  transcript: MessageEcho[],
+  stdoutPath: string,
+  stderrPath: string,
+): string {
+  const lastMessage = transcript.at(-1);
+  const stdoutSize = fileSize(stdoutPath);
+  const stderrSize = fileSize(stderrPath);
+  return JSON.stringify({
+    transcriptCount: transcript.length,
+    lastMessageTs: lastMessage?.timestamp ?? 0,
+    stdoutSize,
+    stderrSize,
+  });
+}
+
+function fileSize(path: string): number {
+  try {
+    return statSync(path).size;
+  } catch {
+    return 0;
+  }
 }
 
 export function classifyRun(
@@ -836,14 +894,16 @@ async function startLocalDojo(input: {
   mkdirSync(input.logDir, { recursive: true });
   const intentSpaceDir = join(input.logDir, 'space');
   mkdirSync(intentSpaceDir, { recursive: true });
-  const academy = spawn('python3', ['-m', 'http.server', String(input.academyPort), '--directory', join(input.repoRoot, 'academy')], {
+  const python3 = resolveCommand('python3');
+  const npm = resolveNpmLaunchSpec();
+  const academy = spawn(python3, ['-m', 'http.server', String(input.academyPort), '--directory', join(input.repoRoot, 'academy')], {
     cwd: input.repoRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   pipeToFile(academy.stdout, join(input.logDir, 'academy.log'));
   pipeToFile(academy.stderr, join(input.logDir, 'academy.err.log'));
 
-  const station = spawn('npm', ['start'], {
+  const station = spawn(npm.command, [...npm.args, 'start'], {
     cwd: join(input.repoRoot, 'intent-space'),
     env: {
       ...process.env,
@@ -857,7 +917,7 @@ async function startLocalDojo(input: {
 
   await waitForPort(input.host, input.port, 10_000);
 
-  const tutor = spawn('npm', ['run', 'tutor'], {
+  const tutor = spawn(npm.command, [...npm.args, 'run', 'tutor'], {
     cwd: join(input.repoRoot, 'academy'),
     env: {
       ...process.env,
@@ -886,6 +946,24 @@ async function startLocalDojo(input: {
       }
     },
   };
+}
+
+function resolveCommand(command: string): string {
+  try {
+    return execFileSync('which', [command], { encoding: 'utf8' }).trim() || command;
+  } catch {
+    return command;
+  }
+}
+
+function resolveNpmLaunchSpec(): { command: string; args: string[] } {
+  const node = process.execPath;
+  const npmCli = resolve(node, '..', '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  if (existsSync(npmCli)) {
+    return { command: node, args: [npmCli] };
+  }
+
+  return { command: resolveCommand('npm'), args: [] };
 }
 
 function createAttachedStage(options: HarnessOptions): StageHandle {
@@ -978,7 +1056,7 @@ function renderMarkdownReport(summaries: RunSummary[]): string {
       const interview = run.interviewStatus === 'completed'
         ? 'interview=completed'
         : `interview=${run.interviewStatus}`;
-      lines.push(`- trial ${run.trial}: ${run.status} (${run.failureStage}) in ${run.durationMs}ms; ${repair}; ${helper}; ${interview}`);
+      lines.push(`- trial ${run.trial}: ${run.status} (${run.failureStage}, ${run.terminationReason}) in ${run.durationMs}ms; ${repair}; ${helper}; ${interview}`);
     }
     lines.push('');
   }

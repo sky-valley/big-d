@@ -10,7 +10,8 @@ Phase 1 keeps this surface separate from the ITP station itself. The academy tea
 - `agent-setup.md` — canonical onboarding flow
 - `skill-pack/SKILL.md` — portable bootstrap pack for skill-oriented agents
 - `skill-pack/references/QUICKSTART.md` — fastest reliable path through the dojo
-- `skill-pack/scripts/reference_dojo_client.py` — complete happy-path client reference
+- `skill-pack/sdk/intent_space_sdk.py` — thin intent space SDK for wire mechanics
+- `skill-pack/references/MICRO_EXAMPLES.md` — seam-level protocol guidance without a solved client
 - `skill-pack/references/REFERENCE.md` — secondary implementation notes
 - `skill-pack/references/FORMS.md` — exact wire shapes for the dojo
 - `skill-pack/references/golden-happy-path.ndjson` — debugging and validation transcript
@@ -43,6 +44,16 @@ npm test
 ```
 
 These commands intentionally live in `academy/`, not `intent-space/`, so the generic station package stays clean.
+
+## Current SDK-Only Result
+
+The academy pack is now intentionally SDK-only.
+
+- the pack exposes a thin intent space SDK for wire mechanics
+- the pack exposes exact forms and seam examples
+- the pack does not ship a solved dojo client
+
+In the latest valid local A-to-Z run, Codex, Claude, and Pi all completed the dojo from this SDK-only pack. Each agent authored and executed its own thin local helper, but the pack itself no longer encoded the full ritual.
 
 ## Phase-1 publishing model
 
@@ -88,10 +99,11 @@ The tester prompt should stay short.
 ## Recommended Reading Order For Agents
 
 1. `skill-pack/references/QUICKSTART.md`
-2. `skill-pack/scripts/reference_dojo_client.py`
+2. `skill-pack/sdk/intent_space_sdk.py`
 3. `skill-pack/references/FORMS.md`
-4. `contracts/tutorial-ritual.json`
-5. everything else only if needed
+4. `skill-pack/references/MICRO_EXAMPLES.md`
+5. `contracts/tutorial-ritual.json`
+6. everything else only if needed
 
 ## Harness Note
 
@@ -112,13 +124,15 @@ This repo now separates the academy product surface from the generic station run
 - `academy/`
   - dojo-specific onboarding pack
   - dojo-specific scripts and tests
-  - reference dojo client
+  - thin intent space SDK
   - contracts
+  - tutor participant
+  - dojo harness
   - deployment artifacts for the live academy + dojo
 
 - `intent-space/`
   - generic observational station runtime
-  - tutor runtime
-  - harness and protocol tests
+  - protocol client/server/store
+  - generic protocol tests
 
 The dojo is still implemented on top of a generic `intent-space`. The academy folder exists so the deployable friend-facing experience has one obvious home.

@@ -29,19 +29,9 @@ Do not start by reading everything.
 Use this order:
 
 1. `skill-pack/references/QUICKSTART.md`
-2. `skill-pack/scripts/reference_dojo_client.py`
+2. `skill-pack/sdk/intent_space_sdk.py`
 3. `skill-pack/references/FORMS.md`
 4. `contracts/tutorial-ritual.json`
-
-Fast path command:
-
-```bash
-python3 skill-pack/scripts/reference_dojo_client.py \
-  --endpoint tcp://127.0.0.1:4000 \
-  --workspace .
-```
-
-Replace the endpoint with the one you were actually given.
 
 ## Three Critical Invariants
 
@@ -63,11 +53,12 @@ The exact wire shapes and sequencing live in:
 - `contracts/registration-challenge.example.json`
 - `contracts/tutorial-ritual.json`
 
-The complete happy-path implementation lives in:
+The thin intent space SDK lives in:
 
-- `skill-pack/scripts/reference_dojo_client.py`
+- `skill-pack/sdk/intent_space_sdk.py`
 
-The reference client now includes the initial root observation step, then proceeds into registration.
+It is intentionally an SDK, not a solved dojo client.
+Use it to remove wire noise, not to bypass protocol reasoning.
 
 ## Rules That Matter
 
@@ -78,6 +69,8 @@ The reference client now includes the initial root observation step, then procee
 - Advance `since` from `SCAN_RESULT.latestSeq`.
 - Keep one live connection open for the whole run.
 - Do not assume every tutor reply arrives only inside `SCAN_RESULT.messages`; some arrive asynchronously on the same connection.
+- If a challenge has not appeared yet, keep waiting in the original registration child subspace.
+  Do not repost registration unless the tutor explicitly rejects it.
 - For local dojo runs, if you are given a `tcp://` endpoint, use plain TCP exactly as given.
 
 ## Recommended Local Storage
@@ -128,3 +121,5 @@ The academy surface may serve the latest pack. Treat these files as the live con
 For local harnessed tests, the caller's explicit station endpoint and workspace path override generic defaults in these docs.
 
 The local harness prompt is intentionally longer than the real tester prompt. That extra wording is for evaluation control, not for external onboarding.
+
+The current harness also allows long runs and cuts on genuine lack of progress rather than a short fixed timeout. Agents are allowed to take their time as long as they keep advancing.

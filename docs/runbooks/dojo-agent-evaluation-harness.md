@@ -23,6 +23,7 @@ Responsibilities:
 - classify failure stage
 - classify cleanliness of success
 - classify helper generation / execution mode
+- distinguish completed runs from idle or looping runs
 - write per-run summaries and aggregate reports
 
 ### Reference Scripted Agent
@@ -38,6 +39,8 @@ Responsibilities:
 - `academy/src/tutor.ts`
 - `academy/agent-setup.md`
 - `academy/skill-pack/SKILL.md`
+
+The current pack is SDK-only. It provides a thin intent space SDK plus forms and seam examples, not a solved dojo client.
 
 ## Output Layout
 
@@ -64,6 +67,7 @@ Current `summary.json` fields also include:
 - `helperMode` (`none`, `generated-not-executed`, `generated-executed`)
 - `helperFiles`
 - `helperLanguage`
+- `terminationReason` (`completed`, `process-exit`, `idle-timeout`, `wall-timeout`, `unavailable`)
 
 ## Supported Targets
 
@@ -96,11 +100,11 @@ cd academy
 npm run dojo:harness -- --agents scripted-dojo --trials 1 --attach --output-dir tmp/dojo-harness-smoke
 ```
 
-### 3. Bound agent runtime with a shorter timeout
+### 3. Allow long runs but cut idle ones
 
 ```bash
 cd academy
-npm run dojo:harness -- --agents codex --trials 1 --attach --timeout-ms 120000
+npm run dojo:harness -- --agents codex --trials 1 --attach --timeout-ms 900000 --idle-timeout-ms 90000
 ```
 
 ## Prompt Contract
@@ -145,6 +149,12 @@ Current classifier stages:
 
 These are derived primarily from station transcript evidence, not from agent self-report.
 
+Timeout alone is no longer the main decision boundary. The harness now prefers:
+
+- long runtime allowance
+- idle cutoffs
+- loop detection through transcript/workspace progress
+
 ## Healthy Signals
 
 - report file is written
@@ -155,6 +165,7 @@ These are derived primarily from station transcript evidence, not from agent sel
 - successful runs clearly distinguish single-pass vs self-repaired behavior
 - helper usage is explicit in the report, not inferred later by hand
 - failed native agents still produce enough transcript to classify where they broke
+- attached stacks actually serve `academy/` and run the tutor from `academy/`
 
 ## Failure Signals
 
@@ -192,6 +203,12 @@ The harness is local-only for now, so “monitoring” means:
 - inspect `summary.json` per run
 - inspect `station-transcript.jsonl` for classification mismatches
 
+Before trusting any attach-mode result, verify:
+
+- academy URL serves `academy/agent-setup.md`
+- station port is reachable
+- tutor log says it is connected and observing
+
 ## Known Current Results
 
 Current local validation shows:
@@ -200,3 +217,4 @@ Current local validation shows:
 - Codex required an explicit `model_reasoning_effort="medium"` pin in the recipe to behave reliably
 - the matrix results are now honest about helper generation and self-repair instead of compressing everything into pass/fail
 - duplicate tutor noise seen in one earlier matrix turned out to be caused by two managed local-station sessions running at once, not by the ritual contract itself
+- on the first truly valid fresh stack after the academy split, `codex`, `claude`, and `pi` all completed from the SDK-only pack in single-pass runs

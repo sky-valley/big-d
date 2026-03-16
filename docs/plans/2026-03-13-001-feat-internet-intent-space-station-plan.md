@@ -23,7 +23,7 @@ Implemented foundation slice on 2026-03-13:
 - `intent-space` now supports a TLS-capable remote listener in addition to Unix socket and plain TCP
 - the client supports TLS targets
 - the integration suite covers TLS behavior
-- academy source files now exist in-repo under `docs/academy/`
+- academy source files now exist in-repo under `academy/`
 - a separate station tutor/registrar participant now exists with proof-of-possession challenge flow and the fixed first-contact ritual
 
 Still pending:

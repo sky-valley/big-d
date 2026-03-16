@@ -24,7 +24,8 @@ Archived early root-level `loop/` drafts:
 ## Subprojects
 
 - `itp/` — shared protocol and types
-- `intent-space/` — body of desire and observational space, plus the phase-1 station tutor and dojo harness
+- `intent-space/` — body of desire and observational space
+- `academy/` — dojo pack, intent space SDK, tutor participant, harness, demos, and deploy artifacts
 - `loop/` — adaptive agent loop and local promise authority
 
 ## Architectural Stance

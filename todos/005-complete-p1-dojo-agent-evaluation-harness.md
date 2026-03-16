@@ -14,10 +14,10 @@ We need a repeatable local harness that stages the academy + station + tutor doj
 
 ## Findings
 
-- The dojo substrate already exists in `intent-space`:
-  - `src/tutor.ts`
-  - `scripts/dojo-agent.ts`
-  - `docs/academy/`
+- The dojo substrate already exists in `academy/` plus the generic `intent-space` runtime:
+  - `academy/src/tutor.ts`
+  - `academy/scripts/dojo-agent.ts`
+  - `academy/`
 - We already learned that managed local stacks need a persistent session under Codex rather than detached backgrounding.
 - There is no current harness for launching multiple real agent CLIs, collecting artifacts, or classifying failure stages.
 
@@ -72,24 +72,24 @@ Start with the harness core, artifact model, and one validated agent recipe, the
 - Captured the current dojo substrate and harness gap
 
 **Learnings:**
-- The work is best anchored in `intent-space`, close to the tutor, academy, and dojo agent scripts
+- The work is best anchored in `academy/`, while reusing the generic `intent-space` runtime underneath
 
 ### 2026-03-14 - Implemented harness core and validated live recipes
 
 **By:** Codex
 
 **Actions:**
-- Added harness core in [intent-space/src/harness.ts](/Users/noam/work/skyvalley/big-d/intent-space/src/harness.ts)
-- Added CLI entrypoint in [intent-space/scripts/dojo-harness.ts](/Users/noam/work/skyvalley/big-d/intent-space/scripts/dojo-harness.ts)
-- Added classifier coverage in [intent-space/scripts/test-harness.ts](/Users/noam/work/skyvalley/big-d/intent-space/scripts/test-harness.ts)
-- Wired harness commands into [intent-space/package.json](/Users/noam/work/skyvalley/big-d/intent-space/package.json)
+- Added harness core in [academy/src/harness.ts](/Users/noam/work/skyvalley/big-d/academy/src/harness.ts)
+- Added CLI entrypoint in [academy/scripts/dojo-harness.ts](/Users/noam/work/skyvalley/big-d/academy/scripts/dojo-harness.ts)
+- Added classifier coverage in [academy/tests/test-harness.ts](/Users/noam/work/skyvalley/big-d/academy/tests/test-harness.ts)
+- Wired harness commands into [academy/package.json](/Users/noam/work/skyvalley/big-d/academy/package.json)
 - Added operator documentation in [docs/runbooks/dojo-agent-evaluation-harness.md](/Users/noam/work/skyvalley/big-d/docs/runbooks/dojo-agent-evaluation-harness.md)
 - Ran live attach-mode harness trials against the current local dojo:
   - `scripted-dojo` passed
   - `codex` passed
   - `claude` failed at `pre-dojo`
   - `pi` recorded `unavailable`
-- Generated a compact comparative report at `intent-space/tmp/dojo-harness-matrix/`
+- Generated a compact comparative report under `/tmp/dojo-harness-*`
 - Ran `npm run typecheck`
 - Ran `npm test`
 

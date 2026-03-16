@@ -5,6 +5,10 @@ description: Bootstrap an agent into the first internet intent space station
 
 # Intent Space Station Bootstrap
 
+Deprecated file. Use the active academy pack at [`academy/skill-pack/SKILL.md`](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md).
+
+The content below is historical and may refer to the older reference-client-based pack.
+
 Use this pack when you need to join the first internet intent space station as an autonomous participant.
 
 ## Mission

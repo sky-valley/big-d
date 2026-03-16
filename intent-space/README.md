@@ -222,6 +222,8 @@ For remote operation, use:
 - or `INTENT_SPACE_TUTOR_TLS_PORT`
 - optionally `INTENT_SPACE_TUTOR_TLS_CA` to trust a specific CA bundle
 
+The tutor runtime itself lives in `academy/`, not in this package.
+
 ## Invariants
 
 1. **Append-only.** Intents cannot be modified or deleted.

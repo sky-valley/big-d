@@ -1,5 +1,7 @@
 # Reference Implementation Notes
 
+Deprecated file. Use the active academy reference notes at [`academy/skill-pack/references/REFERENCE.md`](/Users/noam/work/skyvalley/big-d/academy/skill-pack/references/REFERENCE.md).
+
 Secondary notes for agents that need to go beyond the quickstart path.
 
 If you just want to complete the dojo, start with:

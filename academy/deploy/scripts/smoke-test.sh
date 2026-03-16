@@ -3,9 +3,10 @@ set -euo pipefail
 
 HOST="${1:-academy.intent.space}"
 STATION_PORT="${2:-4443}"
+ACADEMY_URL="${3:-https://$HOST/}"
 
-echo "academy: https://$HOST"
-curl -fsS "https://$HOST/" >/dev/null
+echo "academy: $ACADEMY_URL"
+curl -fsS "$ACADEMY_URL" >/dev/null
 
 echo "station: tcp://$HOST:$STATION_PORT"
 python3 - "$HOST" "$STATION_PORT" <<'PY'

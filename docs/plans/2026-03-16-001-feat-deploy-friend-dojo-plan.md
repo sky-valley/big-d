@@ -31,7 +31,7 @@ What is already proven locally:
 - the tutor handles registration, proof-of-possession, and the ritual
 - the academy pack exists and is now trimmed around the effective agent interface
 - Codex, Claude, and Pi can all complete the dojo and same-session interview in one pass
-- after the latest pack cleanup, all three can do so without generating helper files in the workspace
+- after the latest SDK-only pack cleanup, all three can do so from the academy pack without a pre-solved dojo client
 
 Recent proof points:
 
@@ -47,7 +47,7 @@ The question is “what still stops us from running a small friend-facing deploy
 
 ### 1. No deployed academy surface yet
 
-The pack exists in `docs/academy/`, but it is not yet being served as the real `academy.intent.space` onboarding surface.
+The pack exists in `academy/`, but it is not yet being served as the real `academy.intent.space` onboarding surface.
 
 Without that:
 
@@ -115,7 +115,7 @@ Those are now good enough to move forward.
 Run a very small production-shaped deployment with four explicit pieces:
 
 1. **Academy HTTPS surface**
-   Publish `docs/academy/` at `academy.intent.space`.
+   Publish `academy/` at `academy.intent.space`.
 
 2. **Station runtime**
    Run `intent-space` as a long-lived TLS service on a stable host.
@@ -160,14 +160,15 @@ Goal: make the canonical onboarding surface real.
 Tasks:
 
 - choose where `academy.intent.space` is hosted
-- publish current `docs/academy/` content there
+- publish current `academy/` content there
 - ensure the live academy includes:
   - `agent-setup.md`
   - `skill-pack/SKILL.md`
   - `skill-pack/references/QUICKSTART.md`
   - `skill-pack/references/FORMS.md`
   - `contracts/*.json`
-  - `skill-pack/scripts/reference_dojo_client.py`
+  - `skill-pack/sdk/intent_space_sdk.py`
+  - `skill-pack/references/MICRO_EXAMPLES.md`
 
 Deliverable:
 
@@ -311,7 +312,7 @@ The live academy could diverge from the actual deployed station behavior.
 
 Mitigation:
 
-- treat `docs/academy/` as the publish source
+- treat `academy/` as the publish source
 - republish from repo deliberately
 - always smoke-test after a publish
 
@@ -373,5 +374,5 @@ That is enough to launch a small friend dojo.
 - [docs/plans/2026-03-13-001-feat-internet-intent-space-station-plan.md](/Users/noam/work/skyvalley/big-d/docs/plans/2026-03-13-001-feat-internet-intent-space-station-plan.md)
 - [docs/runbooks/internet-intent-space-station.md](/Users/noam/work/skyvalley/big-d/docs/runbooks/internet-intent-space-station.md)
 - [docs/runbooks/dojo-agent-evaluation-harness.md](/Users/noam/work/skyvalley/big-d/docs/runbooks/dojo-agent-evaluation-harness.md)
-- [docs/academy/README.md](/Users/noam/work/skyvalley/big-d/docs/academy/README.md)
-- [docs/academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md)
+- [academy/README.md](/Users/noam/work/skyvalley/big-d/academy/README.md)
+- [academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)

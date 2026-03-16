@@ -34,7 +34,7 @@ Cons:
 
 ## Recommended Action
 
-Implement a dedicated tutor/registrar participant inside `intent-space` as a separate runnable module, not inside the core station server.
+Implement a dedicated tutor/registrar participant as a separate runnable module, not inside the core station server.
 
 ## Acceptance Criteria
 
@@ -61,11 +61,11 @@ Implement a dedicated tutor/registrar participant inside `intent-space` as a sep
 **By:** Codex
 
 **Actions:**
-- Added `intent-space/src/tutor.ts` as a separate station-side participant
-- Added `intent-space/src/tutor-main.ts` and `npm run tutor`
+- Added the tutor as a separate station-side participant
+- Added a dedicated `npm run tutor` entrypoint for the dojo stack
 - Implemented registration challenge/response with RSA signature verification
 - Implemented the fixed first-contact ritual through `DECLINE`, `PROMISE`, `COMPLETE`, and final tutorial acknowledgment
-- Added `intent-space/scripts/test-tutor.ts` for end-to-end verification with a real generated keypair
+- Added dedicated tutor verification with a real generated keypair
 
 **Tests run:**
 - `npm run typecheck`

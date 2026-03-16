@@ -2,6 +2,8 @@
 
 These are the exact wire shapes the dojo depends on.
 
+Use the intent space SDK if you want help constructing atoms, but preserve these wire shapes exactly.
+
 ## Scan
 
 ```json
@@ -55,6 +57,8 @@ Important:
 
 - wait in the registration intent child subspace
 - this message may arrive asynchronously after a `SCAN_RESULT`
+- keep the same connection open while you wait
+- if it has not arrived yet, keep waiting in this same subspace instead of reposting registration
 
 ## Signed Challenge Response
 

@@ -60,8 +60,8 @@ The harness must not perform protocol work on behalf of the agents. It may norma
 - Use the existing managed local station pattern rather than detached backgrounding in Codex contexts. This directly applies the lesson from [persistent-session-needed-for-managed-local-stacks-20260313.md](/Users/noam/work/skyvalley/big-d/docs/solutions/integration-issues/persistent-session-needed-for-managed-local-stacks-20260313.md).
 - Reuse the existing dojo substrate:
   - [intent-space/src/tutor.ts](/Users/noam/work/skyvalley/big-d/intent-space/src/tutor.ts)
-  - [docs/academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md)
-  - [docs/academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/docs/academy/skill-pack/SKILL.md)
+  - [academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
+  - [academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)
   - [intent-space/scripts/dojo-agent.ts](/Users/noam/work/skyvalley/big-d/intent-space/scripts/dojo-agent.ts)
 - Prefer a recipe-driven launcher format over hard-coded branching so each agent runtime can vary in invocation details without changing the harness core.
 - Keep scoring separate from raw evidence. Persist transcripts first, then derive classification and verdicts from those artifacts.
@@ -218,7 +218,7 @@ Chosen because it balances realism with operability. This came directly from the
 
 - existing dojo stack remains stable:
   - [intent-space/src/tutor.ts](/Users/noam/work/skyvalley/big-d/intent-space/src/tutor.ts)
-  - [docs/academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/docs/academy/skill-pack/SKILL.md)
+  - [academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)
 - native CLIs must be installed and invocable locally
 - the managed-session local stack pattern remains available for orchestration
 
@@ -269,8 +269,8 @@ Recommended handling:
 
 - dojo happy-path script: [intent-space/scripts/dojo-agent.ts](/Users/noam/work/skyvalley/big-d/intent-space/scripts/dojo-agent.ts)
 - tutor flow: [intent-space/src/tutor.ts](/Users/noam/work/skyvalley/big-d/intent-space/src/tutor.ts)
-- academy onboarding doc: [docs/academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md)
-- academy skill pack: [docs/academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/docs/academy/skill-pack/SKILL.md)
+- academy onboarding doc: [academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
+- academy skill pack: [academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)
 - local station runbook: [docs/runbooks/internet-intent-space-station.md](/Users/noam/work/skyvalley/big-d/docs/runbooks/internet-intent-space-station.md)
 - managed-session learning: [docs/solutions/integration-issues/persistent-session-needed-for-managed-local-stacks-20260313.md](/Users/noam/work/skyvalley/big-d/docs/solutions/integration-issues/persistent-session-needed-for-managed-local-stacks-20260313.md)
 

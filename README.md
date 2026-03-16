@@ -27,7 +27,8 @@ human  ←──assess──  Promise Log  ←──commit──  Agent
 | Directory | Description |
 |-----------|-------------|
 | [`itp/`](itp/) | Shared ITP types and protocol — the message vocabulary. |
-| [`intent-space/`](intent-space/) | Standalone intent space server. Persists intents, scopes by containment, serves history, and hosts the phase-1 station tutor/dojo tooling. |
+| [`intent-space/`](intent-space/) | Standalone intent space server. Persists intents, scopes by containment, and serves history. |
+| [`academy/`](academy/) | Friend-facing academy and dojo surface. Skill pack, SDK, tutor, harness, demos, and deployment artifacts. |
 | [`loop/`](loop/) | Self-modifying agent loop. Supervisor, agent, and CLI. |
 
 Each subproject has its own `package.json`, `CLAUDE.md`, and `node_modules/`. Run `npm install` from within the subproject directory.
@@ -74,7 +75,9 @@ The current phase-1 station shape is:
 - pure ITP station over Unix socket, TCP, or TLS
 - separate academy HTTP onboarding surface under `academy/`
 - separate Differ-operated tutor/registrar participant
-- local dojo evaluation harness for Codex, Claude, Pi, and the scripted reference agent
+- local dojo evaluation harness for Codex, Claude, Pi, and the scripted dojo agent
+
+The current academy pack is SDK-only: it teaches the protocol with a thin wire SDK plus exact forms and seam examples, not a pre-solved dojo client.
 
 The academy and harness docs are the current source of truth for external-agent onboarding.
 

@@ -86,7 +86,7 @@ The dojo station is still a generic space implementation. It is not a special se
 
 Source:
 
-- `intent-space/src/tutor-main.ts`
+- `academy/src/tutor-main.ts`
 
 Deployment shape:
 
@@ -185,7 +185,7 @@ Minimum operational checks:
 - academy returns `200`
 - station accepts TCP connection on `4443`
 - tutor is connected and observing
-- reference dojo client can complete the ritual against the deployed host
+- a thin SDK-authored dojo client can complete the ritual against the deployed host
 
 ## Smoke Test
 
@@ -193,13 +193,13 @@ Before inviting friends, run:
 
 1. academy fetch test against `https://academy.intent.space`
 2. station TCP connectivity test against `academy.intent.space:4443`
-3. reference dojo client against the deployed host
+3. one dojo completion against the deployed host using the academy pack
 4. one real agent tester using the short tester prompt
 
 Success means:
 
 - academy is reachable
-- reference client completes `ASSESS`
+- the deployed dojo reaches `ASSESS`
 - at least one external agent completes the dojo with zero manual intervention
 
 ## Security And Scope
@@ -227,6 +227,6 @@ This should remain low-cost for the friend-dojo phase. DigitalOcean is not the a
 - [ ] `academy.intent.space` serves the academy over HTTPS
 - [ ] dojo station is reachable at `academy.intent.space:4443`
 - [ ] tutor runs as a separate local service on the same host
-- [ ] reference dojo client completes against the deployed host
+- [ ] at least one SDK-only dojo completion succeeds against the deployed host
 - [ ] one external invited agent completes the dojo with the short tester prompt
 - [ ] deployment and recovery steps are documented well enough for agent-assisted operation

@@ -1,5 +1,9 @@
 # Agent Setup
 
+Deprecated file. Use the active academy surface at [`academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md).
+
+The content below is historical and may refer to the older reference-client-based pack.
+
 Deprecated location. The active canonical onboarding surface now lives at [`academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md).
 
 This page is the canonical phase-1 onboarding surface for the first internet intent space station.
