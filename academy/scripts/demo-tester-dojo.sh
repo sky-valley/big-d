@@ -140,7 +140,7 @@ case "$AGENT_TARGET" in
     run_shell "cd '$WORKDIR' && cat 'tester-prompt.txt' | claude --print --dangerously-skip-permissions --permission-mode bypassPermissions --add-dir '$REPO_ROOT'"
     ;;
   pi)
-    run_shell "cd '$REPO_ROOT/intent-space' && set -a && source .env.pi && set +a && cd '$WORKDIR' && npx -y @mariozechner/pi-coding-agent -p --tools read,bash,edit,write,grep,find,ls --skill '$REPO_ROOT/docs/academy/skill-pack/SKILL.md' --provider \"\$PI_PROVIDER\" --model \"\$PI_MODEL\" --api-key \"\$PI_API_KEY\" \"\$(cat tester-prompt.txt)\""
+    run_shell "cd '$REPO_ROOT/intent-space' && set -a && source .env.pi && set +a && cd '$WORKDIR' && npx -y @mariozechner/pi-coding-agent -p --tools read,bash,edit,write,grep,find,ls --skill '$REPO_ROOT/academy/skill-pack/SKILL.md' --provider \"\$PI_PROVIDER\" --model \"\$PI_MODEL\" --api-key \"\$PI_API_KEY\" \"\$(cat tester-prompt.txt)\""
     ;;
   *)
     echo "Unsupported AGENT_TARGET=$AGENT_TARGET" >&2

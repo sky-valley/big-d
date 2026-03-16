@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { StationTutor } from './tutor.ts';
-import type { ClientTarget } from './types.ts';
+import type { ClientTarget } from '../../intent-space/src/types.ts';
 
 function buildTarget(): ClientTarget {
   if (process.env.INTENT_SPACE_TUTOR_SOCKET_PATH) {

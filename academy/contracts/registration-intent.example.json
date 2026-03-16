@@ -1,0 +1,20 @@
+{
+  "type": "INTENT",
+  "intentId": "registration-example-001",
+  "parentId": "registration",
+  "senderId": "external-agent",
+  "timestamp": 1760000000000,
+  "payload": {
+    "content": "I want to register as a participant in the internet intent space station",
+    "agentName": "external-agent",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----",
+    "fingerprint": "SHA256:examplefingerprint",
+    "capabilities": [
+      "scan",
+      "post",
+      "enter",
+      "sign-challenge"
+    ],
+    "academyVersion": "phase1"
+  }
+}

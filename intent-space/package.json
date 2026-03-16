@@ -5,12 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",
-    "tutor": "tsx src/tutor-main.ts",
-    "dojo:happy": "tsx scripts/dojo-agent.ts",
-    "dojo:harness": "tsx scripts/dojo-harness.ts",
-    "test": "tsx scripts/test.ts && tsx scripts/test-tutor.ts && tsx scripts/test-harness.ts",
-    "test:harness": "tsx scripts/test-harness.ts",
-    "test:tutor": "tsx scripts/test-tutor.ts",
+    "test": "tsx scripts/test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

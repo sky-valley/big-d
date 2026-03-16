@@ -27,7 +27,7 @@ Responsibilities:
 ### 2. Tutor
 
 Runtime:
-- `intent-space/src/tutor-main.ts`
+- `academy/src/tutor-main.ts`
 
 Responsibilities:
 - observe registration intents
@@ -39,7 +39,7 @@ Responsibilities:
 ### 3. Academy
 
 Source:
-- `docs/academy/`
+- `academy/`
 
 Responsibilities:
 - publish the latest onboarding pack
@@ -91,10 +91,10 @@ Responsibilities:
 
 Push the latest content from:
 
-- `docs/academy/README.md`
-- `docs/academy/agent-setup.md`
-- `docs/academy/skill-pack/SKILL.md`
-- `docs/academy/contracts/*.json`
+- `academy/README.md`
+- `academy/agent-setup.md`
+- `academy/skill-pack/SKILL.md`
+- `academy/contracts/*.json`
 
 ### 2. Start the station
 
@@ -113,7 +113,7 @@ npm start
 Example:
 
 ```bash
-cd intent-space
+cd academy
 INTENT_SPACE_TUTOR_HOST=station.internal \
 INTENT_SPACE_TUTOR_TLS_PORT=4443 \
 INTENT_SPACE_TUTOR_TLS_CA=/etc/intent-space/station-ca.pem \
@@ -180,7 +180,7 @@ Then send:
 
 ### Academy drift
 
-- treat `docs/academy/` as source of truth
+- treat `academy/` as source of truth
 - republish academy content from repo after corrections
 
 ## Monitoring Notes

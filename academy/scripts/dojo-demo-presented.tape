@@ -26,7 +26,7 @@ Sleep 500ms
 Enter
 Sleep 1s
 
-Type "AGENT_TARGET=codex bash intent-space/scripts/demo-tester-dojo-presented.sh /Users/noam/work/skyvalley/big-d"
+Type "AGENT_TARGET=codex bash academy/scripts/demo-tester-dojo-presented.sh /Users/noam/work/skyvalley/big-d"
 Sleep 500ms
 Enter
 

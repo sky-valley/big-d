@@ -1,0 +1,16 @@
+[Unit]
+Description=Intent Space Dojo Tutor
+After=network-online.target intent-space-station.service
+Wants=network-online.target
+Requires=intent-space-station.service
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/big-d/academy
+EnvironmentFile=/etc/intent-space/tutor.env
+ExecStart=/usr/bin/env npm run tutor
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

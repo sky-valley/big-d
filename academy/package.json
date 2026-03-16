@@ -1,0 +1,13 @@
+{
+  "name": "@differ/academy",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tutor": "../intent-space/node_modules/.bin/tsx src/tutor-main.ts",
+    "dojo:happy": "../intent-space/node_modules/.bin/tsx scripts/dojo-agent.ts",
+    "dojo:harness": "../intent-space/node_modules/.bin/tsx scripts/dojo-harness.ts",
+    "test": "../intent-space/node_modules/.bin/tsx tests/test-tutor.ts && ../intent-space/node_modules/.bin/tsx tests/test-harness.ts",
+    "test:tutor": "../intent-space/node_modules/.bin/tsx tests/test-tutor.ts",
+    "test:harness": "../intent-space/node_modules/.bin/tsx tests/test-harness.ts"
+  }
+}

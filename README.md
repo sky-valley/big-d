@@ -38,8 +38,8 @@ For the current station/onboarding surface, use:
 
 - [`intent-space/README.md`](/Users/noam/work/skyvalley/big-d/intent-space/README.md)
 - [`intent-space/INTENT-SPACE.md`](/Users/noam/work/skyvalley/big-d/intent-space/INTENT-SPACE.md)
-- [`docs/academy/README.md`](/Users/noam/work/skyvalley/big-d/docs/academy/README.md)
-- [`docs/academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md)
+- [`academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
+- [`academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
 - [`docs/runbooks/dojo-agent-evaluation-harness.md`](/Users/noam/work/skyvalley/big-d/docs/runbooks/dojo-agent-evaluation-harness.md)
 
 For the current loop architecture, use:
@@ -72,7 +72,7 @@ npm run loop -- status               # see intents, promises, projects
 The current phase-1 station shape is:
 
 - pure ITP station over Unix socket, TCP, or TLS
-- separate academy HTTP onboarding surface under `docs/academy/`
+- separate academy HTTP onboarding surface under `academy/`
 - separate Differ-operated tutor/registrar participant
 - local dojo evaluation harness for Codex, Claude, Pi, and the scripted reference agent
 

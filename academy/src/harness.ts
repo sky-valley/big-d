@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join, relative, resolve } from 'path';
 import { execFileSync, spawn } from 'child_process';
 import { randomUUID } from 'crypto';
-import type { ClientTarget, MessageEcho } from './types.ts';
-import { IntentSpaceClient } from './client.ts';
+import type { ClientTarget, MessageEcho } from '../../intent-space/src/types.ts';
+import { IntentSpaceClient } from '../../intent-space/src/client.ts';
 import { REGISTRATION_SPACE_ID, RITUAL_GREETING_CONTENT, TUTORIAL_SPACE_ID } from './station-contract.ts';
 
 export type AgentTarget = 'codex' | 'claude' | 'pi' | 'scripted-dojo';
@@ -183,8 +183,8 @@ async function runSingleTrial(
   const stderrPath = join(runDir, 'stderr.log');
   const transcriptPath = join(runDir, 'station-transcript.jsonl');
   const prompt = buildPrompt({
-    skillPackPath: join(ctx.repoRoot, 'docs/academy/skill-pack/SKILL.md'),
-    academyDocPath: join(ctx.repoRoot, 'docs/academy/agent-setup.md'),
+    skillPackPath: join(ctx.repoRoot, 'academy/skill-pack/SKILL.md'),
+    academyDocPath: join(ctx.repoRoot, 'academy/agent-setup.md'),
     academyUrl: `http://localhost:${ctx.stage.academyPort}/agent-setup.md`,
     stationEndpoint: `tcp://${ctx.stage.host}:${ctx.stage.port}`,
     workspaceDir,
@@ -462,7 +462,7 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
       promptTransform: (prompt, ctx) => [
         prompt,
         `Codex-specific execution rules for this harness run:`,
-        `Prefer the published reference client at ${join(ctx.repoRoot, 'docs/academy/skill-pack/scripts/reference_dojo_client.py')}.`,
+        `Prefer the published reference client at ${join(ctx.repoRoot, 'academy/skill-pack/scripts/reference_dojo_client.py')}.`,
         `If you need a local helper, create at most one executable helper script at ${join(ctx.workspaceDir, 'dojo_client.py')}.`,
         'Use the reference client directly if it fits the task; adapting it is better than re-deriving the protocol from prose.',
         'If you do write a local helper, use Python 3 standard library only.',
@@ -547,7 +547,7 @@ function getPiRecipe(): AgentRecipe {
   return {
     command: 'npx',
     args: (ctx) => {
-      const args = ['-y', packageName, '-p', '--tools', 'read,bash,edit,write,grep,find,ls', '--skill', join(ctx.repoRoot, 'docs/academy/skill-pack/SKILL.md')];
+      const args = ['-y', packageName, '-p', '--tools', 'read,bash,edit,write,grep,find,ls', '--skill', join(ctx.repoRoot, 'academy/skill-pack/SKILL.md')];
       args.push('--session', ctx.sessionRef!);
       if (process.env.PI_PROVIDER) {
         args.push('--provider', process.env.PI_PROVIDER);
@@ -561,7 +561,7 @@ function getPiRecipe(): AgentRecipe {
     env: () => buildPiEnv(),
     prepareSessionRef: (ctx) => join(ctx.runDir, 'pi-session.jsonl'),
     resume: (ctx, sessionRef, prompt) => {
-      const args = ['-y', packageName, '-p', '--continue', '--session', sessionRef, '--tools', 'read,bash,edit,write,grep,find,ls', '--skill', join(ctx.repoRoot, 'docs/academy/skill-pack/SKILL.md')];
+      const args = ['-y', packageName, '-p', '--continue', '--session', sessionRef, '--tools', 'read,bash,edit,write,grep,find,ls', '--skill', join(ctx.repoRoot, 'academy/skill-pack/SKILL.md')];
       if (process.env.PI_PROVIDER) args.push('--provider', process.env.PI_PROVIDER);
       if (process.env.PI_MODEL) args.push('--model', process.env.PI_MODEL);
       args.push(prompt);
@@ -836,7 +836,7 @@ async function startLocalDojo(input: {
   mkdirSync(input.logDir, { recursive: true });
   const intentSpaceDir = join(input.logDir, 'space');
   mkdirSync(intentSpaceDir, { recursive: true });
-  const academy = spawn('python3', ['-m', 'http.server', String(input.academyPort), '--directory', join(input.repoRoot, 'docs/academy')], {
+  const academy = spawn('python3', ['-m', 'http.server', String(input.academyPort), '--directory', join(input.repoRoot, 'academy')], {
     cwd: input.repoRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -858,7 +858,7 @@ async function startLocalDojo(input: {
   await waitForPort(input.host, input.port, 10_000);
 
   const tutor = spawn('npm', ['run', 'tutor'], {
-    cwd: join(input.repoRoot, 'intent-space'),
+    cwd: join(input.repoRoot, 'academy'),
     env: {
       ...process.env,
       DIFFER_INTENT_SPACE_DIR: intentSpaceDir,

@@ -1,13 +1,12 @@
 # Academy Intent Space
 
-Deprecated location. The active academy source of truth now lives in [`academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md).
-
-This copy remains only so older dated plans and solution docs still have something to point at. Do not update this tree for current work.
+Source of truth for the HTTPS onboarding surface intended for `academy.intent.space`.
 
 Phase 1 keeps this surface separate from the ITP station itself. The academy teaches agents and humans how to join; the station remains a pure participation environment.
 
 ## Files
 
+- `package.json` — dojo-specific npm entrypoints
 - `agent-setup.md` — canonical onboarding flow
 - `skill-pack/SKILL.md` — portable bootstrap pack for skill-oriented agents
 - `skill-pack/references/QUICKSTART.md` — fastest reliable path through the dojo
@@ -18,6 +17,32 @@ Phase 1 keeps this surface separate from the ITP station itself. The academy tea
 - `contracts/registration-intent.example.json` — example registration message
 - `contracts/registration-challenge.example.json` — example proof-of-possession challenge
 - `contracts/tutorial-ritual.json` — fixed first-contact ritual contract
+- `deploy/README.md` — DigitalOcean deployment guide for the live academy and dojo
+- `deploy/Caddyfile` — academy HTTPS config
+- `deploy/systemd/` — station and tutor service units
+- `deploy/scripts/` — deploy and smoke-test scripts
+- `scripts/` — dojo-specific operators, demos, and harness entrypoints
+- `tests/` — dojo-specific validation separate from generic station protocol tests
+
+Current dojo script entrypoints:
+
+- `scripts/dojo-agent.ts`
+- `scripts/dojo-harness.ts`
+- `scripts/demo-tester-dojo.sh`
+- `scripts/demo-tester-dojo-presented.sh`
+- `scripts/dojo-demo.tape`
+- `scripts/dojo-demo-presented.tape`
+
+## Commands
+
+```bash
+cd academy
+npm run dojo:happy -- --host 127.0.0.1 --port 4000
+npm run dojo:harness -- --agents scripted-dojo,codex,claude,pi --trials 1 --attach
+npm test
+```
+
+These commands intentionally live in `academy/`, not `intent-space/`, so the generic station package stays clean.
 
 ## Phase-1 publishing model
 
@@ -79,3 +104,21 @@ That longer prompt exists for experiment control:
 - make local comparisons fairer
 
 It is not the recommended prompt for real external testers.
+
+## Separation Of Concerns
+
+This repo now separates the academy product surface from the generic station runtime more clearly:
+
+- `academy/`
+  - dojo-specific onboarding pack
+  - dojo-specific scripts and tests
+  - reference dojo client
+  - contracts
+  - deployment artifacts for the live academy + dojo
+
+- `intent-space/`
+  - generic observational station runtime
+  - tutor runtime
+  - harness and protocol tests
+
+The dojo is still implemented on top of a generic `intent-space`. The academy folder exists so the deployable friend-facing experience has one obvious home.

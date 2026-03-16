@@ -13,8 +13,8 @@ This harness is for local protocol-pack evaluation, not for deployed internet-st
 
 ### Harness Core
 
-- `intent-space/src/harness.ts`
-- `intent-space/scripts/dojo-harness.ts`
+- `academy/src/harness.ts`
+- `academy/scripts/dojo-harness.ts`
 
 Responsibilities:
 - stage or attach to the local dojo
@@ -27,7 +27,7 @@ Responsibilities:
 
 ### Reference Scripted Agent
 
-- `intent-space/scripts/dojo-agent.ts`
+- `academy/scripts/dojo-agent.ts`
 
 Responsibilities:
 - serve as a deterministic happy-path reference
@@ -35,9 +35,9 @@ Responsibilities:
 
 ### Existing Dojo Substrate
 
-- `intent-space/src/tutor.ts`
-- `docs/academy/agent-setup.md`
-- `docs/academy/skill-pack/SKILL.md`
+- `academy/src/tutor.ts`
+- `academy/agent-setup.md`
+- `academy/skill-pack/SKILL.md`
 
 ## Output Layout
 
@@ -85,21 +85,21 @@ Notes:
 Example:
 
 ```bash
-cd intent-space
+cd academy
 npm run dojo:harness -- --agents codex,claude,pi --trials 3 --attach --output-dir tmp/dojo-harness-matrix
 ```
 
 ### 2. Run a quick scripted validation
 
 ```bash
-cd intent-space
+cd academy
 npm run dojo:harness -- --agents scripted-dojo --trials 1 --attach --output-dir tmp/dojo-harness-smoke
 ```
 
 ### 3. Bound agent runtime with a shorter timeout
 
 ```bash
-cd intent-space
+cd academy
 npm run dojo:harness -- --agents codex --trials 1 --attach --timeout-ms 120000
 ```
 
@@ -124,8 +124,8 @@ Important:
 
 See:
 
-- [docs/academy/README.md](/Users/noam/work/skyvalley/big-d/docs/academy/README.md)
-- [docs/academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md)
+- [academy/README.md](/Users/noam/work/skyvalley/big-d/academy/README.md)
+- [academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
 
 ## Failure Stages
 
@@ -165,7 +165,7 @@ These are derived primarily from station transcript evidence, not from agent sel
 
 ## Recipe Model
 
-Recipes are defined in `intent-space/src/harness.ts` and should specify:
+Recipes are defined in `academy/src/harness.ts` and should specify:
 
 - command name
 - argument builder from:

@@ -2,8 +2,8 @@ import { generateKeyPairSync, createHash, createSign } from 'crypto';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { IntentSpace } from '../src/space.ts';
-import { IntentSpaceClient } from '../src/client.ts';
+import { IntentSpace } from '../../intent-space/src/space.ts';
+import { IntentSpaceClient } from '../../intent-space/src/client.ts';
 import { StationTutor } from '../src/tutor.ts';
 import {
   REGISTRATION_INTENT_CONTENT,
@@ -15,7 +15,7 @@ import {
   createAccept,
   createAssess,
   createIntent,
-} from '@differ/itp/src/protocol.ts';
+} from '../../itp/src/protocol.ts';
 
 const testDir = mkdtempSync(join(tmpdir(), 'intent-space-tutor-test-'));
 const socketPath = join(testDir, 'test.sock');
@@ -45,6 +45,7 @@ function assert(cond: boolean, msg: string) {
   else bad(msg);
 }
 
+async function main(): Promise<void> {
 const space = new IntentSpace({ socketPath, dbPath, agentId: 'intent-space' });
 await space.start();
 const tutor = new StationTutor({ target: socketPath, agentId: 'differ-tutor' });
@@ -267,3 +268,10 @@ console.log(`  ${pass} passed, ${fail} failed (of ${step})`);
 console.log(`================================`);
 
 if (fail > 0) process.exit(1);
+}
+
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.stack ?? error.message : String(error);
+  console.error(message);
+  process.exit(1);
+});

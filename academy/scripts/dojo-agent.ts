@@ -3,9 +3,9 @@ import {
   createAccept,
   createAssess,
   createIntent,
-} from '@differ/itp/src/protocol.ts';
-import { IntentSpaceClient } from '../src/client.ts';
-import type { ClientTarget, MessageEcho, StoredMessage, TlsClientTarget } from '../src/types.ts';
+} from '../../itp/src/protocol.ts';
+import { IntentSpaceClient } from '../../intent-space/src/client.ts';
+import type { ClientTarget, StoredMessage, TlsClientTarget } from '../../intent-space/src/types.ts';
 import {
   REGISTRATION_INTENT_CONTENT,
   REGISTRATION_SPACE_ID,

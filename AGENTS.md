@@ -13,8 +13,8 @@ Current architecture references:
 - `docs/plans/2026-03-10-feat-generalize-intent-space-for-promise-events-plan.md`
 - `intent-space/INTENT-SPACE.md`
 - `intent-space/README.md`
-- `docs/academy/README.md`
-- `docs/academy/agent-setup.md`
+- `academy/README.md`
+- `academy/agent-setup.md`
 - `docs/runbooks/dojo-agent-evaluation-harness.md`
 
 Archived early root-level `loop/` drafts:

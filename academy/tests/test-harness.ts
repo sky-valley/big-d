@@ -1,5 +1,5 @@
 import { classifyRun } from '../src/harness.ts';
-import type { MessageEcho } from '../src/types.ts';
+import type { MessageEcho } from '../../intent-space/src/types.ts';
 
 let pass = 0;
 let fail = 0;
@@ -33,6 +33,7 @@ function msg(input: Partial<MessageEcho> & Pick<MessageEcho, 'type' | 'senderId'
   };
 }
 
+function main(): void {
 test('classifyRun returns pre-dojo when no visitor messages exist');
 {
   const result = classifyRun([
@@ -133,3 +134,6 @@ console.log(`  ${pass} passed, ${fail} failed (of ${step})`);
 console.log(`================================`);
 
 if (fail > 0) process.exit(1);
+}
+
+main();

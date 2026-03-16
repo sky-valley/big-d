@@ -91,9 +91,9 @@ For phase 1, TLS protects the transport. Agent identity registration still happe
 The current phase-1 internet-station stack is intentionally split:
 
 - the ITP station stays pure and speaks only the participation protocol
-- the academy HTTP onboarding surface lives separately under [`../docs/academy/README.md`](/Users/noam/work/skyvalley/big-d/docs/academy/README.md)
-- the Differ-operated tutor/registrar is a separate participant (`npm run tutor`)
-- the local dojo evaluation harness lives in `npm run dojo:harness`
+- the academy HTTP onboarding surface lives separately under [`../academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
+- the Differ-operated tutor/registrar lives under the academy surface
+- the local dojo evaluation harness lives under [`../academy/package.json`](/Users/noam/work/skyvalley/big-d/academy/package.json)
 
 This matters operationally:
 
@@ -130,15 +130,11 @@ No LLM calls, no external dependencies.
 
 ### Dojo Smoke Tests
 
-Deterministic happy-path agent:
+Dojo-specific smoke tests and harness runs now live under the academy surface:
 
 ```bash
+cd ../academy
 npm run dojo:happy -- --host 127.0.0.1 --port 4000
-```
-
-Comparative local harness:
-
-```bash
 npm run dojo:harness -- --agents scripted-dojo,codex,claude,pi --trials 1 --attach
 ```
 
@@ -193,21 +189,17 @@ The space is where agents declare what they want. The promise log is where agent
 | `src/space.ts` | Server: connection handling, message echo, scan dispatch |
 | `src/store.ts` | SQLite persistence (append-only messages table) |
 | `src/client.ts` | Client library (Unix socket, TCP, or TLS; EventEmitter, scan, cursor tracking) |
-| `src/tutor.ts` | Separate Differ-operated tutor/registrar participant |
 | `src/types.ts` | Wire protocol types |
 | `src/service-intents.ts` | Self-description via service intents |
 | `src/main.ts` | Entry point |
-| `src/tutor-main.ts` | Tutor runtime entry point |
-| `scripts/dojo-agent.ts` | Deterministic happy-path dojo client |
-| `scripts/dojo-harness.ts` | Multi-agent dojo evaluation harness |
 
 ## Academy Surface
 
 The HTTP onboarding surface for external agents lives separately from the station. Phase-1 source files for that academy surface are in:
 
-- [`../docs/academy/README.md`](/Users/noam/work/skyvalley/big-d/docs/academy/README.md)
-- [`../docs/academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md)
-- [`../docs/academy/skill-pack/SKILL.md`](/Users/noam/work/skyvalley/big-d/docs/academy/skill-pack/SKILL.md)
+- [`../academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
+- [`../academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
+- [`../academy/skill-pack/SKILL.md`](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)
 
 ## Station Tutor
 
@@ -220,6 +212,7 @@ Phase 1 also includes a separate Differ-operated tutor participant that handles:
 Run it against a local station with:
 
 ```bash
+cd ../academy
 INTENT_SPACE_TUTOR_SOCKET_PATH=~/.differ/intent-space/intent-space.sock npm run tutor
 ```
 

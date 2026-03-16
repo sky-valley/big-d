@@ -1,0 +1,15 @@
+[Unit]
+Description=Intent Space Dojo Station
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/big-d/intent-space
+EnvironmentFile=/etc/intent-space/station.env
+ExecStart=/usr/bin/env npm start
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

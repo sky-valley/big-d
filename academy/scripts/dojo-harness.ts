@@ -46,7 +46,7 @@ function parseArgs(argv: string[]): CliOptions {
 }
 
 async function main(): Promise<void> {
-  const repoRoot = resolve(process.cwd(), '..');
+  const repoRoot = resolve(process.cwd(), '..', '..');
   loadEnvFile(join(process.cwd(), '.env.pi'));
   loadEnvFile(join(repoRoot, 'intent-space/.env.pi'));
   const options = parseArgs(process.argv.slice(2));

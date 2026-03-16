@@ -1,6 +1,6 @@
 import { createVerify, randomUUID } from 'crypto';
-import { IntentSpaceClient } from './client.ts';
-import type { ClientTarget, MessageEcho } from './types.ts';
+import { IntentSpaceClient } from '../../intent-space/src/client.ts';
+import type { ClientTarget, MessageEcho } from '../../intent-space/src/types.ts';
 import {
   REGISTRATION_SPACE_ID,
   TUTORIAL_SPACE_ID,
@@ -15,7 +15,7 @@ import {
   createDecline,
   createIntent,
   createPromise,
-} from '@differ/itp/src/protocol.ts';
+} from '../../itp/src/protocol.ts';
 
 interface RegistrationSession {
   registrationIntentId: string;
