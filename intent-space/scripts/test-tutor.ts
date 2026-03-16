@@ -67,6 +67,29 @@ test('Tutorial greeting is rejected before registration');
     (msg) => msg.type === 'DECLINE' && msg.intentId === bypassGreeting.intentId,
   );
   assert(Boolean(decline), 'Tutor should reject tutorial entry before successful registration');
+  assert(
+    decline?.payload.reasonCode === 'REGISTRATION_REQUIRED',
+    `expected REGISTRATION_REQUIRED, got ${String(decline?.payload.reasonCode)}`,
+  );
+}
+
+test('Malformed registration is declined with guidance');
+{
+  const malformedRegistration = createIntent('bad-agent', REGISTRATION_INTENT_CONTENT);
+  malformedRegistration.intentId = 'registration-bad-1';
+  malformedRegistration.parentId = REGISTRATION_SPACE_ID;
+  visitor.post(malformedRegistration);
+
+  await new Promise((r) => setTimeout(r, 150));
+  const registrationMessages = await visitor.scan(REGISTRATION_SPACE_ID);
+  const decline = registrationMessages.find(
+    (msg) => msg.type === 'DECLINE' && msg.intentId === malformedRegistration.intentId,
+  );
+  assert(Boolean(decline), 'Tutor should decline malformed registration payloads');
+  assert(
+    decline?.payload.reasonCode === 'INVALID_REGISTRATION_PAYLOAD',
+    `expected INVALID_REGISTRATION_PAYLOAD, got ${String(decline?.payload.reasonCode)}`,
+  );
 }
 
 test('Registration challenge and ritual flow');
@@ -99,6 +122,24 @@ test('Registration challenge and ritual flow');
   sign.update(String(challenge?.payload.challenge));
   sign.end();
   const signatureBase64 = sign.sign(privateKeyPem).toString('base64');
+
+  const badResponse = createIntent('visitor-agent', 'Signed challenge response');
+  badResponse.intentId = 'registration-test-1-bad-response';
+  badResponse.parentId = registrationIntent.intentId!;
+  badResponse.payload.challenge = challenge?.payload.challenge;
+  badResponse.payload.signatureBase64 = 'not-a-valid-signature';
+  visitor.post(badResponse);
+
+  await new Promise((r) => setTimeout(r, 150));
+  const failedVerify = await visitor.scan(registrationIntent.intentId!);
+  const badDecline = failedVerify.find(
+    (msg) => msg.type === 'DECLINE' && msg.intentId === badResponse.intentId,
+  );
+  assert(Boolean(badDecline), 'Tutor should decline invalid challenge responses');
+  assert(
+    badDecline?.payload.reasonCode === 'SIGNATURE_VERIFICATION_FAILED',
+    `expected SIGNATURE_VERIFICATION_FAILED, got ${String(badDecline?.payload.reasonCode)}`,
+  );
 
   const signedResponse = createIntent('visitor-agent', 'Signed challenge response');
   signedResponse.intentId = 'registration-test-1-response';
@@ -141,6 +182,10 @@ test('Registration challenge and ritual flow');
   const afterWrong = await visitor.scan(greeting.intentId!);
   const decline = afterWrong.find((msg) => msg.type === 'DECLINE');
   assert(Boolean(decline), 'Tutor should deliberately decline the first tutorial move');
+  assert(
+    decline?.payload.reasonCode === 'DOJO_DELIBERATE_CORRECTION',
+    `expected DOJO_DELIBERATE_CORRECTION, got ${String(decline?.payload.reasonCode)}`,
+  );
 
   const correctedIntent = createIntent('visitor-agent', 'clear tutorial ask');
   correctedIntent.intentId = 'tutorial-correct-1';
@@ -152,6 +197,17 @@ test('Registration challenge and ritual flow');
   const promise = afterRetry.find((msg) => msg.type === 'PROMISE');
   assert(Boolean(promise?.promiseId), 'Tutor should promise after the corrected tutorial move');
 
+  const badAccept = createAccept('visitor-agent', promise!.intentId!);
+  badAccept.parentId = greeting.intentId!;
+  visitor.post(badAccept);
+
+  await new Promise((r) => setTimeout(r, 150));
+  const afterBadAccept = await visitor.scan(greeting.intentId!);
+  const badAcceptDecline = afterBadAccept.find(
+    (msg) => msg.type === 'DECLINE' && msg.payload.reasonCode === 'MISSING_OR_WRONG_PROMISE_ID',
+  );
+  assert(Boolean(badAcceptDecline), 'Tutor should decline ACCEPT with a wrong promiseId');
+
   const accept = createAccept('visitor-agent', promise!.promiseId!);
   accept.parentId = greeting.intentId!;
   visitor.post(accept);
@@ -160,6 +216,17 @@ test('Registration challenge and ritual flow');
   const afterAccept = await visitor.scan(greeting.intentId!);
   const complete = afterAccept.find((msg) => msg.type === 'COMPLETE' && msg.promiseId === promise!.promiseId);
   assert(Boolean(complete), 'Tutor should complete after visitor ACCEPTs');
+
+  const badAssess = createAssess('visitor-agent', promise!.intentId!, 'FULFILLED');
+  badAssess.parentId = greeting.intentId!;
+  visitor.post(badAssess);
+
+  await new Promise((r) => setTimeout(r, 150));
+  const afterBadAssess = await visitor.scan(greeting.intentId!);
+  const badAssessDecline = afterBadAssess.find(
+    (msg) => msg.type === 'DECLINE' && msg.payload.reasonCode === 'MISSING_OR_WRONG_PROMISE_ID',
+  );
+  assert(Boolean(badAssessDecline), 'Tutor should decline ASSESS with a wrong promiseId');
 
   const assess = createAssess('visitor-agent', promise!.promiseId!, 'FULFILLED');
   assess.parentId = greeting.intentId!;
@@ -171,6 +238,19 @@ test('Registration challenge and ritual flow');
     (msg) => msg.type === 'INTENT' && msg.payload.content === 'Tutorial complete. You can now proceed beyond the ritual.',
   );
   assert(Boolean(finalAck), 'Tutor should acknowledge successful tutorial completion');
+  assert(
+    finalAck?.payload.dojoReward?.type === 'matrix-dojo-token',
+    `expected matrix-dojo-token reward, got ${String(finalAck?.payload.dojoReward?.type)}`,
+  );
+  assert(
+    typeof finalAck?.payload.dojoReward?.art === 'string'
+      && finalAck.payload.dojoReward.art.includes('[:: dojo signal acquired ::]'),
+    'Tutor should include the dojo reward ascii token',
+  );
+  assert(
+    finalAck?.payload.dojoCertificate?.status === 'FULFILLED',
+    `expected FULFILLED dojo certificate, got ${String(finalAck?.payload.dojoCertificate?.status)}`,
+  );
 
   const stateCounts = tutor.getStateCounts();
   assert(stateCounts.registrations === 0, 'Registration session should be cleaned up after successful verification');

@@ -8,6 +8,10 @@ Phase 1 keeps this surface separate from the ITP station itself. The academy tea
 
 - `agent-setup.md` — canonical onboarding flow
 - `skill-pack/SKILL.md` — portable bootstrap pack for skill-oriented agents
+- `skill-pack/scripts/reference_dojo_client.py` — complete happy-path client reference
+- `skill-pack/references/REFERENCE.md` — implementation notes and invariants
+- `skill-pack/references/FORMS.md` — exact wire shapes for the dojo
+- `skill-pack/references/golden-happy-path.ndjson` — canonical happy-path transcript
 - `contracts/registration-intent.example.json` — example registration message
 - `contracts/registration-challenge.example.json` — example proof-of-possession challenge
 - `contracts/tutorial-ritual.json` — fixed first-contact ritual contract

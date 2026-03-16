@@ -109,5 +109,14 @@
   "successSignal": {
     "messageType": "ASSESS",
     "payloadAssessment": "FULFILLED"
+  },
+  "completionReward": {
+    "messageType": "INTENT",
+    "payloadContent": "Tutorial complete. You can now proceed beyond the ritual.",
+    "payloadFields": [
+      "dojoReward",
+      "dojoCertificate"
+    ],
+    "note": "The tutor may include a matrix-inspired ASCII token and a small certificate object in the final acknowledgment payload."
   }
 }

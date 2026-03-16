@@ -38,7 +38,7 @@ export class IntentSpaceClient extends EventEmitter {
 
       this.socket.on('connect', () => resolve());
       this.socket.on('error', (err) => {
-        this.emit('error', err);
+        this.emitProblem(err);
         reject(err);
       });
       this.socket.on('data', (chunk: Buffer) => this.handleData(chunk.toString()));
@@ -105,7 +105,7 @@ export class IntentSpaceClient extends EventEmitter {
         const msg: ServerMessage = JSON.parse(line);
         this.handleMessage(msg);
       } catch {
-        this.emit('error', new Error('Invalid JSON from server'));
+        this.emitProblem(new Error('Invalid JSON from server'));
       }
     }
   }
@@ -115,7 +115,7 @@ export class IntentSpaceClient extends EventEmitter {
     this.emit('_message', msg);
 
     if (msg.type === 'ERROR') {
-      this.emit('error', new Error(msg.message));
+      this.emitProblem(new Error(msg.message));
       return;
     }
     if (msg.type === 'SCAN_RESULT') {
@@ -135,6 +135,13 @@ export class IntentSpaceClient extends EventEmitter {
   private writeLine(msg: unknown): void {
     if (!this.socket) throw new Error('Not connected');
     this.socket.write(JSON.stringify(msg) + '\n');
+  }
+
+  private emitProblem(err: Error): void {
+    this.emit('client-warning', err);
+    if (this.listenerCount('error') > 0) {
+      this.emit('error', err);
+    }
   }
 
   private connectTls(target: TlsClientTarget): TLSSocket {

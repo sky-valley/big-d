@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { dirname, join, relative, resolve } from 'path';
 import { execFileSync, spawn } from 'child_process';
+import { randomUUID } from 'crypto';
 import type { ClientTarget, MessageEcho } from './types.ts';
 import { IntentSpaceClient } from './client.ts';
 import { REGISTRATION_SPACE_ID, RITUAL_GREETING_CONTENT, TUTORIAL_SPACE_ID } from './station-contract.ts';
@@ -67,6 +68,11 @@ export interface RunSummary {
   helperMode: HelperMode;
   helperFiles: string[];
   helperLanguage?: string;
+  sessionRef?: string;
+  interviewStatus: 'completed' | 'failed' | 'unavailable';
+  interviewFile?: string;
+  interviewStdoutPath?: string;
+  interviewStderrPath?: string;
 }
 
 const DEFAULT_RUN_CLASSIFICATION = {
@@ -89,6 +95,10 @@ interface AgentRecipe {
   inputMode?: 'arg' | 'stdin';
   unavailableReason?: string;
   promptTransform?: (prompt: string, ctx: RecipeContext) => string;
+  env?: (ctx: RecipeContext) => NodeJS.ProcessEnv;
+  prepareSessionRef?: (ctx: RecipeContext) => string | undefined;
+  extractSessionRef?: (stdoutPath: string, stderrPath: string) => string | undefined;
+  resume?: (ctx: RecipeContext, sessionRef: string, prompt: string) => LaunchSpec;
 }
 
 interface RunningProcess {
@@ -99,7 +109,18 @@ interface RunningProcess {
 interface RecipeContext {
   repoRoot: string;
   workspaceDir: string;
+  runDir: string;
   prompt: string;
+  agent: AgentTarget;
+  trial: number;
+  sessionRef?: string;
+}
+
+interface LaunchSpec {
+  command: string;
+  args: string[];
+  inputMode?: 'arg' | 'stdin';
+  env?: NodeJS.ProcessEnv;
 }
 
 const DEFAULT_TIMEOUT_MS = 8 * 60 * 1000;
@@ -171,6 +192,14 @@ async function runSingleTrial(
 
   const startedAt = new Date();
   const monitor = await startMonitor({ host: ctx.stage.host, port: ctx.stage.port }, transcriptPath);
+  const recipeCtx: RecipeContext = {
+    repoRoot: ctx.repoRoot,
+    workspaceDir,
+    runDir,
+    prompt,
+    agent,
+    trial,
+  };
   try {
     const recipe = getRecipe(agent);
     if (!recipe) {
@@ -193,6 +222,7 @@ async function runSingleTrial(
         stderrPath,
         transcriptPath,
         generatedFiles: listFiles(workspaceDir),
+        interviewStatus: 'unavailable',
         ...DEFAULT_RUN_CLASSIFICATION,
       };
     }
@@ -217,6 +247,7 @@ async function runSingleTrial(
         stderrPath,
         transcriptPath,
         generatedFiles: listFiles(workspaceDir),
+        interviewStatus: 'unavailable',
         ...DEFAULT_RUN_CLASSIFICATION,
       };
     }
@@ -242,11 +273,13 @@ async function runSingleTrial(
         stderrPath,
         transcriptPath,
         generatedFiles: listFiles(workspaceDir),
+        interviewStatus: 'unavailable',
         ...DEFAULT_RUN_CLASSIFICATION,
       };
     }
 
-    const processHandle = launchRecipe(recipe, { repoRoot: ctx.repoRoot, workspaceDir, prompt }, {
+    recipeCtx.sessionRef = recipe.prepareSessionRef?.(recipeCtx);
+    const processHandle = launchRecipe(recipe, recipeCtx, {
       stdoutPath,
       stderrPath,
     });
@@ -261,6 +294,18 @@ async function runSingleTrial(
       : execution.timedOut
         ? 'timeout'
         : 'failed';
+    const sessionRef = recipeCtx.sessionRef ?? recipe.extractSessionRef?.(stdoutPath, stderrPath);
+    const interview = status === 'passed'
+      ? await runPostDojoInterview(recipe, {
+        ...recipeCtx,
+        sessionRef,
+      })
+      : {
+        status: 'unavailable' as const,
+        interviewFile: undefined,
+        stdoutPath: undefined,
+        stderrPath: undefined,
+      };
 
     const summary: RunSummary = {
       agent,
@@ -290,6 +335,11 @@ async function runSingleTrial(
       helperMode: classification.helperMode,
       helperFiles: classification.helperFiles,
       helperLanguage: classification.helperLanguage,
+      sessionRef,
+      interviewStatus: interview.status,
+      interviewFile: interview.interviewFile,
+      interviewStdoutPath: interview.stdoutPath,
+      interviewStderrPath: interview.stderrPath,
     };
 
     writeFileSync(join(runDir, 'summary.json'), JSON.stringify(summary, null, 2));
@@ -339,17 +389,33 @@ function launchRecipe(
   ctx: RecipeContext,
   io: { stdoutPath: string; stderrPath: string },
 ): RunningProcess {
+  return launchSpec(
+    {
+      command: recipe.command,
+      args: recipe.args(ctx),
+      inputMode: recipe.inputMode,
+      env: recipe.env?.(ctx),
+    },
+    ctx,
+    io,
+  );
+}
+
+function launchSpec(
+  spec: LaunchSpec,
+  ctx: RecipeContext,
+  io: { stdoutPath: string; stderrPath: string },
+): RunningProcess {
   mkdirSync(join(ctx.workspaceDir, '..'), { recursive: true });
   writeFileSync(io.stdoutPath, '');
   writeFileSync(io.stderrPath, '');
-  const prompt = recipe.promptTransform ? recipe.promptTransform(ctx.prompt, ctx) : ctx.prompt;
-  const child = spawn(recipe.command, recipe.args(ctx), {
+  const child = spawn(spec.command, spec.args, {
     cwd: ctx.workspaceDir,
-    env: process.env,
+    env: spec.env ?? process.env,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
-  if (recipe.inputMode === 'stdin') {
-    child.stdin.write(prompt);
+  if (spec.inputMode === 'stdin') {
+    child.stdin.write(ctx.prompt);
   }
   child.stdin.end();
   pipeToFile(child.stdout, io.stdoutPath);
@@ -379,13 +445,28 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
         ctx.repoRoot,
         (recipes.codex.promptTransform ? recipes.codex.promptTransform(ctx.prompt, ctx) : ctx.prompt),
       ],
+      extractSessionRef: (_stdoutPath, stderrPath) => extractCodexSessionId(readFileSync(stderrPath, 'utf8')),
+      resume: (ctx, sessionRef, prompt) => ({
+        command: 'codex',
+        args: [
+          'exec',
+          'resume',
+          sessionRef,
+          '-c',
+          'model_reasoning_effort="medium"',
+          '--dangerously-bypass-approvals-and-sandbox',
+          '--skip-git-repo-check',
+          prompt,
+        ],
+      }),
       promptTransform: (prompt, ctx) => [
         prompt,
         `Codex-specific execution rules for this harness run:`,
-        `Create exactly one executable helper script at ${join(ctx.workspaceDir, 'dojo_client.py')}.`,
-        `Use Python 3 standard library only.`,
-        'After reading the required docs and contract files, stop reading and write the script immediately.',
-        'Then execute that script immediately and let it drive the entire ritual to ASSESS.',
+        `Prefer the published reference client at ${join(ctx.repoRoot, 'docs/academy/skill-pack/scripts/reference_dojo_client.py')}.`,
+        `If you need a local helper, create at most one executable helper script at ${join(ctx.workspaceDir, 'dojo_client.py')}.`,
+        'Use the reference client directly if it fits the task; adapting it is better than re-deriving the protocol from prose.',
+        'If you do write a local helper, use Python 3 standard library only.',
+        'After reading the required docs and contract files, stop reading and execute the reference flow immediately.',
         'Do not perform extra reconnaissance, historical analysis, or exploratory scans beyond root and your own live subspaces.',
         'Do not stop at planning, explanation, or partial setup.',
       ].join(' '),
@@ -394,6 +475,8 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
       command: 'claude',
       args: (ctx) => [
         '--print',
+        '--session-id',
+        ctx.sessionRef!,
         '--dangerously-skip-permissions',
         '--permission-mode',
         'bypassPermissions',
@@ -401,6 +484,21 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
         ctx.repoRoot,
       ],
       inputMode: 'stdin',
+      prepareSessionRef: () => randomUUID(),
+      resume: (ctx, sessionRef, prompt) => ({
+        command: 'claude',
+        args: [
+          '--resume',
+          sessionRef,
+          '--print',
+          '--dangerously-skip-permissions',
+          '--permission-mode',
+          'bypassPermissions',
+          '--add-dir',
+          ctx.repoRoot,
+        ],
+        inputMode: 'stdin',
+      }),
     },
     'scripted-dojo': {
       command: 'npx',
@@ -450,17 +548,28 @@ function getPiRecipe(): AgentRecipe {
     command: 'npx',
     args: (ctx) => {
       const args = ['-y', packageName, '-p', '--tools', 'read,bash,edit,write,grep,find,ls', '--skill', join(ctx.repoRoot, 'docs/academy/skill-pack/SKILL.md')];
+      args.push('--session', ctx.sessionRef!);
       if (process.env.PI_PROVIDER) {
         args.push('--provider', process.env.PI_PROVIDER);
       }
       if (process.env.PI_MODEL) {
         args.push('--model', process.env.PI_MODEL);
       }
-      if (process.env.PI_API_KEY) {
-        args.push('--api-key', process.env.PI_API_KEY);
-      }
       args.push(ctx.prompt);
       return args;
+    },
+    env: () => buildPiEnv(),
+    prepareSessionRef: (ctx) => join(ctx.runDir, 'pi-session.jsonl'),
+    resume: (ctx, sessionRef, prompt) => {
+      const args = ['-y', packageName, '-p', '--continue', '--session', sessionRef, '--tools', 'read,bash,edit,write,grep,find,ls', '--skill', join(ctx.repoRoot, 'docs/academy/skill-pack/SKILL.md')];
+      if (process.env.PI_PROVIDER) args.push('--provider', process.env.PI_PROVIDER);
+      if (process.env.PI_MODEL) args.push('--model', process.env.PI_MODEL);
+      args.push(prompt);
+      return {
+        command: 'npx',
+        args,
+        env: buildPiEnv(),
+      };
     },
   };
 }
@@ -725,6 +834,8 @@ async function startLocalDojo(input: {
   logDir: string;
 }): Promise<StageHandle> {
   mkdirSync(input.logDir, { recursive: true });
+  const intentSpaceDir = join(input.logDir, 'space');
+  mkdirSync(intentSpaceDir, { recursive: true });
   const academy = spawn('python3', ['-m', 'http.server', String(input.academyPort), '--directory', join(input.repoRoot, 'docs/academy')], {
     cwd: input.repoRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -734,7 +845,11 @@ async function startLocalDojo(input: {
 
   const station = spawn('npm', ['start'], {
     cwd: join(input.repoRoot, 'intent-space'),
-    env: { ...process.env, INTENT_SPACE_PORT: String(input.port) },
+    env: {
+      ...process.env,
+      DIFFER_INTENT_SPACE_DIR: intentSpaceDir,
+      INTENT_SPACE_PORT: String(input.port),
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   pipeToFile(station.stdout, join(input.logDir, 'station.log'));
@@ -746,6 +861,7 @@ async function startLocalDojo(input: {
     cwd: join(input.repoRoot, 'intent-space'),
     env: {
       ...process.env,
+      DIFFER_INTENT_SPACE_DIR: intentSpaceDir,
       INTENT_SPACE_TUTOR_HOST: input.host,
       INTENT_SPACE_TUTOR_PORT: String(input.port),
     },
@@ -859,7 +975,10 @@ function renderMarkdownReport(summaries: RunSummary[]): string {
       const repair = run.cleanliness === 'single-pass'
         ? 'single-pass'
         : `self-repaired [${run.repairSignals.join(', ')}]`;
-      lines.push(`- trial ${run.trial}: ${run.status} (${run.failureStage}) in ${run.durationMs}ms; ${repair}; ${helper}`);
+      const interview = run.interviewStatus === 'completed'
+        ? 'interview=completed'
+        : `interview=${run.interviewStatus}`;
+      lines.push(`- trial ${run.trial}: ${run.status} (${run.failureStage}) in ${run.durationMs}ms; ${repair}; ${helper}; ${interview}`);
     }
     lines.push('');
   }
@@ -916,4 +1035,101 @@ function collectRepairSignals(transcript: MessageEcho[], generatedFiles: string[
   }
 
   return [...signals].sort();
+}
+
+async function runPostDojoInterview(
+  recipe: AgentRecipe,
+  ctx: RecipeContext,
+): Promise<{
+  status: 'completed' | 'failed' | 'unavailable';
+  interviewFile?: string;
+  stdoutPath?: string;
+  stderrPath?: string;
+}> {
+  if (!ctx.sessionRef || !recipe.resume) {
+    return { status: 'unavailable' };
+  }
+
+  const interviewFile = join(ctx.workspaceDir, '.intent-space', 'state', 'post-dojo-interview.md');
+  const stdoutPath = join(ctx.runDir, 'interview.stdout.log');
+  const stderrPath = join(ctx.runDir, 'interview.stderr.log');
+  const interviewPrompt = buildInterviewPrompt(interviewFile);
+  const spec = recipe.resume(ctx, ctx.sessionRef, interviewPrompt);
+  const proc = launchSpec(
+    {
+      ...spec,
+      inputMode: spec.inputMode,
+    },
+    { ...ctx, prompt: interviewPrompt },
+    { stdoutPath, stderrPath },
+  );
+
+  const result = await waitForProcess(proc, 2 * 60 * 1000);
+  const completed = existsSync(interviewFile) && !result.timedOut && (result.exitCode === 0 || result.exitCode === 143);
+  return {
+    status: completed ? 'completed' : 'failed',
+    interviewFile,
+    stdoutPath,
+    stderrPath,
+  };
+}
+
+function buildInterviewPrompt(interviewFile: string): string {
+  return [
+    'Do not rerun the dojo.',
+    'You just completed it in this same session.',
+    `Write a concise post-dojo interview to ${interviewFile}.`,
+    'Use markdown with these headings exactly:',
+    '# Post-Dojo Interview',
+    '## What Happened',
+    '## What Was Clear',
+    '## What Was Confusing',
+    '## What Nearly Broke',
+    '## What Helped Most',
+    '## What Should Change',
+    '## Reward Reaction',
+    'Be concrete and brief. Base your answers on the run you just performed, not on generic opinions.',
+    'After writing the file, print exactly INTERVIEW_SAVED.',
+  ].join(' ');
+}
+
+async function waitForProcess(
+  processHandle: RunningProcess,
+  timeoutMs: number,
+): Promise<{ exitCode: number | null; timedOut: boolean }> {
+  let exitCode: number | null = null;
+  let exited = false;
+  processHandle.waitForExit.then((code) => {
+    exitCode = code;
+    exited = true;
+  }).catch(() => {
+    exited = true;
+  });
+
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (exited) return { exitCode, timedOut: false };
+    await sleep(200);
+  }
+
+  processHandle.child.kill('SIGTERM');
+  await sleep(500);
+  processHandle.child.kill('SIGKILL');
+  return { exitCode, timedOut: true };
+}
+
+function extractCodexSessionId(stderrText: string): string | undefined {
+  const match = stderrText.match(/session id:\s*([0-9a-f-]+)/i);
+  return match?.[1];
+}
+
+function buildPiEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  const provider = process.env.PI_PROVIDER?.toLowerCase();
+  const key = process.env.PI_API_KEY;
+  if (!key) return env;
+  if (provider === 'anthropic' && !env.ANTHROPIC_API_KEY) env.ANTHROPIC_API_KEY = key;
+  if (provider === 'openai' && !env.OPENAI_API_KEY) env.OPENAI_API_KEY = key;
+  if ((provider === 'google' || provider === 'gemini') && !env.GEMINI_API_KEY) env.GEMINI_API_KEY = key;
+  return env;
 }

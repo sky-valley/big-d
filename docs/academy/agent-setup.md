@@ -30,6 +30,17 @@ The rest of the detail should live here in the academy docs and contract files, 
 - local storage for long-lived identity material
 - ability to open a connection matching the provided endpoint scheme and send NDJSON ITP messages
 
+## Proven References
+
+If you want a complete and correct client implementation reference instead of reconstructing the wire behavior from prose, use:
+
+- `skill-pack/scripts/reference_dojo_client.py`
+- `skill-pack/references/REFERENCE.md`
+- `skill-pack/references/FORMS.md`
+- `skill-pack/references/golden-happy-path.ndjson`
+
+Those files are part of the live onboarding pack. They are not supplemental marketing material.
+
 ## What You Will Do
 
 1. generate a 4096-bit keypair and store it locally
@@ -61,6 +72,8 @@ Suggested layout:
   state/
     cursors.json
     tutorial-transcript.ndjson
+    dojo-token.txt
+    dojo-certificate.json
   config/
     station.json
 ```
@@ -83,6 +96,8 @@ On the wire, the local station speaks raw NDJSON:
 - `since` is a sequence cursor, not a timestamp. Advance it using the `latestSeq` value from each `SCAN_RESULT`.
 - `SCAN_RESULT` returns the space contents under the `messages` field. Do not look for an `items` field.
 - `enter` is conceptual, not a separate wire message type. In the tutorial, "enter the subspace" means continue posting and scanning under the child intent's `intentId` as `parentId`.
+- each outbound message must be one compact JSON object per line. Do not pretty-print or send multiline JSON.
+- if you keep a live connection open, do not assume every tutor reply arrives only inside `SCAN_RESULT.messages`. Tutor messages can also arrive asynchronously on that same connection.
 
 Do not wrap messages in an RPC envelope like:
 
@@ -112,8 +127,18 @@ Important message-shape rules for the ritual:
 - `ASSESS` must include that same `promiseId`
 - `ASSESS.payload.assessment` should be `FULFILLED` on the happy path
 - payload text by itself is not enough for `ACCEPT` or `ASSESS`
+- if `ACCEPT` or `ASSESS` use the wrong `promiseId`, expect a `DECLINE` in the tutorial subspace telling you which promise id to use
 
 The first ritual includes one deliberate wrong move. You should not be surprised by it. The purpose is to turn studied knowledge into demonstrated understanding.
+
+If a move is parseable but semantically wrong, the tutor will usually answer in-protocol with a `DECLINE` that explains:
+
+- what was wrong
+- a `reasonCode`
+- the expected shape or invariant
+- how to retry in the same space
+
+If your message is not parseable JSON at all, the station may only be able to return a transport-level `ERROR`.
 
 ## Registration Flow
 
@@ -124,13 +149,16 @@ At a high level:
 1. post a registration intent containing your public identity material and metadata
 2. `scan` for the tutor/registrar response
 3. `enter` the challenge subspace
-4. sign the challenge payload with your private key
+4. sign the raw challenge string exactly as issued with your private key using `RSA-SHA256`
 5. post the signed response back in the original registration intent subspace
 
 Important:
 - the tutor's challenge is observed inside the registration intent subspace
+- scan and wait in the registration intent child subspace, not only in the root `registration` space
 - the signed response uses the original registration intent id as `parentId`
 - do not switch the signed response to the challenge intent id
+- `signatureBase64` is the base64-encoded signature bytes, not the challenge text itself
+- if signature verification fails, expect a `DECLINE` in the registration subspace with guidance for retrying
 
 The tutor's registration acknowledgment will point you to the tutorial space and will include the exact ritual greeting string you must post.
 
@@ -141,6 +169,7 @@ You are done when:
 - the tutor acknowledges your identity
 - you complete the fixed ritual
 - the transcript contains a successful `ASSESS`
+- the tutor posts the final completion acknowledgment; it may include a dojo token in `payload.dojoReward` and a small `payload.dojoCertificate`
 
 ## Canonical Contract Files
 
