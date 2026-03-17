@@ -29,7 +29,7 @@ See brainstorm: [docs/brainstorms/2026-03-14-dojo-agent-evaluation-harness-brain
 
 We now have a functioning dojo and onboarding pack, but we do not yet know whether real skill-oriented agents can use it as intended.
 
-The key unknown is not whether a handcrafted script can complete the ritual. We already proved that with [dojo-agent.ts](/Users/noam/work/skyvalley/big-d/intent-space/scripts/dojo-agent.ts). The real question is whether actual agent CLIs can:
+The key unknown is not whether a handcrafted script can complete the ritual. We already proved that with [dojo-agent.ts](/Users/noam/work/skyvalley/big-d/academy/scripts/dojo-agent.ts). The real question is whether actual agent CLIs can:
 
 - read the pack
 - operationalize it zero-shot
@@ -59,10 +59,10 @@ The harness must not perform protocol work on behalf of the agents. It may norma
 
 - Use the existing managed local station pattern rather than detached backgrounding in Codex contexts. This directly applies the lesson from [persistent-session-needed-for-managed-local-stacks-20260313.md](/Users/noam/work/skyvalley/big-d/docs/solutions/integration-issues/persistent-session-needed-for-managed-local-stacks-20260313.md).
 - Reuse the existing dojo substrate:
-  - [intent-space/src/tutor.ts](/Users/noam/work/skyvalley/big-d/intent-space/src/tutor.ts)
+  - [academy/src/tutor.ts](/Users/noam/work/skyvalley/big-d/academy/src/tutor.ts)
   - [academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
   - [academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)
-  - [intent-space/scripts/dojo-agent.ts](/Users/noam/work/skyvalley/big-d/intent-space/scripts/dojo-agent.ts)
+  - [academy/scripts/dojo-agent.ts](/Users/noam/work/skyvalley/big-d/academy/scripts/dojo-agent.ts)
 - Prefer a recipe-driven launcher format over hard-coded branching so each agent runtime can vary in invocation details without changing the harness core.
 - Keep scoring separate from raw evidence. Persist transcripts first, then derive classification and verdicts from those artifacts.
 - Pi mono should be treated as a native skill-capable target first, per the brainstorm and research carry-forward, not as wrapper-dependent by default (see brainstorm: [docs/brainstorms/2026-03-14-dojo-agent-evaluation-harness-brainstorm.md](/Users/noam/work/skyvalley/big-d/docs/brainstorms/2026-03-14-dojo-agent-evaluation-harness-brainstorm.md)).
@@ -217,7 +217,7 @@ Chosen because it balances realism with operability. This came directly from the
 ### Dependencies
 
 - existing dojo stack remains stable:
-  - [intent-space/src/tutor.ts](/Users/noam/work/skyvalley/big-d/intent-space/src/tutor.ts)
+  - [academy/src/tutor.ts](/Users/noam/work/skyvalley/big-d/academy/src/tutor.ts)
   - [academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)
 - native CLIs must be installed and invocable locally
 - the managed-session local stack pattern remains available for orchestration
@@ -267,8 +267,8 @@ Recommended handling:
 
 ### Internal References
 
-- dojo happy-path script: [intent-space/scripts/dojo-agent.ts](/Users/noam/work/skyvalley/big-d/intent-space/scripts/dojo-agent.ts)
-- tutor flow: [intent-space/src/tutor.ts](/Users/noam/work/skyvalley/big-d/intent-space/src/tutor.ts)
+- dojo happy-path script: [academy/scripts/dojo-agent.ts](/Users/noam/work/skyvalley/big-d/academy/scripts/dojo-agent.ts)
+- tutor flow: [academy/src/tutor.ts](/Users/noam/work/skyvalley/big-d/academy/src/tutor.ts)
 - academy onboarding doc: [academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
 - academy skill pack: [academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)
 - local station runbook: [docs/runbooks/internet-intent-space-station.md](/Users/noam/work/skyvalley/big-d/docs/runbooks/internet-intent-space-station.md)

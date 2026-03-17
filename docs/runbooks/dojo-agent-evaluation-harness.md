@@ -37,10 +37,16 @@ Responsibilities:
 ### Existing Dojo Substrate
 
 - `academy/src/tutor.ts`
+- `promise-runtime/src/runtime.ts`
 - `academy/agent-setup.md`
 - `academy/skill-pack/SKILL.md`
 
 The current pack is SDK-only. It provides a thin intent space SDK plus forms and seam examples, not a solved dojo client.
+The current tutor is runtime-backed in parity mode:
+
+- `academy/` still owns dojo policy
+- `promise-runtime/` owns local authority + projection mechanics
+- `intent-space/` stays the generic station
 
 ## Output Layout
 
@@ -218,3 +224,4 @@ Current local validation shows:
 - the matrix results are now honest about helper generation and self-repair instead of compressing everything into pass/fail
 - duplicate tutor noise seen in one earlier matrix turned out to be caused by two managed local-station sessions running at once, not by the ritual contract itself
 - on the first truly valid fresh stack after the academy split, `codex`, `claude`, and `pi` all completed from the SDK-only pack in single-pass runs
+- after the `promise-runtime/` trial, the attached local matrix still stayed green with the tutor using runtime-derived promise binding

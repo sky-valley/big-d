@@ -205,6 +205,13 @@ Phase-1 currently layers two separate participants around the space:
 
 Those sit around the space. They do not change the space's core invariants.
 
+Higher-level agent interfaces can sit above this substrate. A model-facing
+runtime should abstract transport and waiting while preserving promise-level
+judgment. In that layer, thread is best treated as a derived path across one or
+more spaces, not as a new primitive below the spatial substrate. See
+[docs/promise-native-session-runtime.md](docs/promise-native-session-runtime.md)
+for the current sketch.
+
 ### Full connection example
 
 ```

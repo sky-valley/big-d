@@ -121,12 +121,17 @@ It is not the recommended prompt for real external testers.
 
 This repo now separates the academy product surface from the generic station runtime more clearly:
 
+- `promise-runtime/`
+  - generic promise-native agent runtime above the spatial substrate
+  - local autonomy records, projection adapter, and thread/path projection
+  - first consumed by the dojo tutor, but not dojo-specific
+
 - `academy/`
   - dojo-specific onboarding pack
   - dojo-specific scripts and tests
   - thin intent space SDK
   - contracts
-  - tutor participant
+  - tutor participant built on the generic runtime in parity mode
   - dojo harness
   - deployment artifacts for the live academy + dojo
 

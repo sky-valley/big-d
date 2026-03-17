@@ -2,6 +2,12 @@ import { createVerify, randomUUID } from 'crypto';
 import { IntentSpaceClient } from '../../intent-space/src/client.ts';
 import type { ClientTarget, MessageEcho } from '../../intent-space/src/types.ts';
 import {
+  InMemoryThreadPathProjector,
+  IntentSpaceClientProjectionAdapter,
+  PromiseSessionRuntime,
+  type SpaceRef,
+} from '../../promise-runtime/src/index.ts';
+import {
   REGISTRATION_SPACE_ID,
   TUTORIAL_SPACE_ID,
   RITUAL_GREETING_CONTENT,
@@ -10,12 +16,6 @@ import {
   isSignedChallengePayload,
 } from './station-contract.ts';
 import type { RegistrationPayload, SignedChallengePayload } from './station-contract.ts';
-import {
-  createComplete,
-  createDecline,
-  createIntent,
-  createPromise,
-} from '../../itp/src/protocol.ts';
 
 interface RegistrationSession {
   registrationIntentId: string;
@@ -30,7 +30,6 @@ interface TutorialSession {
   greetingIntentId: string;
   visitorId: string;
   phase: 'awaiting-first-intent' | 'declined-once' | 'promised' | 'completed' | 'assessed';
-  promiseId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -54,6 +53,8 @@ export class StationTutor {
   ].join('\n');
   private client: IntentSpaceClient;
   private agentId: string;
+  private runtime: PromiseSessionRuntime;
+  private threadSpaces = new Map<string, SpaceRef[]>();
   private registrations = new Map<string, RegistrationSession>();
   private tutorialSessions = new Map<string, TutorialSession>();
   private seenMessages = new Set<string>();
@@ -62,10 +63,22 @@ export class StationTutor {
   constructor(opts: StationTutorOptions) {
     this.client = new IntentSpaceClient(opts.target);
     this.agentId = opts.agentId ?? 'differ-tutor';
+    const threadProjector = new InMemoryThreadPathProjector();
+    this.runtime = new PromiseSessionRuntime({
+      agentId: this.agentId,
+      projection: new IntentSpaceClientProjectionAdapter(
+        this.client,
+        this.agentId,
+        (threadId) => this.threadSpaces.get(threadId) ?? [],
+      ),
+      threadProjector,
+    });
   }
 
   async start(): Promise<void> {
-    this.client.on('message', (msg: MessageEcho) => this.handleMessage(msg));
+    this.client.on('message', (msg: MessageEcho) => {
+      void this.handleMessage(msg);
+    });
     this.client.on('client-warning', (err: Error) => {
       console.error(`station-tutor: client warning: ${err.message}`);
     });
@@ -76,7 +89,7 @@ export class StationTutor {
     this.client.disconnect();
   }
 
-  private handleMessage(msg: MessageEcho): void {
+  private async handleMessage(msg: MessageEcho): Promise<void> {
     this.pruneExpiredState(msg.timestamp);
 
     const key = messageKey(msg);
@@ -87,27 +100,27 @@ export class StationTutor {
     if (msg.senderId === this.agentId) return;
 
     if (msg.type === 'INTENT') {
-      this.handleIntent(msg);
+      await this.handleIntent(msg);
       return;
     }
 
     if (msg.type === 'ACCEPT') {
-      this.handleAccept(msg);
+      await this.handleAccept(msg);
       return;
     }
 
     if (msg.type === 'ASSESS') {
-      this.handleAssess(msg);
+      await this.handleAssess(msg);
     }
   }
 
-  private handleIntent(msg: MessageEcho): void {
+  private async handleIntent(msg: MessageEcho): Promise<void> {
     if (msg.parentId === REGISTRATION_SPACE_ID) {
       if (isRegistrationPayload(msg.payload)) {
-        this.handleRegistrationIntent(msg);
+        await this.handleRegistrationIntent(msg);
         return;
       }
-      this.declineWithGuidance(
+      await this.declineWithGuidance(
         msg.intentId!,
         REGISTRATION_SPACE_ID,
         'Registration intent is malformed.',
@@ -132,10 +145,10 @@ export class StationTutor {
     const registration = this.registrations.get(msg.parentId ?? '');
     if (registration) {
       if (isSignedChallengePayload(msg.payload)) {
-        this.handleSignedChallenge(msg, registration);
+        await this.handleSignedChallenge(msg, registration);
         return;
       }
-      this.declineWithGuidance(
+      await this.declineWithGuidance(
         msg.intentId!,
         registration.registrationIntentId,
         'Challenge response is malformed.',
@@ -158,10 +171,10 @@ export class StationTutor {
 
     if (msg.parentId === TUTORIAL_SPACE_ID) {
       if (msg.payload.content === RITUAL_GREETING_CONTENT) {
-        this.handleTutorialGreeting(msg);
+        await this.handleTutorialGreeting(msg);
         return;
       }
-      this.declineWithGuidance(
+      await this.declineWithGuidance(
         msg.intentId!,
         TUTORIAL_SPACE_ID,
         'Tutorial greeting did not match the ritual contract.',
@@ -183,13 +196,23 @@ export class StationTutor {
 
     const tutorial = this.tutorialSessions.get(msg.parentId ?? '');
     if (tutorial && msg.type === 'INTENT') {
-      this.handleTutorialIntent(msg, tutorial);
+      await this.handleTutorialIntent(msg, tutorial);
     }
   }
 
-  private handleRegistrationIntent(msg: MessageEcho): void {
+  private async handleRegistrationIntent(msg: MessageEcho): Promise<void> {
     const payload = msg.payload as RegistrationPayload;
     const challenge = randomUUID();
+    this.upsertThread({
+      threadId: msg.intentId!,
+      role: 'promiser',
+      summary: 'Registration verification thread',
+      pathSpaces: [
+        { spaceId: REGISTRATION_SPACE_ID, relation: 'origin', summary: 'Registration root' },
+        { spaceId: msg.intentId!, relation: 'entered', summary: 'Registration subspace' },
+      ],
+      rawStateHints: { kind: 'registration', participantId: msg.senderId },
+    });
     this.registrations.set(msg.intentId!, {
       registrationIntentId: msg.intentId!,
       agentId: msg.senderId,
@@ -199,24 +222,20 @@ export class StationTutor {
       createdAt: msg.timestamp,
     });
 
-    const challengeIntent = createIntent(
-      this.agentId,
+    await this.runtime.expressIntent(
+      msg.intentId!,
       'Prove you control the registered identity by signing this challenge',
-      undefined,
-      undefined,
-      msg.intentId,
+      {
+        challenge,
+        algorithm: CHALLENGE_ALGORITHM,
+      },
     );
-    Object.assign(challengeIntent.payload, {
-      challenge,
-      algorithm: CHALLENGE_ALGORITHM,
-    });
-    this.client.post(challengeIntent);
   }
 
-  private handleSignedChallenge(msg: MessageEcho, registration: RegistrationSession): void {
+  private async handleSignedChallenge(msg: MessageEcho, registration: RegistrationSession): Promise<void> {
     const payload = msg.payload as SignedChallengePayload;
     if (payload.challenge !== registration.challenge) {
-      this.declineWithGuidance(
+      await this.declineWithGuidance(
         msg.intentId!,
         registration.registrationIntentId,
         'Challenge response used the wrong challenge value.',
@@ -237,7 +256,7 @@ export class StationTutor {
     verify.end();
     const valid = verify.verify(registration.publicKeyPem, Buffer.from(payload.signatureBase64!, 'base64'));
     if (!valid) {
-      this.declineWithGuidance(
+      await this.declineWithGuidance(
         msg.intentId!,
         registration.registrationIntentId,
         'Signature verification failed.',
@@ -258,23 +277,19 @@ export class StationTutor {
     registration.verified = true;
     this.verifiedAgents.add(msg.senderId);
     this.registrations.delete(registration.registrationIntentId);
-    const ack = createIntent(
-      this.agentId,
-      `Registration accepted. Go to ${TUTORIAL_SPACE_ID} and post the ritual greeting.`,
-      undefined,
-      undefined,
+    await this.runtime.expressIntent(
       registration.registrationIntentId,
+      `Registration accepted. Go to ${TUTORIAL_SPACE_ID} and post the ritual greeting.`,
+      {
+        tutorialSpaceId: TUTORIAL_SPACE_ID,
+        ritualGreeting: RITUAL_GREETING_CONTENT,
+      },
     );
-    Object.assign(ack.payload, {
-      tutorialSpaceId: TUTORIAL_SPACE_ID,
-      ritualGreeting: RITUAL_GREETING_CONTENT,
-    });
-    this.client.post(ack);
   }
 
-  private handleTutorialGreeting(msg: MessageEcho): void {
+  private async handleTutorialGreeting(msg: MessageEcho): Promise<void> {
     if (!this.verifiedAgents.has(msg.senderId)) {
-      this.declineWithGuidance(
+      await this.declineWithGuidance(
         msg.intentId!,
         TUTORIAL_SPACE_ID,
         'Complete registration and proof-of-possession before entering the tutorial ritual.',
@@ -295,23 +310,30 @@ export class StationTutor {
       updatedAt: msg.timestamp,
     });
 
-    const instruction = createIntent(
-      this.agentId,
+    this.upsertThread({
+      threadId: msg.intentId!,
+      role: 'promiser',
+      summary: 'Tutorial ritual thread',
+      pathSpaces: [
+        { spaceId: TUTORIAL_SPACE_ID, relation: 'origin', summary: 'Tutorial root' },
+        { spaceId: msg.intentId!, relation: 'entered', summary: 'Greeting intent subspace' },
+      ],
+      rawStateHints: { kind: 'tutorial', visitorId: msg.senderId },
+    });
+
+    await this.runtime.expressIntent(
+      msg.intentId!,
       'Enter this greeting intent subspace and post your first tutorial intent there.',
-      undefined,
-      undefined,
-      msg.intentId,
+      { nextStep: 'enter-subspace' },
     );
-    Object.assign(instruction.payload, { nextStep: 'enter-subspace' });
-    this.client.post(instruction);
   }
 
-  private handleTutorialIntent(msg: MessageEcho, tutorial: TutorialSession): void {
+  private async handleTutorialIntent(msg: MessageEcho, tutorial: TutorialSession): Promise<void> {
     tutorial.updatedAt = msg.timestamp;
 
     if (tutorial.phase === 'awaiting-first-intent') {
       tutorial.phase = 'declined-once';
-      this.declineWithGuidance(
+      await this.declineWithGuidance(
         msg.intentId!,
         tutorial.greetingIntentId,
         'Deliberate tutorial correction: retry with a clearer request after observing the subspace.',
@@ -326,28 +348,31 @@ export class StationTutor {
 
     if (tutorial.phase === 'declined-once') {
       tutorial.phase = 'promised';
-      const promise = createPromise(this.agentId, msg.intentId!, 'I will guide you through the station ritual');
-      promise.parentId = tutorial.greetingIntentId;
-      tutorial.promiseId = promise.promiseId;
-      this.client.post(promise);
+      await this.runtime.offerPromise(
+        tutorial.greetingIntentId,
+        'I will guide you through the station ritual',
+        {},
+        undefined,
+        msg.intentId!,
+      );
     }
   }
 
-  private handleAccept(msg: MessageEcho): void {
+  private async handleAccept(msg: MessageEcho): Promise<void> {
     let matched = false;
     for (const tutorial of this.tutorialSessions.values()) {
-      if (tutorial.promiseId === msg.promiseId && tutorial.phase === 'promised') {
+      const promiseId = tutorial.phase === 'promised'
+        ? await this.currentTutorialPromiseId(tutorial.greetingIntentId)
+        : undefined;
+      if (promiseId && promiseId === msg.promiseId && tutorial.phase === 'promised') {
         matched = true;
         tutorial.phase = 'completed';
         tutorial.updatedAt = msg.timestamp;
-        const complete = createComplete(
-          this.agentId,
+        await this.runtime.complete(
+          tutorial.greetingIntentId,
           msg.promiseId!,
           'Tutorial promise complete. You have finished the first coordination loop.',
-          [],
         );
-        complete.parentId = tutorial.greetingIntentId;
-        this.client.post(complete);
       }
     }
 
@@ -355,8 +380,9 @@ export class StationTutor {
 
     const tutorial = msg.parentId ? this.tutorialSessions.get(msg.parentId) : undefined;
     if (!tutorial || tutorial.phase !== 'promised') return;
+    const promiseId = await this.currentTutorialPromiseId(tutorial.greetingIntentId);
 
-    this.declineWithGuidance(
+    await this.declineWithGuidance(
       tutorial.greetingIntentId,
       tutorial.greetingIntentId,
       'ACCEPT did not bind to the tutor promise.',
@@ -365,49 +391,48 @@ export class StationTutor {
         explanation: 'ACCEPT must bind to the tutor promise by promiseId.',
         expected: {
           type: 'ACCEPT',
-          promiseId: tutorial.promiseId,
+          promiseId,
         },
         retryHint: 'Post a corrected ACCEPT in this same subspace using the tutor promiseId.',
       },
     );
   }
 
-  private handleAssess(msg: MessageEcho): void {
+  private async handleAssess(msg: MessageEcho): Promise<void> {
     let matched = false;
     for (const tutorial of this.tutorialSessions.values()) {
-      if (tutorial.promiseId === msg.promiseId && tutorial.phase === 'completed') {
+      const promiseId = tutorial.phase === 'completed'
+        ? await this.currentTutorialPromiseId(tutorial.greetingIntentId)
+        : undefined;
+      if (promiseId && promiseId === msg.promiseId && tutorial.phase === 'completed') {
         matched = true;
         tutorial.phase = 'assessed';
         tutorial.updatedAt = msg.timestamp;
-        const ack = createIntent(
-          this.agentId,
-          StationTutor.FINAL_ACK_CONTENT,
-          undefined,
-          undefined,
+        await this.runtime.expressIntent(
           tutorial.greetingIntentId,
+          StationTutor.FINAL_ACK_CONTENT,
+          {
+            dojoReward: {
+              type: 'matrix-dojo-token',
+              version: 1,
+              title: 'dojo signal acquired',
+              art: StationTutor.DOJO_TOKEN_ART,
+              status: 'FULFILLED',
+              ritual: 'phase1-first-contact-ritual',
+              issuedAt: msg.timestamp,
+              visitorId: tutorial.visitorId,
+              promiseId,
+              saveAs: '.intent-space/state/dojo-token.txt',
+            },
+            dojoCertificate: {
+              ritual: 'phase1-first-contact-ritual',
+              status: 'FULFILLED',
+              issuedAt: msg.timestamp,
+              visitorId: tutorial.visitorId,
+              promiseId,
+            },
+          },
         );
-        Object.assign(ack.payload as Record<string, unknown>, {
-          dojoReward: {
-            type: 'matrix-dojo-token',
-            version: 1,
-            title: 'dojo signal acquired',
-            art: StationTutor.DOJO_TOKEN_ART,
-            status: 'FULFILLED',
-            ritual: 'phase1-first-contact-ritual',
-            issuedAt: msg.timestamp,
-            visitorId: tutorial.visitorId,
-            promiseId: tutorial.promiseId,
-            saveAs: '.intent-space/state/dojo-token.txt',
-          },
-          dojoCertificate: {
-            ritual: 'phase1-first-contact-ritual',
-            status: 'FULFILLED',
-            issuedAt: msg.timestamp,
-            visitorId: tutorial.visitorId,
-            promiseId: tutorial.promiseId,
-          },
-        });
-        this.client.post(ack);
         this.tutorialSessions.delete(tutorial.greetingIntentId);
       }
     }
@@ -416,10 +441,11 @@ export class StationTutor {
 
     const tutorial = msg.parentId ? this.tutorialSessions.get(msg.parentId) : undefined;
     if (!tutorial || tutorial.phase !== 'completed') return;
+    const promiseId = await this.currentTutorialPromiseId(tutorial.greetingIntentId);
 
     const assessment = msg.payload?.assessment;
     if (assessment !== 'FULFILLED' && assessment !== 'BROKEN') {
-      this.declineWithGuidance(
+      await this.declineWithGuidance(
         tutorial.greetingIntentId,
         tutorial.greetingIntentId,
         'ASSESS payload is malformed.',
@@ -428,7 +454,7 @@ export class StationTutor {
           explanation: 'ASSESS must include payload.assessment with FULFILLED or BROKEN.',
           expected: {
             type: 'ASSESS',
-            promiseId: tutorial.promiseId,
+            promiseId,
             payload: {
               assessment: 'FULFILLED',
             },
@@ -439,7 +465,7 @@ export class StationTutor {
       return;
     }
 
-    this.declineWithGuidance(
+    await this.declineWithGuidance(
       tutorial.greetingIntentId,
       tutorial.greetingIntentId,
       'ASSESS did not bind to the tutor promise.',
@@ -448,7 +474,7 @@ export class StationTutor {
         explanation: 'ASSESS must bind to the tutor promise by promiseId.',
         expected: {
           type: 'ASSESS',
-          promiseId: tutorial.promiseId,
+          promiseId,
           payload: {
             assessment,
           },
@@ -467,16 +493,14 @@ export class StationTutor {
     };
   }
 
-  private declineWithGuidance(
+  private async declineWithGuidance(
     intentId: string,
     parentId: string,
     reason: string,
     guidance: Record<string, unknown>,
-  ): void {
-    const decline = createDecline(this.agentId, intentId, reason);
-    decline.parentId = parentId;
-    Object.assign(decline.payload as Record<string, unknown>, guidance);
-    this.client.post(decline);
+  ): Promise<void> {
+    const threadId = this.ensureThreadForParent(parentId);
+    await this.runtime.decline(threadId, reason, guidance, intentId);
   }
 
   private pruneSeenMessages(): void {
@@ -499,6 +523,36 @@ export class StationTutor {
         this.tutorialSessions.delete(greetingId);
       }
     }
+  }
+
+  private upsertThread(context: {
+    threadId: string;
+    role: 'requester' | 'promiser' | 'observer' | 'mixed';
+    summary: string;
+    pathSpaces: SpaceRef[];
+    rawStateHints?: Record<string, unknown>;
+  }): void {
+    this.threadSpaces.set(context.threadId, context.pathSpaces);
+    this.runtime.upsertThread(context);
+  }
+
+  private ensureThreadForParent(parentId: string): string {
+    if (this.threadSpaces.has(parentId)) return parentId;
+    const threadId = `space:${parentId}`;
+    if (!this.threadSpaces.has(threadId)) {
+      this.upsertThread({
+        threadId,
+        role: 'promiser',
+        summary: `Space thread for ${parentId}`,
+        pathSpaces: [{ spaceId: parentId, relation: 'origin', summary: `Space ${parentId}` }],
+      });
+    }
+    return threadId;
+  }
+
+  private async currentTutorialPromiseId(threadId: string): Promise<string | undefined> {
+    const state = await this.runtime.refreshThread(threadId);
+    return state.openCommitments.at(-1)?.promiseId;
   }
 }
 

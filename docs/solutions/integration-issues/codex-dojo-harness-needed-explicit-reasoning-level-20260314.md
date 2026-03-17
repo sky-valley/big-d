@@ -42,7 +42,7 @@ For the dojo task, that difference mattered. Under `none`, Codex was often able 
 
 ### 1. Pin the Codex harness recipe to `medium`
 
-In `intent-space/src/harness.ts:340`, the Codex recipe now adds:
+In `academy/src/harness.ts`, the Codex recipe now adds:
 
 ```ts
 '-c',
@@ -95,5 +95,5 @@ For Codex specifically:
 
 - [docs/runbooks/dojo-agent-evaluation-harness.md](/Users/noam/work/skyvalley/big-d/docs/runbooks/dojo-agent-evaluation-harness.md)
 - [docs/solutions/integration-issues/claude-dojo-failure-exposed-harness-and-pack-bugs-20260314.md](/Users/noam/work/skyvalley/big-d/docs/solutions/integration-issues/claude-dojo-failure-exposed-harness-and-pack-bugs-20260314.md)
-- [docs/academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md)
-- [docs/academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/docs/academy/skill-pack/SKILL.md)
+- [academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
+- [academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)

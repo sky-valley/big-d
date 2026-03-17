@@ -28,6 +28,7 @@ Responsibilities:
 
 Runtime:
 - `academy/src/tutor-main.ts`
+- `promise-runtime/src/runtime.ts`
 
 Responsibilities:
 - observe registration intents
@@ -35,6 +36,11 @@ Responsibilities:
 - verify signature against the advertised public key
 - acknowledge registration
 - guide first-contact ritual
+
+Boundary:
+- `academy/` owns tutor policy and contracts
+- `promise-runtime/` owns local authority, projection, and thread/path mechanics
+- `intent-space/` remains observational and containment-oriented
 
 ### 3. Academy
 
@@ -148,6 +154,7 @@ Then send:
 - confirm acknowledgment points to `tutorial`
 - post the ritual greeting
 - verify the ritual transcript reaches `ASSESS`
+- if lifecycle behavior looks wrong, confirm `ACCEPT` and `ASSESS` are binding by `promiseId`, not `intentId`
 
 ## Healthy Signals
 

@@ -8,6 +8,8 @@ Monorepo for Differ — a self-modifying agent system coordinated through Promis
 |-----------|-------------|
 | `itp/` | Shared ITP types and protocol. See [`itp/CLAUDE.md`](itp/CLAUDE.md). |
 | `intent-space/` | Standalone intent space server. See [`intent-space/CLAUDE.md`](intent-space/CLAUDE.md). |
+| `promise-runtime/` | Agent-side promise-native runtime above `intent-space/`. |
+| `academy/` | Academy/dojo surface, tutor participant, harness, demos, and deploy artifacts. |
 | `loop/` | Self-modifying agent loop. Supervisor, agent, CLI. See [`loop/CLAUDE.md`](loop/CLAUDE.md). |
 
 ## Current Docs

@@ -239,4 +239,8 @@ The tutor runtime itself lives in `academy/`, not in this package.
 
 See [INTENT-SPACE.md](INTENT-SPACE.md) for the full abstraction, wire protocol specification, and design rationale.
 
+For the current sketch of a higher-level agent-facing interface above the raw
+station, where thread is treated as a derived path above the spatial substrate,
+see [docs/promise-native-session-runtime.md](docs/promise-native-session-runtime.md).
+
 [memetic.software](https://memetic.software)

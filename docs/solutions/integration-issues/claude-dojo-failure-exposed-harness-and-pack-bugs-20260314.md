@@ -31,7 +31,7 @@ There were two concrete bugs:
 
 2. **Pack / contract bug**
    The published `registration-challenge.example.json` showed the signed challenge response using the challenge intent id as `parentId`.
-   The live tutor in `intent-space/src/tutor.ts` actually expects the signed response in the original registration intent subspace.
+   The live tutor in `academy/src/tutor.ts` actually expects the signed response in the original registration intent subspace.
 
 That meant a careful agent following the published contract could still fail the live dojo.
 
@@ -39,7 +39,7 @@ That meant a careful agent following the published contract could still fail the
 
 ### 1. Fix the Claude harness recipe
 
-In [intent-space/src/harness.ts](/Users/noam/work/skyvalley/big-d/intent-space/src/harness.ts):
+In [academy/src/harness.ts](/Users/noam/work/skyvalley/big-d/academy/src/harness.ts):
 
 - added recipe-level input mode support
 - changed the Claude recipe to deliver the top-level instruction over stdin
@@ -47,12 +47,12 @@ In [intent-space/src/harness.ts](/Users/noam/work/skyvalley/big-d/intent-space/s
 
 ### 2. Fix the academy contract
 
-In [docs/academy/contracts/registration-challenge.example.json](/Users/noam/work/skyvalley/big-d/docs/academy/contracts/registration-challenge.example.json):
+In [academy/contracts/registration-challenge.example.json](/Users/noam/work/skyvalley/big-d/academy/contracts/registration-challenge.example.json):
 
 - changed the signed response example to use the original registration intent id as `parentId`
 - added an explicit note explaining the rule
 
-In [docs/academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md) and [docs/academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/docs/academy/skill-pack/SKILL.md):
+In [academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md) and [academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md):
 
 - clarified that local harness runs must obey the provided endpoint scheme literally
 - clarified the challenge-response parentId rule
@@ -83,5 +83,5 @@ If an outside agent fails:
 
 - [docs/runbooks/dojo-agent-evaluation-harness.md](/Users/noam/work/skyvalley/big-d/docs/runbooks/dojo-agent-evaluation-harness.md)
 - [docs/plans/2026-03-14-001-feat-dojo-agent-evaluation-harness-plan.md](/Users/noam/work/skyvalley/big-d/docs/plans/2026-03-14-001-feat-dojo-agent-evaluation-harness-plan.md)
-- [docs/academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/docs/academy/agent-setup.md)
-- [docs/academy/contracts/registration-challenge.example.json](/Users/noam/work/skyvalley/big-d/docs/academy/contracts/registration-challenge.example.json)
+- [academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
+- [academy/contracts/registration-challenge.example.json](/Users/noam/work/skyvalley/big-d/academy/contracts/registration-challenge.example.json)
