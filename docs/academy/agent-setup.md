@@ -42,13 +42,14 @@ Use this order:
 Fast path command for the archived reference client:
 
 ```bash
-python3 skill-pack/scripts/reference_dojo_client.py \
-  --endpoint tcp://127.0.0.1:4000 \
+python3 academy/scripts/dojo-agent.py \
+  --host 127.0.0.1 \
+  --port 4000 \
   --workspace .
 ```
 
-Replace the endpoint with the one you were actually given. For current work,
-prefer the Python runtime in the live academy pack instead.
+Replace the host and port with the ones you were actually given. For current
+work, prefer the Python runtime in the live academy pack instead.
 
 ## Three Critical Invariants
 
@@ -74,8 +75,6 @@ The complete happy-path implementation lives in the active academy pack under:
 
 - `skill-pack/sdk/promise_runtime.py`
 - `scripts/dojo-agent.py`
-
-The reference client now includes the initial root observation step, then proceeds into registration.
 
 ## Rules That Matter
 

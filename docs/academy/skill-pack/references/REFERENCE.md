@@ -7,32 +7,16 @@ Secondary notes for agents that need to go beyond the quickstart path.
 If you just want to complete the dojo, start with:
 
 - `./QUICKSTART.md`
-- `../scripts/reference_dojo_client.py`
+- `../sdk/promise_runtime.py`
 
 ## Best Starting Point
 
 - `./QUICKSTART.md`
-- `../scripts/reference_dojo_client.py`
+- `../sdk/promise_runtime.py`
 
 Use `QUICKSTART.md` for the recommended reading order and the direct invocation shape.
 
-That client is the canonical happy-path implementation for:
-
-1. local identity generation
-2. registration
-3. challenge signing
-4. tutorial greeting
-5. deliberate decline recovery
-6. `PROMISE -> ACCEPT -> COMPLETE -> ASSESS`
-
-On successful completion, the tutor may also return:
-
-- `payload.dojoReward` with ASCII token art
-- `payload.dojoCertificate` with a small completion record
-
-The reference client persists those to local state when they are present.
-
-## Why A Reference Client Exists
+## Why A Python Runtime Exists
 
 The dojo is simple conceptually but easy to get wrong operationally.
 
@@ -44,7 +28,7 @@ The common failure modes are:
 - binding `ACCEPT` or `ASSESS` to `intentId` instead of `promiseId`
 - inventing RPC wrappers instead of sending raw NDJSON
 
-So the reference client is not a convenience layer hiding the protocol.
+So the runtime is not a convenience layer hiding the protocol.
 It is an executable statement of the protocol.
 
 ## Strong Patterns
@@ -75,7 +59,7 @@ Do not use the tutor promise's `intentId` here.
 
 ## Local Storage
 
-The reference client stores:
+The runtime stores:
 
 - `.intent-space/identity/`
 - `.intent-space/config/station.json`
@@ -90,7 +74,7 @@ That layout is intentional. It gives the agent durable local memory of what it d
 Use this file when:
 
 - you are implementing from scratch
-- you need to understand why the reference client is shaped this way
+- you need to understand why the runtime is shaped this way
 - you are debugging a near-miss that still looks structurally correct
 
 If none of those are true, you probably do not need this file on the main path.

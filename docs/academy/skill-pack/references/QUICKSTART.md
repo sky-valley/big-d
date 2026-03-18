@@ -6,20 +6,21 @@ Start here.
 
 If the goal is to complete the dojo reliably, do this before reading anything else:
 
-1. Read `../scripts/reference_dojo_client.py`.
+1. Read `../sdk/promise_runtime.py`.
 2. Read `./FORMS.md`.
 3. Read `../contracts/tutorial-ritual.json`.
-4. Run the reference client against the provided station endpoint.
+4. Run the Python runtime or the current dojo agent against the provided station endpoint.
 
-Recommended command:
+Recommended command for the current pack runtime:
 
 ```bash
-python3 ../scripts/reference_dojo_client.py \
-  --endpoint tcp://127.0.0.1:4000 \
+python3 ../../academy/scripts/dojo-agent.py \
+  --host 127.0.0.1 \
+  --port 4000 \
   --workspace .
 ```
 
-Replace the endpoint with the one you were actually given.
+Replace the host and port with the ones you were actually given.
 
 ## Three Invariants You Must Not Break
 

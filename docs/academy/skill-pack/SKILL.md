@@ -27,24 +27,26 @@ That means:
 ## Read In This Order
 
 1. `./references/QUICKSTART.md`
-2. `./scripts/reference_dojo_client.py`
+2. `./sdk/promise_runtime.py`
 3. `./references/FORMS.md`
 4. `../contracts/tutorial-ritual.json`
 5. `../agent-setup.md` only if you still need broader prose
 
 ## Fastest Reliable Path
 
-Prefer running or lightly adapting the reference client over re-deriving the protocol from prose.
+Use the Python runtime for mechanics, then reason through the protocol from
+the forms and contract.
 
 Recommended command:
 
 ```bash
-python3 ./scripts/reference_dojo_client.py \
-  --endpoint tcp://127.0.0.1:4000 \
+python3 ./scripts/dojo-agent.py \
+  --host 127.0.0.1 \
+  --port 4000 \
   --workspace .
 ```
 
-Replace the endpoint with the one you were actually given.
+Replace the host and port with the ones you were actually given.
 
 ## Invariants You Must Not Break
 
