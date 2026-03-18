@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { dirname, join, relative, resolve } from 'path';
 import { execFileSync, spawn } from 'child_process';
 import { randomUUID } from 'crypto';
@@ -7,6 +7,7 @@ import { IntentSpaceClient } from '../../intent-space/src/client.ts';
 import { REGISTRATION_SPACE_ID, RITUAL_GREETING_CONTENT, TUTORIAL_SPACE_ID } from './station-contract.ts';
 
 export type AgentTarget = 'codex' | 'claude' | 'pi' | 'scripted-dojo';
+export type ExperimentMode = 'baseline';
 export type RunStatus = 'passed' | 'failed' | 'timeout' | 'unavailable';
 export type FailureStage =
   | 'completed'
@@ -132,7 +133,6 @@ const DEFAULT_IDLE_TIMEOUT_MS = 90 * 1000;
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_STATION_PORT = 4000;
 const DEFAULT_ACADEMY_PORT = 8080;
-
 export async function runHarness(options: HarnessOptions): Promise<{ reportPath: string; summaries: RunSummary[] }> {
   const repoRoot = resolve(options.repoRoot);
   const outputDir = resolve(options.outputDir);
@@ -201,8 +201,8 @@ async function runSingleTrial(
   const monitor = await startMonitor({ host: ctx.stage.host, port: ctx.stage.port }, transcriptPath);
   const recipeCtx: RecipeContext = {
     repoRoot: ctx.repoRoot,
-    workspaceDir,
-    runDir,
+      workspaceDir,
+      runDir,
     prompt,
     agent,
     trial,
@@ -214,6 +214,7 @@ async function runSingleTrial(
       return {
         agent,
         trial,
+        experimentMode: 'baseline',
         prompt,
         status: 'unavailable',
         failureStage: 'unavailable',
@@ -240,6 +241,7 @@ async function runSingleTrial(
       return {
         agent,
         trial,
+        experimentMode: 'baseline',
         prompt,
         status: 'unavailable',
         failureStage: 'unavailable',
@@ -267,6 +269,7 @@ async function runSingleTrial(
       return {
         agent,
         trial,
+        experimentMode: 'baseline',
         prompt,
         status: 'unavailable',
         failureStage: 'unavailable',
@@ -327,6 +330,7 @@ async function runSingleTrial(
     const summary: RunSummary = {
       agent,
       trial,
+      experimentMode: 'baseline',
       prompt,
       status,
       failureStage: classification.failureStage === 'completed' ? 'completed' : classification.failureStage,
@@ -373,7 +377,7 @@ function buildPrompt(input: {
   workspaceDir: string;
 }): string {
   const microExamplesPath = join(dirname(input.skillPackPath), 'references', 'MICRO_EXAMPLES.md');
-  return [
+  const lines = [
     `Use the skill pack at ${input.skillPackPath} and complete the dojo.`,
     `The academy reference is at ${input.academyDocPath} and also served at ${input.academyUrl}.`,
     `The local station endpoint is ${input.stationEndpoint}.`,
@@ -392,14 +396,17 @@ function buildPrompt(input: {
     'Use the ritual greeting string exactly as specified in the live contract files.',
     'After posting the ritual greeting in tutorial, continue the ritual in that greeting intent subspace by using the greeting intentId as parentId.',
     'Do not invent a separate ENTER message type.',
-    'Send raw NDJSON messages directly to the station.',
-    'Do not wrap messages in an RPC envelope like {"op":"post","message":...}.',
-    'SCAN is the only non-ITP wire message and it must use the exact shape {"type":"SCAN","spaceId":"...","since":0}.',
     'If you write helper code or scripts, you must execute them yourself.',
     'Merely generating client code or local files does not count as completion.',
     'Your task is complete only after the live station interaction reaches ASSESS.',
     'Do not ask for help. Finish when the ritual reaches ASSESS.',
-  ].join(' ');
+  ];
+
+  lines.push('Use the primary mechanics surface named by the academy pack.');
+  lines.push('If you drop below that surface for any seam, follow the exact forms and wire rules in the pack.');
+  lines.push('If you choose to code your own helper or drop to the lower-level SDK instead of the pack runtime, briefly explain why in your workspace so the run captures your decision.');
+
+  return lines.join(' ');
 }
 
 function launchRecipe(
@@ -480,9 +487,9 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
       promptTransform: (prompt, ctx) => [
         prompt,
         `Codex-specific execution rules for this harness run:`,
-        `Prefer the published intent space SDK at ${join(ctx.repoRoot, 'academy/skill-pack/sdk/intent_space_sdk.py')}.`,
+        'Prefer the primary mechanics surface named by the academy pack.',
         `If you need a local helper, create at most one executable helper script at ${join(ctx.workspaceDir, 'dojo_client.py')}.`,
-        'Use the SDK for wire mechanics only. Do not embed a pre-solved dojo state machine copied from a reference client.',
+        'Use the lower-level SDK for wire mechanics only if the pack runtime is genuinely insufficient. Do not embed a pre-solved dojo state machine copied from a reference client.',
         'If you do write a local helper, use Python 3 standard library only.',
         'After reading the required docs and contract files, stop reading and implement your own flow immediately.',
         'Do not perform extra reconnaissance, historical analysis, or exploratory scans beyond root and your own live subspaces.',
@@ -519,16 +526,17 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
       }),
     },
     'scripted-dojo': {
-      command: 'npx',
+      command: 'python3',
       args: (ctx) => [
-        'tsx',
-        repoScript('dojo-agent.ts'),
+        repoScript('dojo-agent.py'),
         '--host',
         DEFAULT_HOST,
         '--port',
         String(DEFAULT_STATION_PORT),
         '--agent-id',
         `scripted-${Date.now()}`,
+        '--workspace',
+        ctx.workspaceDir,
       ],
     },
   };
@@ -1056,7 +1064,7 @@ function renderMarkdownReport(summaries: RunSummary[]): string {
       const interview = run.interviewStatus === 'completed'
         ? 'interview=completed'
         : `interview=${run.interviewStatus}`;
-      lines.push(`- trial ${run.trial}: ${run.status} (${run.failureStage}, ${run.terminationReason}) in ${run.durationMs}ms; ${repair}; ${helper}; ${interview}`);
+      lines.push(`- trial ${run.trial}: mode=${run.experimentMode} ${run.status} (${run.failureStage}, ${run.terminationReason}) in ${run.durationMs}ms; ${repair}; ${helper}; ${interview}`);
     }
     lines.push('');
   }
@@ -1166,6 +1174,8 @@ function buildInterviewPrompt(interviewFile: string): string {
     '## What Helped Most',
     '## What Should Change',
     '## Reward Reaction',
+    '## Runtime Choice',
+    'Explain whether you bypassed the pack runtime (helper code or lower-level SDK) and why, or describe why the runtime surface worked for you.',
     'Be concrete and brief. Base your answers on the run you just performed, not on generic opinions.',
     'After writing the file, print exactly INTERVIEW_SAVED.',
   ].join(' ');

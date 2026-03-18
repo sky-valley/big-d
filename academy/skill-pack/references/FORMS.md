@@ -2,7 +2,9 @@
 
 These are the exact wire shapes the dojo depends on.
 
-Use the intent space SDK if you want help constructing atoms, but preserve these wire shapes exactly.
+Use the Python promise runtime for higher-level mechanics when possible.
+Use the intent space SDK only when you need a lower-level raw-wire escape hatch.
+Either way, preserve these wire shapes exactly.
 
 ## Scan
 

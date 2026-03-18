@@ -10,6 +10,7 @@ Phase 1 keeps this surface separate from the ITP station itself. The academy tea
 - `agent-setup.md` — canonical onboarding flow
 - `skill-pack/SKILL.md` — portable bootstrap pack for skill-oriented agents
 - `skill-pack/references/QUICKSTART.md` — fastest reliable path through the dojo
+- `skill-pack/sdk/promise_runtime.py` — importable Python promise runtime for agents
 - `skill-pack/sdk/intent_space_sdk.py` — thin intent space SDK for wire mechanics
 - `skill-pack/references/MICRO_EXAMPLES.md` — seam-level protocol guidance without a solved client
 - `skill-pack/references/REFERENCE.md` — secondary implementation notes
@@ -27,7 +28,7 @@ Phase 1 keeps this surface separate from the ITP station itself. The academy tea
 
 Current dojo script entrypoints:
 
-- `scripts/dojo-agent.ts`
+- `scripts/dojo-agent.py`
 - `scripts/dojo-harness.ts`
 - `scripts/demo-tester-dojo.sh`
 - `scripts/demo-tester-dojo-presented.sh`
@@ -45,15 +46,16 @@ npm test
 
 These commands intentionally live in `academy/`, not `intent-space/`, so the generic station package stays clean.
 
-## Current SDK-Only Result
+## Current Agent Surface
 
-The academy pack is now intentionally SDK-only.
+The academy pack is now Python-runtime-centered.
 
-- the pack exposes a thin intent space SDK for wire mechanics
+- the pack exposes `skill-pack/sdk/promise_runtime.py` as the primary mechanics surface
+- the pack still exposes `skill-pack/sdk/intent_space_sdk.py` as a thinner low-level fallback
 - the pack exposes exact forms and seam examples
 - the pack does not ship a solved dojo client
 
-In the latest valid local A-to-Z run, Codex, Claude, and Pi all completed the dojo from this SDK-only pack. Each agent authored and executed its own thin local helper, but the pack itself no longer encoded the full ritual.
+The intended mechanics surface is the importable Python runtime before the lower-level SDK.
 
 ## Phase-1 publishing model
 
@@ -99,11 +101,12 @@ The tester prompt should stay short.
 ## Recommended Reading Order For Agents
 
 1. `skill-pack/references/QUICKSTART.md`
-2. `skill-pack/sdk/intent_space_sdk.py`
+2. `skill-pack/sdk/promise_runtime.py`
 3. `skill-pack/references/FORMS.md`
 4. `skill-pack/references/MICRO_EXAMPLES.md`
 5. `contracts/tutorial-ritual.json`
-6. everything else only if needed
+6. `skill-pack/sdk/intent_space_sdk.py` only if needed
+7. everything else only if needed
 
 ## Harness Note
 
@@ -119,19 +122,14 @@ It is not the recommended prompt for real external testers.
 
 ## Separation Of Concerns
 
-This repo now separates the academy product surface from the generic station runtime more clearly:
-
-- `promise-runtime/`
-  - generic promise-native agent runtime above the spatial substrate
-  - local autonomy records, projection adapter, and thread/path projection
-  - first consumed by the dojo tutor, but not dojo-specific
+This repo separates the academy product surface from the generic station runtime clearly:
 
 - `academy/`
   - dojo-specific onboarding pack
   - dojo-specific scripts and tests
-  - thin intent space SDK
+  - Python promise runtime and thin intent space SDK for agent use
   - contracts
-  - tutor participant built on the generic runtime in parity mode
+  - tutor participant
   - dojo harness
   - deployment artifacts for the live academy + dojo
 

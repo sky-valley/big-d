@@ -28,7 +28,6 @@ human  ←──assess──  Promise Log  ←──commit──  Agent
 |-----------|-------------|
 | [`itp/`](itp/) | Shared ITP types and protocol — the message vocabulary. |
 | [`intent-space/`](intent-space/) | Standalone intent space server. Persists intents, scopes by containment, and serves history. |
-| [`promise-runtime/`](promise-runtime/) | Agent-side promise-native runtime above the spatial substrate. Projects thread/path state, owns local autonomy records, and publishes public shadows into intent space. |
 | [`academy/`](academy/) | Friend-facing academy and dojo surface. Skill pack, SDK, tutor, harness, demos, and deployment artifacts. |
 | [`loop/`](loop/) | Self-modifying agent loop. Supervisor, agent, and CLI. |
 
@@ -40,7 +39,6 @@ For the current station/onboarding surface, use:
 
 - [`intent-space/README.md`](/Users/noam/work/skyvalley/big-d/intent-space/README.md)
 - [`intent-space/INTENT-SPACE.md`](/Users/noam/work/skyvalley/big-d/intent-space/INTENT-SPACE.md)
-- [`promise-runtime/README.md`](/Users/noam/work/skyvalley/big-d/promise-runtime/README.md)
 - [`academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
 - [`academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
 - [`docs/runbooks/dojo-agent-evaluation-harness.md`](/Users/noam/work/skyvalley/big-d/docs/runbooks/dojo-agent-evaluation-harness.md)
@@ -79,7 +77,7 @@ The current phase-1 station shape is:
 - separate Differ-operated tutor/registrar participant
 - local dojo evaluation harness for Codex, Claude, Pi, and the scripted dojo agent
 
-The current academy pack is SDK-only: it teaches the protocol with a thin wire SDK plus exact forms and seam examples, not a pre-solved dojo client.
+The current academy pack is Python-runtime-first: it teaches the protocol with an importable Python runtime, a lower-level wire SDK, and exact forms plus seam examples, not a pre-solved dojo client.
 
 The academy and harness docs are the current source of truth for external-agent onboarding.
 

@@ -4,22 +4,37 @@ Start here.
 
 If the goal is to complete the dojo reliably, do this before reading anything else:
 
-1. Read `../sdk/intent_space_sdk.py`.
+1. Read `../sdk/promise_runtime.py`.
 2. Read `./FORMS.md`.
 3. Read `./MICRO_EXAMPLES.md`.
 4. Read `../contracts/tutorial-ritual.json`.
-5. Implement your own dojo flow using the intent space SDK plus the contract files.
+5. Use the Python runtime for mechanics.
+6. Only then read `../sdk/intent_space_sdk.py` if you still need a lower-level escape hatch.
+
+The Python runtime handles:
+
+- one in-process session
+- exact promise/intent atom construction
+- local identity, cursor, and transcript persistence
+- dual-path waiting across async inbox plus scan fallback
+- proof-of-possession signing via `session.sign_challenge(...)`
 
 The SDK handles:
 
-- persistent TCP connection
 - compact NDJSON
 - `SCAN`
 - atom construction
 - key generation and challenge signing
 - cursor and transcript persistence
 
-It does not solve the dojo for you.
+Neither surface solves the dojo for you.
+
+Use the Python runtime first for generic mechanics.
+
+Use the SDK when you need:
+
+- direct raw-wire control below the runtime
+- a lower-level escape hatch for debugging or a runtime gap
 
 If you decide to write a local helper script, keep it thin and let your own reasoning decide the ritual sequence.
 
@@ -35,6 +50,7 @@ That file covers:
 - not re-registering while the original challenge is still pending
 - replying in the correct subspace
 - binding `ACCEPT` and `ASSESS` to `promiseId`
+- signing the challenge through the runtime session
 
 ## Three Invariants You Must Not Break
 
@@ -51,8 +67,7 @@ That file covers:
 
 ## Wire Rules
 
-- Send raw NDJSON only.
-- Send one compact JSON object per line.
+- If you drop to raw NDJSON, send one compact JSON object per line.
 - `SCAN` must be exactly `{"type":"SCAN","spaceId":"...","since":0}`.
 - Read scan results from `SCAN_RESULT.messages`.
 - Advance `since` from `SCAN_RESULT.latestSeq`.
@@ -62,7 +77,8 @@ That file covers:
 Do not assume every tutor message arrives only as the result of a scan.
 
 Keep one live connection open for the whole run and be ready for tutor messages to
-arrive asynchronously on that same connection.
+arrive asynchronously on that same connection. The Python runtime is the
+preferred way to do that.
 
 Long runtime is acceptable. Keep going as long as you are making progress.
 
@@ -74,3 +90,4 @@ Only read the broader prose docs if you need:
 - registration payload details
 - examples beyond the happy path
 - the fixed ritual contract in prose
+- the lower-level SDK surface

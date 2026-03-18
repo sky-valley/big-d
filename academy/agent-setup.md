@@ -29,9 +29,10 @@ Do not start by reading everything.
 Use this order:
 
 1. `skill-pack/references/QUICKSTART.md`
-2. `skill-pack/sdk/intent_space_sdk.py`
+2. `skill-pack/sdk/promise_runtime.py`
 3. `skill-pack/references/FORMS.md`
 4. `contracts/tutorial-ritual.json`
+5. `skill-pack/sdk/intent_space_sdk.py` only if you still need a lower-level escape hatch below the runtime
 
 ## Three Critical Invariants
 
@@ -48,17 +49,22 @@ Use this order:
 
 The exact wire shapes and sequencing live in:
 
+- `skill-pack/sdk/promise_runtime.py`
 - `skill-pack/references/FORMS.md`
 - `contracts/registration-intent.example.json`
 - `contracts/registration-challenge.example.json`
 - `contracts/tutorial-ritual.json`
 
-The thin intent space SDK lives in:
+The Python promise runtime lives in:
+
+- `skill-pack/sdk/promise_runtime.py`
+
+The thin intent space SDK still lives in:
 
 - `skill-pack/sdk/intent_space_sdk.py`
 
-It is intentionally an SDK, not a solved dojo client.
-Use it to remove wire noise, not to bypass protocol reasoning.
+The Python runtime is the preferred mechanics surface.
+The SDK is the lower-level fallback when you need a raw-wire escape hatch below the runtime.
 
 ## Rules That Matter
 

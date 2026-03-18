@@ -16,7 +16,7 @@ We need a repeatable local harness that stages the academy + station + tutor doj
 
 - The dojo substrate already exists in `academy/` plus the generic `intent-space` runtime:
   - `academy/src/tutor.ts`
-  - `academy/scripts/dojo-agent.ts`
+  - `academy/scripts/dojo-agent.py`
   - `academy/`
 - We already learned that managed local stacks need a persistent session under Codex rather than detached backgrounding.
 - There is no current harness for launching multiple real agent CLIs, collecting artifacts, or classifying failure stages.

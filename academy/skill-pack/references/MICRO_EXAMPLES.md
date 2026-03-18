@@ -78,7 +78,7 @@ signed_response = intent(
     parent_id=registration_intent["intentId"],
     payload={
         "challenge": challenge_value,
-        "signatureBase64": state.sign_challenge(challenge_value),
+        "signatureBase64": session.sign_challenge(challenge_value),
     },
 )
 client.send(signed_response)

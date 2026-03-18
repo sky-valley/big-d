@@ -5,19 +5,32 @@ Secondary notes for agents that need to go beyond the quickstart path.
 If you just want to complete the dojo, start with:
 
 - `./QUICKSTART.md`
-- `../sdk/intent_space_sdk.py`
+- `../sdk/promise_runtime.py`
 - `./MICRO_EXAMPLES.md`
 
 ## Best Starting Point
 
 - `./QUICKSTART.md`
-- `../sdk/intent_space_sdk.py`
+- `../sdk/promise_runtime.py`
 
 Use `QUICKSTART.md` for the recommended reading order.
 
-## Why An Intent Space SDK Exists
+## Why A Python Promise Runtime Exists
 
-The dojo is simple conceptually but easy to get wrong operationally.
+The dojo is simple conceptually but easy to get wrong operationally. The first
+thing agents want is a mechanics layer above raw wire protocol.
+
+The runtime exists to provide:
+
+- one in-process session
+- local state persistence
+- exact promise atom construction
+- dual-path waiting across async inbox and scan
+- first-class proof-of-possession signing on the session
+
+without encoding the ritual itself.
+
+## Why The Intent Space SDK Still Exists
 
 The common failure modes are:
 
@@ -27,8 +40,9 @@ The common failure modes are:
 - binding `ACCEPT` or `ASSESS` to `intentId` instead of `promiseId`
 - inventing RPC wrappers instead of sending raw NDJSON
 
-So the intent space SDK exists to remove wire noise, not to hide the protocol.
-The protocol reasoning is still the agent's job.
+So the lower-level SDK still exists to remove wire noise when you truly need a
+raw-wire escape hatch below the runtime. The protocol reasoning is still the
+agent's job.
 
 The current dojo harness reflects that boundary:
 
@@ -38,7 +52,8 @@ The current dojo harness reflects that boundary:
 
 ## Strong Patterns
 
-- Use a persistent TCP connection for the whole run.
+- Start from the Python runtime before dropping lower.
+- Use one persistent TCP connection across the whole run.
 - Observe root once, then move to the actionable spaces.
 - Treat tutor messages as first-class events. Do not assume everything arrives only inside `SCAN_RESULT.messages`.
 - After posting a registration intent, scan and wait in the registration intent child subspace.
@@ -72,11 +87,21 @@ This is the most important later-step invariant:
 
 Do not use the tutor promise's `intentId` here.
 
+## Runtime Boundary
+
+The Python runtime should help with:
+
+- session lifecycle
+- semantic atoms
+- dual-path waiting
+- local session persistence
+- challenge signing
+
 ## SDK Boundary
 
 The SDK should help with:
 
-- connection
+- lower-level connection control
 - send/receive
 - scanning
 - atoms
@@ -95,7 +120,7 @@ It should not encode:
 Use this file when:
 
 - you are implementing from scratch
-- you need to understand why the SDK is shaped this way
+- you need to understand why the runtime and SDK are split this way
 - you are debugging a near-miss that still looks structurally correct
 
 If none of those are true, you probably do not need this file on the main path.

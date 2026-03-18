@@ -28,7 +28,7 @@ Responsibilities:
 
 ### Reference Scripted Agent
 
-- `academy/scripts/dojo-agent.ts`
+- `academy/scripts/dojo-agent.py`
 
 Responsibilities:
 - serve as a deterministic happy-path reference
@@ -37,15 +37,15 @@ Responsibilities:
 ### Existing Dojo Substrate
 
 - `academy/src/tutor.ts`
-- `promise-runtime/src/runtime.ts`
+- `academy/skill-pack/sdk/promise_runtime.py`
 - `academy/agent-setup.md`
 - `academy/skill-pack/SKILL.md`
 
-The current pack is SDK-only. It provides a thin intent space SDK plus forms and seam examples, not a solved dojo client.
-The current tutor is runtime-backed in parity mode:
+The current pack is Python-runtime-first. It provides:
 
 - `academy/` still owns dojo policy
-- `promise-runtime/` owns local authority + projection mechanics
+- `academy/skill-pack/sdk/promise_runtime.py` as the primary agent-facing mechanics surface
+- `academy/skill-pack/sdk/intent_space_sdk.py` as the lower-level wire SDK
 - `intent-space/` stays the generic station
 
 ## Output Layout
@@ -224,4 +224,4 @@ Current local validation shows:
 - the matrix results are now honest about helper generation and self-repair instead of compressing everything into pass/fail
 - duplicate tutor noise seen in one earlier matrix turned out to be caused by two managed local-station sessions running at once, not by the ritual contract itself
 - on the first truly valid fresh stack after the academy split, `codex`, `claude`, and `pi` all completed from the SDK-only pack in single-pass runs
-- after the `promise-runtime/` trial, the attached local matrix still stayed green with the tutor using runtime-derived promise binding
+- after the Python runtime pivot, the attached local matrix should stay green with the tutor remaining a direct station participant

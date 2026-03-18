@@ -28,7 +28,6 @@ Responsibilities:
 
 Runtime:
 - `academy/src/tutor-main.ts`
-- `promise-runtime/src/runtime.ts`
 
 Responsibilities:
 - observe registration intents
@@ -39,7 +38,6 @@ Responsibilities:
 
 Boundary:
 - `academy/` owns tutor policy and contracts
-- `promise-runtime/` owns local authority, projection, and thread/path mechanics
 - `intent-space/` remains observational and containment-oriented
 
 ### 3. Academy

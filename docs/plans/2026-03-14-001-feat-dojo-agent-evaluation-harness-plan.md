@@ -29,7 +29,7 @@ See brainstorm: [docs/brainstorms/2026-03-14-dojo-agent-evaluation-harness-brain
 
 We now have a functioning dojo and onboarding pack, but we do not yet know whether real skill-oriented agents can use it as intended.
 
-The key unknown is not whether a handcrafted script can complete the ritual. We already proved that with [dojo-agent.ts](/Users/noam/work/skyvalley/big-d/academy/scripts/dojo-agent.ts). The real question is whether actual agent CLIs can:
+The key unknown is not whether a handcrafted script can complete the ritual. We already proved that with [dojo-agent.py](/Users/noam/work/skyvalley/big-d/academy/scripts/dojo-agent.py). The real question is whether actual agent CLIs can:
 
 - read the pack
 - operationalize it zero-shot
@@ -62,7 +62,7 @@ The harness must not perform protocol work on behalf of the agents. It may norma
   - [academy/src/tutor.ts](/Users/noam/work/skyvalley/big-d/academy/src/tutor.ts)
   - [academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
   - [academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)
-  - [academy/scripts/dojo-agent.ts](/Users/noam/work/skyvalley/big-d/academy/scripts/dojo-agent.ts)
+  - [academy/scripts/dojo-agent.py](/Users/noam/work/skyvalley/big-d/academy/scripts/dojo-agent.py)
 - Prefer a recipe-driven launcher format over hard-coded branching so each agent runtime can vary in invocation details without changing the harness core.
 - Keep scoring separate from raw evidence. Persist transcripts first, then derive classification and verdicts from those artifacts.
 - Pi mono should be treated as a native skill-capable target first, per the brainstorm and research carry-forward, not as wrapper-dependent by default (see brainstorm: [docs/brainstorms/2026-03-14-dojo-agent-evaluation-harness-brainstorm.md](/Users/noam/work/skyvalley/big-d/docs/brainstorms/2026-03-14-dojo-agent-evaluation-harness-brainstorm.md)).
@@ -267,7 +267,7 @@ Recommended handling:
 
 ### Internal References
 
-- dojo happy-path script: [academy/scripts/dojo-agent.ts](/Users/noam/work/skyvalley/big-d/academy/scripts/dojo-agent.ts)
+- dojo happy-path script: [academy/scripts/dojo-agent.py](/Users/noam/work/skyvalley/big-d/academy/scripts/dojo-agent.py)
 - tutor flow: [academy/src/tutor.ts](/Users/noam/work/skyvalley/big-d/academy/src/tutor.ts)
 - academy onboarding doc: [academy/agent-setup.md](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
 - academy skill pack: [academy/skill-pack/SKILL.md](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)

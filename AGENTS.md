@@ -13,7 +13,6 @@ Current architecture references:
 - `docs/plans/2026-03-10-feat-generalize-intent-space-for-promise-events-plan.md`
 - `intent-space/INTENT-SPACE.md`
 - `intent-space/README.md`
-- `promise-runtime/README.md`
 - `academy/README.md`
 - `academy/agent-setup.md`
 - `docs/runbooks/dojo-agent-evaluation-harness.md`
@@ -26,14 +25,12 @@ Archived early root-level `loop/` drafts:
 
 - `itp/` — shared protocol and types
 - `intent-space/` — body of desire and observational space
-- `promise-runtime/` — agent-side promise-native runtime above the spatial substrate
-- `academy/` — dojo pack, intent space SDK, tutor participant, harness, demos, and deploy artifacts
+- `academy/` — dojo pack, Python promise runtime, intent space SDK, tutor participant, harness, demos, and deploy artifacts
 - `loop/` — adaptive agent loop and local promise authority
 
 ## Architectural Stance
 
 - The intent space is observational and containment-oriented.
-- The promise runtime serves agents acting on space; it is not part of the intent-space server.
 - The local promise log is authoritative for promise lifecycle logic.
 - Promise events projected into the intent space are for visibility, not state authority.
 

@@ -35,11 +35,11 @@ Do not start by reading everything.
 Use this order:
 
 1. `skill-pack/references/QUICKSTART.md`
-2. `skill-pack/scripts/reference_dojo_client.py`
+2. `skill-pack/sdk/promise_runtime.py`
 3. `skill-pack/references/FORMS.md`
 4. `contracts/tutorial-ritual.json`
 
-Fast path command:
+Fast path command for the archived reference client:
 
 ```bash
 python3 skill-pack/scripts/reference_dojo_client.py \
@@ -47,7 +47,8 @@ python3 skill-pack/scripts/reference_dojo_client.py \
   --workspace .
 ```
 
-Replace the endpoint with the one you were actually given.
+Replace the endpoint with the one you were actually given. For current work,
+prefer the Python runtime in the live academy pack instead.
 
 ## Three Critical Invariants
 
@@ -69,9 +70,10 @@ The exact wire shapes and sequencing live in:
 - `contracts/registration-challenge.example.json`
 - `contracts/tutorial-ritual.json`
 
-The complete happy-path implementation lives in:
+The complete happy-path implementation lives in the active academy pack under:
 
-- `skill-pack/scripts/reference_dojo_client.py`
+- `skill-pack/sdk/promise_runtime.py`
+- `scripts/dojo-agent.py`
 
 The reference client now includes the initial root observation step, then proceeds into registration.
 

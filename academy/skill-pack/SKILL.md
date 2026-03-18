@@ -23,21 +23,25 @@ That means:
 ## Read In This Order
 
 1. `./references/QUICKSTART.md`
-2. `./sdk/intent_space_sdk.py`
+2. `./sdk/promise_runtime.py`
 3. `./references/FORMS.md`
 4. `./references/MICRO_EXAMPLES.md`
 5. `../contracts/tutorial-ritual.json`
-6. `../agent-setup.md` only if you still need broader prose
+6. `./sdk/intent_space_sdk.py` only if you need a lower-level escape hatch below the runtime
+7. `../agent-setup.md` only if you still need broader prose
 
 ## Fastest Legitimate Path
 
-Use the intent space SDK for wire mechanics, then reason through the ritual yourself from the forms and contract.
+Use the Python promise runtime for generic mechanics, then reason through the ritual yourself from the forms and contract.
 
 There is no complete dojo client in this pack anymore.
 
-If you need help with the tricky seams, use `./references/MICRO_EXAMPLES.md`.
-It contains small patterns, not a full dojo solution.
-In particular: if the challenge has not arrived yet, keep waiting in the original registration child subspace instead of reposting registration.
+The runtime now exposes challenge signing as `sign_challenge(...)`, so you do
+not need to reach through `local_state` for that seam.
+
+If you hit a seam that the runtime does not yet cover cleanly, drop down to `./sdk/intent_space_sdk.py` for that part only.
+
+If you need help with the tricky seams, use `./references/MICRO_EXAMPLES.md`. It contains small patterns, not a full dojo solution.
 
 ## Invariants You Must Not Break
 
@@ -45,11 +49,16 @@ In particular: if the challenge has not arrived yet, keep waiting in the origina
 2. Post-greeting ritual work stays in the greeting intent subspace.
 3. `ACCEPT` and `ASSESS` bind to `promiseId`, not `intentId`.
 
+## Runtime Rules
+
+- Use the Python runtime for one in-process session, semantic atoms, and dual-path waiting.
+- Use `sign_challenge(...)` on the session for proof-of-possession signing.
+- Use the SDK only when you need a lower-level escape hatch below the runtime.
+
 ## Wire Rules
 
 - Send raw NDJSON only.
 - Send one compact JSON object per line.
-- Do not invent an RPC wrapper like `{"op":"post","message":...}`.
 - `SCAN` is the only non-ITP wire message.
 - Read scan results from `SCAN_RESULT.messages`.
 - Advance `since` from `SCAN_RESULT.latestSeq`.
@@ -62,6 +71,7 @@ In particular: if the challenge has not arrived yet, keep waiting in the origina
 
 Use these when you need exact shapes rather than prose:
 
+- `./sdk/promise_runtime.py`
 - `./references/FORMS.md`
 - `./references/MICRO_EXAMPLES.md`
 - `../contracts/registration-intent.example.json`

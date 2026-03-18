@@ -1,12 +1,7 @@
 import { createVerify, randomUUID } from 'crypto';
+import { createComplete, createDecline, createIntent, createPromise } from '../../itp/src/protocol.ts';
 import { IntentSpaceClient } from '../../intent-space/src/client.ts';
 import type { ClientTarget, MessageEcho } from '../../intent-space/src/types.ts';
-import {
-  InMemoryThreadPathProjector,
-  IntentSpaceClientProjectionAdapter,
-  PromiseSessionRuntime,
-  type SpaceRef,
-} from '../../promise-runtime/src/index.ts';
 import {
   REGISTRATION_SPACE_ID,
   TUTORIAL_SPACE_ID,
@@ -30,6 +25,7 @@ interface TutorialSession {
   greetingIntentId: string;
   visitorId: string;
   phase: 'awaiting-first-intent' | 'declined-once' | 'promised' | 'completed' | 'assessed';
+  promiseId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -51,28 +47,16 @@ export class StationTutor {
     '| [:: status: FULFILLED ::]            |',
     '+--------------------------------------+',
   ].join('\n');
-  private client: IntentSpaceClient;
   private agentId: string;
-  private runtime: PromiseSessionRuntime;
-  private threadSpaces = new Map<string, SpaceRef[]>();
+  private client: IntentSpaceClient;
   private registrations = new Map<string, RegistrationSession>();
   private tutorialSessions = new Map<string, TutorialSession>();
   private seenMessages = new Set<string>();
   private verifiedAgents = new Set<string>();
 
   constructor(opts: StationTutorOptions) {
-    this.client = new IntentSpaceClient(opts.target);
     this.agentId = opts.agentId ?? 'differ-tutor';
-    const threadProjector = new InMemoryThreadPathProjector();
-    this.runtime = new PromiseSessionRuntime({
-      agentId: this.agentId,
-      projection: new IntentSpaceClientProjectionAdapter(
-        this.client,
-        this.agentId,
-        (threadId) => this.threadSpaces.get(threadId) ?? [],
-      ),
-      threadProjector,
-    });
+    this.client = new IntentSpaceClient(opts.target);
   }
 
   async start(): Promise<void> {
@@ -203,16 +187,6 @@ export class StationTutor {
   private async handleRegistrationIntent(msg: MessageEcho): Promise<void> {
     const payload = msg.payload as RegistrationPayload;
     const challenge = randomUUID();
-    this.upsertThread({
-      threadId: msg.intentId!,
-      role: 'promiser',
-      summary: 'Registration verification thread',
-      pathSpaces: [
-        { spaceId: REGISTRATION_SPACE_ID, relation: 'origin', summary: 'Registration root' },
-        { spaceId: msg.intentId!, relation: 'entered', summary: 'Registration subspace' },
-      ],
-      rawStateHints: { kind: 'registration', participantId: msg.senderId },
-    });
     this.registrations.set(msg.intentId!, {
       registrationIntentId: msg.intentId!,
       agentId: msg.senderId,
@@ -222,7 +196,7 @@ export class StationTutor {
       createdAt: msg.timestamp,
     });
 
-    await this.runtime.expressIntent(
+    this.postIntent(
       msg.intentId!,
       'Prove you control the registered identity by signing this challenge',
       {
@@ -277,7 +251,7 @@ export class StationTutor {
     registration.verified = true;
     this.verifiedAgents.add(msg.senderId);
     this.registrations.delete(registration.registrationIntentId);
-    await this.runtime.expressIntent(
+    this.postIntent(
       registration.registrationIntentId,
       `Registration accepted. Go to ${TUTORIAL_SPACE_ID} and post the ritual greeting.`,
       {
@@ -310,18 +284,7 @@ export class StationTutor {
       updatedAt: msg.timestamp,
     });
 
-    this.upsertThread({
-      threadId: msg.intentId!,
-      role: 'promiser',
-      summary: 'Tutorial ritual thread',
-      pathSpaces: [
-        { spaceId: TUTORIAL_SPACE_ID, relation: 'origin', summary: 'Tutorial root' },
-        { spaceId: msg.intentId!, relation: 'entered', summary: 'Greeting intent subspace' },
-      ],
-      rawStateHints: { kind: 'tutorial', visitorId: msg.senderId },
-    });
-
-    await this.runtime.expressIntent(
+    this.postIntent(
       msg.intentId!,
       'Enter this greeting intent subspace and post your first tutorial intent there.',
       { nextStep: 'enter-subspace' },
@@ -348,12 +311,10 @@ export class StationTutor {
 
     if (tutorial.phase === 'declined-once') {
       tutorial.phase = 'promised';
-      await this.runtime.offerPromise(
+      tutorial.promiseId = this.postPromise(
         tutorial.greetingIntentId,
-        'I will guide you through the station ritual',
-        {},
-        undefined,
         msg.intentId!,
+        'I will guide you through the station ritual',
       );
     }
   }
@@ -361,14 +322,12 @@ export class StationTutor {
   private async handleAccept(msg: MessageEcho): Promise<void> {
     let matched = false;
     for (const tutorial of this.tutorialSessions.values()) {
-      const promiseId = tutorial.phase === 'promised'
-        ? await this.currentTutorialPromiseId(tutorial.greetingIntentId)
-        : undefined;
+      const promiseId = tutorial.phase === 'promised' ? tutorial.promiseId : undefined;
       if (promiseId && promiseId === msg.promiseId && tutorial.phase === 'promised') {
         matched = true;
         tutorial.phase = 'completed';
         tutorial.updatedAt = msg.timestamp;
-        await this.runtime.complete(
+        this.postComplete(
           tutorial.greetingIntentId,
           msg.promiseId!,
           'Tutorial promise complete. You have finished the first coordination loop.',
@@ -380,7 +339,7 @@ export class StationTutor {
 
     const tutorial = msg.parentId ? this.tutorialSessions.get(msg.parentId) : undefined;
     if (!tutorial || tutorial.phase !== 'promised') return;
-    const promiseId = await this.currentTutorialPromiseId(tutorial.greetingIntentId);
+    const promiseId = tutorial.promiseId;
 
     await this.declineWithGuidance(
       tutorial.greetingIntentId,
@@ -401,14 +360,12 @@ export class StationTutor {
   private async handleAssess(msg: MessageEcho): Promise<void> {
     let matched = false;
     for (const tutorial of this.tutorialSessions.values()) {
-      const promiseId = tutorial.phase === 'completed'
-        ? await this.currentTutorialPromiseId(tutorial.greetingIntentId)
-        : undefined;
+      const promiseId = tutorial.phase === 'completed' ? tutorial.promiseId : undefined;
       if (promiseId && promiseId === msg.promiseId && tutorial.phase === 'completed') {
         matched = true;
         tutorial.phase = 'assessed';
         tutorial.updatedAt = msg.timestamp;
-        await this.runtime.expressIntent(
+        this.postIntent(
           tutorial.greetingIntentId,
           StationTutor.FINAL_ACK_CONTENT,
           {
@@ -441,7 +398,7 @@ export class StationTutor {
 
     const tutorial = msg.parentId ? this.tutorialSessions.get(msg.parentId) : undefined;
     if (!tutorial || tutorial.phase !== 'completed') return;
-    const promiseId = await this.currentTutorialPromiseId(tutorial.greetingIntentId);
+    const promiseId = tutorial.promiseId;
 
     const assessment = msg.payload?.assessment;
     if (assessment !== 'FULFILLED' && assessment !== 'BROKEN') {
@@ -499,8 +456,7 @@ export class StationTutor {
     reason: string,
     guidance: Record<string, unknown>,
   ): Promise<void> {
-    const threadId = this.ensureThreadForParent(parentId);
-    await this.runtime.decline(threadId, reason, guidance, intentId);
+    this.postDecline(intentId, parentId, reason, guidance);
   }
 
   private pruneSeenMessages(): void {
@@ -525,34 +481,32 @@ export class StationTutor {
     }
   }
 
-  private upsertThread(context: {
-    threadId: string;
-    role: 'requester' | 'promiser' | 'observer' | 'mixed';
-    summary: string;
-    pathSpaces: SpaceRef[];
-    rawStateHints?: Record<string, unknown>;
-  }): void {
-    this.threadSpaces.set(context.threadId, context.pathSpaces);
-    this.runtime.upsertThread(context);
+  private postIntent(parentId: string, content: string, payload: Record<string, unknown> = {}): void {
+    const message = createIntent(this.agentId, content, undefined, undefined, parentId);
+    Object.assign(message.payload, payload);
+    this.client.post(message);
   }
 
-  private ensureThreadForParent(parentId: string): string {
-    if (this.threadSpaces.has(parentId)) return parentId;
-    const threadId = `space:${parentId}`;
-    if (!this.threadSpaces.has(threadId)) {
-      this.upsertThread({
-        threadId,
-        role: 'promiser',
-        summary: `Space thread for ${parentId}`,
-        pathSpaces: [{ spaceId: parentId, relation: 'origin', summary: `Space ${parentId}` }],
-      });
-    }
-    return threadId;
+  private postPromise(parentId: string, intentId: string, content: string, payload: Record<string, unknown> = {}): string {
+    const message = createPromise(this.agentId, intentId, content);
+    message.parentId = parentId;
+    Object.assign(message.payload, payload);
+    this.client.post(message);
+    return message.promiseId!;
   }
 
-  private async currentTutorialPromiseId(threadId: string): Promise<string | undefined> {
-    const state = await this.runtime.refreshThread(threadId);
-    return state.openCommitments.at(-1)?.promiseId;
+  private postComplete(parentId: string, promiseId: string, summary: string, payload: Record<string, unknown> = {}): void {
+    const message = createComplete(this.agentId, promiseId, summary);
+    message.parentId = parentId;
+    Object.assign(message.payload, payload);
+    this.client.post(message);
+  }
+
+  private postDecline(intentId: string, parentId: string, reason: string, payload: Record<string, unknown> = {}): void {
+    const message = createDecline(this.agentId, intentId, reason);
+    message.parentId = parentId;
+    Object.assign(message.payload, payload);
+    this.client.post(message);
   }
 }
 

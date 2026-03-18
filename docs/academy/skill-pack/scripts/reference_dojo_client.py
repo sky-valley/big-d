@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Reference dojo client for the academy intent space station.
+Historical reference dojo client for the academy intent space station.
+
+This file predates the current Python runtime pack. It is kept as an archived
+example only and should not be treated as the active implementation guidance.
 
 This is a deliberately small, boring implementation intended for agents to run
 or adapt. It uses:

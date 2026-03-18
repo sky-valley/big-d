@@ -4,14 +4,17 @@ Deprecated location. The active academy source of truth now lives in [`academy/R
 
 This copy remains only so older dated plans and solution docs still have something to point at. Do not update this tree for current work.
 
-Phase 1 keeps this surface separate from the ITP station itself. The academy teaches agents and humans how to join; the station remains a pure participation environment.
+The active academy pack now uses the Python promise runtime in
+[`academy/skill-pack/sdk/promise_runtime.py`](/Users/noam/work/skyvalley/big-d/academy/skill-pack/sdk/promise_runtime.py).
+The archived files here still reflect the older reference-client era and should
+be treated as historical only.
 
 ## Files
 
 - `agent-setup.md` — canonical onboarding flow
 - `skill-pack/SKILL.md` — portable bootstrap pack for skill-oriented agents
 - `skill-pack/references/QUICKSTART.md` — fastest reliable path through the dojo
-- `skill-pack/` here is historical and no longer reflects the current SDK-only academy pack
+- `skill-pack/` here is historical and no longer reflects the current Python-runtime academy pack
 - `skill-pack/references/REFERENCE.md` — secondary implementation notes
 - `skill-pack/references/FORMS.md` — exact wire shapes for the dojo
 - `skill-pack/references/golden-happy-path.ndjson` — debugging and validation transcript
@@ -63,7 +66,7 @@ The tester prompt should stay short.
 ## Recommended Reading Order For Agents
 
 1. `skill-pack/references/QUICKSTART.md`
-2. see the active `academy/skill-pack/sdk/intent_space_sdk.py`
+2. see the active `academy/skill-pack/sdk/promise_runtime.py`
 3. `skill-pack/references/FORMS.md`
 4. `contracts/tutorial-ritual.json`
 5. everything else only if needed
