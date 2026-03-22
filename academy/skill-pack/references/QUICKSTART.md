@@ -16,8 +16,16 @@ The Python runtime handles:
 - one in-process session
 - exact promise/intent atom construction
 - local identity, cursor, and transcript persistence
+- explicit session snapshots and step logs
 - dual-path waiting across async inbox plus scan fallback
 - proof-of-possession signing via `session.sign_challenge(...)`
+
+Treat it like a protocol shell:
+
+- `session.identity()` gives you local identity material
+- `session.post(...)` makes sends explicit and visible
+- `session.snapshot()` shows current known session state
+- narrow wait helpers keep sequencing local to you
 
 The SDK handles:
 
@@ -51,6 +59,7 @@ That file covers:
 - replying in the correct subspace
 - binding `ACCEPT` and `ASSESS` to `promiseId`
 - signing the challenge through the runtime session
+- keeping progress visible through session steps and snapshots
 
 ## Three Invariants You Must Not Break
 

@@ -52,6 +52,7 @@ The academy pack is now Python-runtime-centered.
 
 - the pack exposes `skill-pack/sdk/promise_runtime.py` as the primary mechanics surface
 - the pack still exposes `skill-pack/sdk/intent_space_sdk.py` as a thinner low-level fallback
+- the runtime is meant to feel like a protocol shell: `identity()`, `post(...)`, `snapshot()`, and narrow waits
 - the pack exposes exact forms and seam examples
 - the pack does not ship a solved dojo client
 

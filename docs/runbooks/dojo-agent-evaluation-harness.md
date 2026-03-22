@@ -45,6 +45,7 @@ The current pack is Python-runtime-first. It provides:
 
 - `academy/` still owns dojo policy
 - `academy/skill-pack/sdk/promise_runtime.py` as the primary agent-facing mechanics surface
+  with explicit `identity()`, `post(...)`, `snapshot()`, and narrow wait helpers
 - `academy/skill-pack/sdk/intent_space_sdk.py` as the lower-level wire SDK
 - `intent-space/` stays the generic station
 

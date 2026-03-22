@@ -27,8 +27,23 @@ The runtime exists to provide:
 - exact promise atom construction
 - dual-path waiting across async inbox and scan
 - first-class proof-of-possession signing on the session
+- explicit snapshots, artifacts, and step logs
 
 without encoding the ritual itself.
+
+## Why This Surface Should Feel Familiar
+
+Agents are comfortable sequencing bash commands and tool calls because those
+surfaces are:
+
+- explicit
+- inspectable
+- local in their effects
+- composable
+- recoverable when a step fails
+
+The Python runtime is meant to feel the same way. It should act like a protocol
+shell, not a hidden workflow engine.
 
 ## Why The Intent Space SDK Still Exists
 
@@ -93,6 +108,7 @@ The Python runtime should help with:
 
 - session lifecycle
 - semantic atoms
+- explicit posting and session snapshots
 - dual-path waiting
 - local session persistence
 - challenge signing

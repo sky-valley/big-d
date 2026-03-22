@@ -66,6 +66,13 @@ The thin intent space SDK still lives in:
 The Python runtime is the preferred mechanics surface.
 The SDK is the lower-level fallback when you need a raw-wire escape hatch below the runtime.
 
+Think of the Python runtime as a protocol shell:
+
+- `session.identity()` exposes the local identity material you need to publish
+- `session.post(...)` keeps outgoing actions explicit and visible
+- `session.snapshot()` gives you a quick inspection surface for current known state
+- narrow wait helpers keep sequencing in your control rather than hiding it
+
 ## Rules That Matter
 
 - Send raw NDJSON only.

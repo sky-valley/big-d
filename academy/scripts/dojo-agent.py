@@ -50,153 +50,165 @@ def main(argv: list[str]) -> int:
         agent_name=agent_name,
         agent_id=args.agent_id,
     )
-    session.ensure_identity()
+    identity = session.identity()
     session.connect()
     try:
+        session.record_step("dojo.start", {"workspace": str(workspace), "endpoint": endpoint})
+        session.save_json_artifact("session-start.json", session.snapshot())
         log("connected", f"(agent={session.agent_id})")
 
         root_scan = session.scan("root")
         save_if_present(session, "root-scan.json", root_scan)
 
-        registration = session.intent(
+        registration = session.post(
+            session.intent(
             REGISTRATION_INTENT_CONTENT,
             parent_id=REGISTRATION_SPACE_ID,
             payload={
                 "agentName": session.agent_name,
-                "publicKeyPem": session.local_state.public_key.read_text(),
-                "fingerprint": session.local_state.fingerprint.read_text().strip(),
+                "publicKeyPem": identity["publicKeyPem"],
+                "fingerprint": identity["fingerprint"],
                 "capabilities": ["scan", "post", "enter", "sign-challenge"],
                 "academyVersion": "phase1",
             },
+            ),
+            step="dojo.registration.post_intent",
+            artifact_filename="registration-intent.json",
         )
-        session.send(registration)
-        save_if_present(session, "registration-intent.json", registration)
         registration_space = registration["intentId"]
         log("posted registration intent", registration_space)
 
-        challenge = session.wait_or_scan(
+        challenge = session.wait_for_intent(
             registration_space,
-            lambda msg: msg.get("type") == "INTENT"
-            and msg.get("parentId") == registration_space
-            and msg.get("senderId") == "differ-tutor"
-            and isinstance(msg.get("payload"), dict)
-            and isinstance(msg["payload"].get("challenge"), str),
+            sender_id="differ-tutor",
+            payload_predicate=lambda payload: isinstance(payload.get("challenge"), str),
             wait_seconds=20.0,
         )
         save_if_present(session, "registration-challenge.json", challenge)
+        session.record_step("dojo.registration.challenge_received", {"intentId": challenge.get("intentId")})
         log("received challenge")
 
         challenge_value = challenge["payload"]["challenge"]
-        signed_response = session.intent(
-            "Signed challenge response",
-            parent_id=registration_space,
-            payload={
-                "challenge": challenge_value,
-                "signatureBase64": session.sign_challenge(challenge_value),
-            },
+        signed_response = session.post(
+            session.intent(
+                "Signed challenge response",
+                parent_id=registration_space,
+                payload={
+                    "challenge": challenge_value,
+                    "signatureBase64": session.sign_challenge(challenge_value),
+                },
+            ),
+            step="dojo.registration.post_signed_response",
+            artifact_filename="registration-response.json",
         )
-        session.send(signed_response)
-        save_if_present(session, "registration-response.json", signed_response)
         log("posted signed challenge response")
 
-        registration_ack = session.wait_or_scan(
+        registration_ack = session.wait_for_intent(
             registration_space,
-            lambda msg: msg.get("parentId") == registration_space
-            and msg.get("senderId") == "differ-tutor"
-            and isinstance(msg.get("payload"), dict)
-            and isinstance(msg["payload"].get("ritualGreeting"), str),
+            sender_id="differ-tutor",
+            payload_predicate=lambda payload: isinstance(payload.get("ritualGreeting"), str),
             wait_seconds=20.0,
         )
         save_if_present(session, "registration-ack.json", registration_ack)
+        session.record_step("dojo.registration.acknowledged", {"intentId": registration_ack.get("intentId")})
         log("registration acknowledged")
 
-        greeting = session.intent(RITUAL_GREETING_CONTENT, parent_id=TUTORIAL_SPACE_ID)
-        session.send(greeting)
-        save_if_present(session, "tutorial-greeting.json", greeting)
+        greeting = session.post(
+            session.intent(RITUAL_GREETING_CONTENT, parent_id=TUTORIAL_SPACE_ID),
+            step="dojo.tutorial.post_greeting",
+            artifact_filename="tutorial-greeting.json",
+        )
         greeting_space = greeting["intentId"]
         log("posted ritual greeting", greeting_space)
 
-        tutorial_scan = session.wait_or_scan(
+        tutorial_scan = session.wait_for_intent(
             greeting_space,
-            lambda msg: msg.get("type") == "INTENT"
-            and msg.get("senderId") == "differ-tutor"
-            and isinstance(msg.get("payload"), dict)
-            and msg["payload"].get("nextStep") == "enter-subspace",
+            sender_id="differ-tutor",
+            payload_predicate=lambda payload: payload.get("nextStep") == "enter-subspace",
             wait_seconds=20.0,
         )
         save_if_present(session, "tutorial-scan.json", tutorial_scan)
+        session.record_step("dojo.tutorial.greeting_acknowledged", {"intentId": tutorial_scan.get("intentId")})
         log("entered greeting subspace")
 
-        first_ask = session.intent("I want to try the first tutorial move", parent_id=greeting_space)
-        session.send(first_ask)
+        first_ask = session.post(
+            session.intent("I want to try the first tutorial move", parent_id=greeting_space),
+            step="dojo.tutorial.post_first_attempt",
+        )
         log("posted first tutorial intent")
 
-        decline = session.wait_or_scan(
+        decline = session.wait_for_decline(
             greeting_space,
-            lambda msg: msg.get("type") == "DECLINE"
-            and msg.get("intentId") == first_ask["intentId"],
+            intent_id=first_ask["intentId"],
             wait_seconds=20.0,
         )
         save_if_present(session, "tutorial-decline.json", decline)
+        session.record_step("dojo.tutorial.decline_received", {"intentId": decline.get("intentId")})
         log("received deliberate decline")
 
-        corrected = session.intent(
-            "Please guide me through the station ritual with an explicit promise I can accept.",
-            parent_id=greeting_space,
+        corrected = session.post(
+            session.intent(
+                "Please guide me through the station ritual with an explicit promise I can accept.",
+                parent_id=greeting_space,
+            ),
+            step="dojo.tutorial.post_corrected_intent",
         )
-        session.send(corrected)
         log("posted corrected tutorial intent")
 
-        promise = session.wait_or_scan(
+        promise = session.wait_for_promise(
             greeting_space,
-            lambda msg: msg.get("type") == "PROMISE"
-            and msg.get("parentId") == greeting_space
-            and isinstance(msg.get("promiseId"), str),
+            payload_predicate=lambda payload: isinstance(payload, dict),
             wait_seconds=20.0,
         )
         save_if_present(session, "tutorial-promise.json", promise)
         promise_id = promise["promiseId"]
+        session.record_step("dojo.tutorial.promise_received", {"promiseId": promise_id})
         log("received promise", promise_id)
 
-        accept = session.accept(promise_id=promise_id, parent_id=greeting_space)
-        session.send(accept)
-        save_if_present(session, "tutorial-accept.json", accept)
+        accept = session.post(
+            session.accept(promise_id=promise_id, parent_id=greeting_space),
+            step="dojo.tutorial.post_accept",
+            artifact_filename="tutorial-accept.json",
+        )
         log("accepted promise")
 
-        complete = session.wait_or_scan(
+        complete = session.wait_for_complete(
             greeting_space,
-            lambda msg: msg.get("type") == "COMPLETE"
-            and msg.get("parentId") == greeting_space
-            and msg.get("promiseId") == promise_id,
+            promise_id=promise_id,
             wait_seconds=20.0,
         )
         save_if_present(session, "tutorial-complete.json", complete)
+        session.record_step("dojo.tutorial.complete_received", {"promiseId": promise_id})
         log("received complete")
 
-        assess = session.assess(
-            promise_id=promise_id,
-            parent_id=greeting_space,
-            assessment="FULFILLED",
+        assess = session.post(
+            session.assess(
+                promise_id=promise_id,
+                parent_id=greeting_space,
+                assessment="FULFILLED",
+            ),
+            step="dojo.tutorial.post_assess",
+            artifact_filename="tutorial-assess.json",
         )
-        session.send(assess)
-        save_if_present(session, "tutorial-assess.json", assess)
         log("posted assess FULFILLED")
 
-        final_ack = session.wait_or_scan(
+        final_ack = session.wait_for_intent(
             greeting_space,
-            lambda msg: msg.get("type") == "INTENT"
-            and msg.get("senderId") == "differ-tutor"
-            and isinstance(msg.get("payload"), dict)
-            and msg["payload"].get("content") == "Tutorial complete. You can now proceed beyond the ritual.",
+            sender_id="differ-tutor",
+            payload_predicate=lambda payload: payload.get("content")
+            == "Tutorial complete. You can now proceed beyond the ritual.",
             wait_seconds=20.0,
         )
         save_if_present(session, "tutorial-final-ack.json", final_ack)
+        session.record_step("dojo.tutorial.final_ack_received", {"intentId": final_ack.get("intentId")})
         reward = final_ack.get("payload", {}).get("dojoReward") if isinstance(final_ack.get("payload"), dict) else None
         certificate = final_ack.get("payload", {}).get("dojoCertificate") if isinstance(final_ack.get("payload"), dict) else None
         if isinstance(reward, dict):
             session.save_json_artifact("dojo-token.txt.json", reward)
         if isinstance(certificate, dict):
             session.save_json_artifact("dojo-certificate.json", certificate)
+        session.record_step("dojo.complete", {"reward": isinstance(reward, dict), "certificate": isinstance(certificate, dict)})
+        session.save_json_artifact("session-finish.json", session.snapshot())
         log("happy path complete")
         return 0
     finally:

@@ -5,6 +5,12 @@ These examples are intentionally small.
 They show how to handle the most failure-prone protocol seams without solving the
 dojo for you.
 
+Use the runtime as a protocol shell:
+
+- `session.post(...)` for visible sends
+- `session.snapshot()` when you want a quick state view
+- narrow wait helpers for mechanical waiting only
+
 ## 1. Wait For A Tutor Challenge
 
 The challenge may arrive:
@@ -21,23 +27,23 @@ So after posting your registration intent:
 Python sketch with the intent space SDK:
 
 ```python
-registration_intent = intent(sender_id, "...", parent_id="registration", payload=...)
-client.send(registration_intent)
+registration_intent = session.post(
+    session.intent("...", parent_id="registration", payload=...),
+    step="registration.post_intent",
+)
 registration_space = registration_intent["intentId"]
 
-challenge = client.wait_for(
-    lambda message: message.get("type") == "INTENT"
-    and message.get("parentId") == registration_space
-    and isinstance(message.get("payload"), dict)
-    and "challenge" in message["payload"],
-    timeout=5.0,
+challenge = session.wait_for_intent(
+    registration_space,
+    payload_predicate=lambda payload: "challenge" in payload,
+    wait_seconds=5.0,
 )
 ```
 
 If that short wait does not find the challenge yet, scan the same child subspace:
 
 ```python
-scan_result = client.scan(registration_space)
+scan_result = session.scan(registration_space)
 challenge = next(
     message
     for message in scan_result["messages"]
@@ -72,16 +78,17 @@ That means:
 - not the challenge message `intentId`
 
 ```python
-signed_response = intent(
-    sender_id,
-    "Signed challenge response",
-    parent_id=registration_intent["intentId"],
-    payload={
-        "challenge": challenge_value,
-        "signatureBase64": session.sign_challenge(challenge_value),
-    },
+signed_response = session.post(
+    session.intent(
+        "Signed challenge response",
+        parent_id=registration_intent["intentId"],
+        payload={
+            "challenge": challenge_value,
+            "signatureBase64": session.sign_challenge(challenge_value),
+        },
+    ),
+    step="registration.post_signed_response",
 )
-client.send(signed_response)
 ```
 
 ## 3. Bind `ACCEPT` And `ASSESS` To `promiseId`

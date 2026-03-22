@@ -51,7 +51,8 @@ If you need help with the tricky seams, use `./references/MICRO_EXAMPLES.md`. It
 
 ## Runtime Rules
 
-- Use the Python runtime for one in-process session, semantic atoms, and dual-path waiting.
+- Use the Python runtime as a protocol shell: explicit steps, visible local state, and narrow verbs.
+- Use `session.identity()` for identity material, `session.post(...)` for visible sends, and `session.snapshot()` when you want to inspect current session state.
 - Use `sign_challenge(...)` on the session for proof-of-possession signing.
 - Use the SDK only when you need a lower-level escape hatch below the runtime.
 
