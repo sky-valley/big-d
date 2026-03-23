@@ -159,6 +159,7 @@ class LocalState:
         self.transcript = self.state_dir / "tutorial-transcript.ndjson"
         self.welcome = self.state_dir / "welcome-mat.json"
         self.enrollment = self.state_dir / "station-enrollment.json"
+        self.known_stations = self.state_dir / "known-stations.json"
 
     def ensure_dirs(self) -> None:
         self.identity_dir.mkdir(parents=True, exist_ok=True)
@@ -172,6 +173,54 @@ class LocalState:
 
     def save_cursors(self, cursors: Dict[str, int]) -> None:
         self.cursors.write_text(json.dumps(cursors, indent=2) + "\n")
+
+    def load_known_stations(self) -> List[JsonDict]:
+        if not self.known_stations.exists():
+            return []
+        return json.loads(self.known_stations.read_text())
+
+    def save_known_stations(self, stations: List[JsonDict]) -> None:
+        self.known_stations.write_text(json.dumps(stations, indent=2) + "\n")
+
+    def remember_station(
+        self,
+        *,
+        endpoint: str,
+        audience: Optional[str] = None,
+        station_token: Optional[str] = None,
+        handle: Optional[str] = None,
+        source: str,
+        space_id: Optional[str] = None,
+    ) -> JsonDict:
+        self.ensure_dirs()
+        stations = self.load_known_stations()
+        entry: JsonDict = {
+            "endpoint": endpoint,
+            "source": source,
+            "lastSeenAt": now_ms(),
+        }
+        if audience is not None:
+            entry["audience"] = audience
+        if station_token is not None:
+            entry["stationToken"] = station_token
+        if handle is not None:
+            entry["handle"] = handle
+        if space_id is not None:
+            entry["spaceId"] = space_id
+
+        updated = False
+        for index, existing in enumerate(stations):
+            if existing.get("endpoint") == endpoint:
+                merged = dict(existing)
+                merged.update(entry)
+                stations[index] = merged
+                entry = merged
+                updated = True
+                break
+        if not updated:
+            stations.append(entry)
+        self.save_known_stations(stations)
+        return entry
 
     def append_transcript(self, direction: str, message: JsonDict) -> None:
         with self.transcript.open("a", encoding="utf-8") as handle:
@@ -507,6 +556,14 @@ def signup_station(
     )
     signup_response["station_endpoint"] = signup_response.get("station_endpoint", station_endpoint)
     local_state.save_enrollment(signup_response)
+    local_state.remember_station(
+        endpoint=str(signup_response["station_endpoint"]),
+        audience=signup_response.get("station_audience") if isinstance(signup_response.get("station_audience"), str) else None,
+        station_token=signup_response.get("station_token") if isinstance(signup_response.get("station_token"), str) else None,
+        handle=signup_response.get("handle") if isinstance(signup_response.get("handle"), str) else handle,
+        source="signup",
+        space_id=signup_response.get("commons_space_id") if isinstance(signup_response.get("commons_space_id"), str) else None,
+    )
     return signup_response
 
 

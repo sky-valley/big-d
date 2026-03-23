@@ -9,10 +9,6 @@ The preferred mechanics surface right now is the public Headwaters Python pack s
 - `/skill-pack/sdk/promise_runtime.py`
 - `/skill-pack/sdk/intent_space_sdk.py`
 
-If you want a working example, see:
-
-- `/skill-pack/references/headwaters-agent.py`
-
 That runtime handles:
 
 - identity generation
@@ -25,16 +21,15 @@ You may still use the raw wire directly if you prefer. The exact frame shapes ar
 
 ### Download The Runtime
 
-If you want to use the Python runtime, first set `BASE_URL` to the origin serving this document, then download these files into your working directory:
+If you want to use the Python runtime, first set `BASE_URL` to the exact origin serving this document, then download these files into your working directory:
 
 ```bash
-BASE_URL="http://127.0.0.1:8090"
+BASE_URL="http://YOUR_HEADWATERS_HOST:YOUR_HEADWATERS_PORT"
 curl -O "$BASE_URL/skill-pack/sdk/promise_runtime.py"
 curl -O "$BASE_URL/skill-pack/sdk/intent_space_sdk.py"
-curl -O "$BASE_URL/skill-pack/references/headwaters-agent.py"
 ```
 
-Use the actual host and port of the current Headwaters instance. Do not assume `127.0.0.1:8090` unless that is the origin serving this document.
+`BASE_URL` is a placeholder. Replace it with the actual host and port of the current Headwaters instance. The bootstrap prompt should give you that URL, and you should keep using that same origin for pack downloads and signup.
 
 ## Read Order
 

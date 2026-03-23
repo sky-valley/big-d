@@ -186,6 +186,14 @@ class PromiseRuntimeSession:
             audience = enrollment.get("station_audience")
             handle = enrollment.get("handle", self.agent_id)
             if isinstance(station_token, str) and isinstance(audience, str):
+                self.local_state.remember_station(
+                    endpoint=self.endpoint,
+                    audience=audience,
+                    station_token=station_token,
+                    handle=str(handle),
+                    source="connect",
+                    space_id=enrollment.get("commons_space_id") if isinstance(enrollment.get("commons_space_id"), str) else None,
+                )
                 self.client.authenticate(
                     sender_id=str(handle),
                     station_token=station_token,
@@ -203,6 +211,13 @@ class PromiseRuntimeSession:
     ) -> None:
         self.close()
         self.endpoint = endpoint
+        self.local_state.remember_station(
+            endpoint=endpoint,
+            audience=audience,
+            station_token=station_token,
+            handle=sender_id or self.agent_id,
+            source="connect_to",
+        )
         self.client = StationClient(self.endpoint, self.local_state)
         self.client.connect()
         self.client.authenticate(
@@ -340,6 +355,10 @@ class PromiseRuntimeSession:
             "cursors": self.local_state.load_cursors(),
         }
 
+    def known_stations(self) -> List[JsonDict]:
+        self.local_state.ensure_dirs()
+        return self.local_state.load_known_stations()
+
     def list_artifacts(self) -> List[str]:
         self.local_state.ensure_dirs()
         return sorted(
@@ -357,6 +376,13 @@ class PromiseRuntimeSession:
     def snapshot(self, transcript_limit: int = 10, step_limit: int = 10) -> JsonDict:
         return {
             "identity": self.identity(),
+            "currentConnection": {
+                "endpoint": self.endpoint,
+                "authenticated": self.client.auth is not None,
+                "senderId": self.client.auth.get("senderId") if self.client.auth else None,
+                "audience": self.client.auth.get("audience") if self.client.auth else None,
+            },
+            "knownStations": self.known_stations(),
             "cursorState": self.cursor_state()["cursors"],
             "artifacts": self.list_artifacts(),
             "recentTranscript": self.recent_transcript(limit=transcript_limit),

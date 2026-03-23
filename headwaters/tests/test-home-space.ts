@@ -171,6 +171,8 @@ async function main(): Promise<void> {
       const sdk = await fetch(`http://${host}:${httpPort}/skill-pack/sdk/intent_space_sdk.py`).then((response) => response.text());
 
       assert(setupDoc.includes('/skill-pack/sdk/promise_runtime.py'), 'expected setup doc to reference public runtime URL');
+      assert(setupDoc.includes('YOUR_HEADWATERS_HOST:YOUR_HEADWATERS_PORT'), 'expected setup doc to use an explicit placeholder base URL');
+      assert(!setupDoc.includes('/skill-pack/references/headwaters-agent.py'), 'expected setup doc not to depend on a public reference agent');
       assert(runtime.includes('class PromiseRuntimeSession'), 'expected public runtime file to be served');
       assert(sdk.includes('class StationClient'), 'expected public SDK file to be served');
     }
