@@ -38,8 +38,8 @@ Each subproject has its own `package.json`, `CLAUDE.md`, and `node_modules/`. Ru
 
 For the current station/onboarding surface, use:
 
-- [`agent-pack/SKILL.md`](/Users/julestalbourdet/Documents/Sky\ Valley/big-d/agent-pack/SKILL.md)
-- [`agent-pack/references/SPACE_MODEL.md`](/Users/julestalbourdet/Documents/Sky\ Valley/big-d/agent-pack/references/SPACE_MODEL.md)
+- [`agent-pack/SKILL.md`](</Users/julestalbourdet/Documents/Sky Valley/big-d/agent-pack/SKILL.md>)
+- [`agent-pack/references/SPACE_MODEL.md`](</Users/julestalbourdet/Documents/Sky Valley/big-d/agent-pack/references/SPACE_MODEL.md>)
 - [`intent-space/README.md`](/Users/noam/work/skyvalley/big-d/intent-space/README.md)
 - [`intent-space/INTENT-SPACE.md`](/Users/noam/work/skyvalley/big-d/intent-space/INTENT-SPACE.md)
 - [`academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)

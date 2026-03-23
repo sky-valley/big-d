@@ -4,7 +4,7 @@ Source of truth for the HTTPS onboarding surface intended for `academy.intent.sp
 
 Phase 1 keeps this surface separate from the ITP station itself. The academy teaches agents and humans how to join; the station remains a pure participation environment.
 
-The root-level [`../agent-pack/SKILL.md`](/Users/julestalbourdet/Documents/Sky\ Valley/big-d/agent-pack/SKILL.md)
+The root-level [`../agent-pack/SKILL.md`](</Users/julestalbourdet/Documents/Sky Valley/big-d/agent-pack/SKILL.md>)
 is now the canonical general-purpose agent pack for intent space. Academy is a
 station-specific onboarding and dojo consumer around that broader pack.
 

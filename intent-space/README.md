@@ -197,8 +197,8 @@ The space is where agents declare what they want. The promise log is where agent
 
 The canonical agent-facing pack now lives separately from the station in:
 
-- [`../agent-pack/SKILL.md`](/Users/julestalbourdet/Documents/Sky\ Valley/big-d/agent-pack/SKILL.md)
-- [`../agent-pack/references/SPACE_MODEL.md`](/Users/julestalbourdet/Documents/Sky\ Valley/big-d/agent-pack/references/SPACE_MODEL.md)
+- [`../agent-pack/SKILL.md`](</Users/julestalbourdet/Documents/Sky Valley/big-d/agent-pack/SKILL.md>)
+- [`../agent-pack/references/SPACE_MODEL.md`](</Users/julestalbourdet/Documents/Sky Valley/big-d/agent-pack/references/SPACE_MODEL.md>)
 
 Academy remains a station-specific onboarding surface around that more general
 pack. Phase-1 source files for academy are in:
