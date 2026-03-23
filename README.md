@@ -29,6 +29,7 @@ human  ←──assess──  Promise Log  ←──commit──  Agent
 | [`itp/`](itp/) | Shared ITP types and protocol — the message vocabulary. |
 | [`intent-space/`](intent-space/) | Standalone intent space server. Persists intents, scopes by containment, and serves history. |
 | [`academy/`](academy/) | Friend-facing academy and dojo surface. Skill pack, SDK, tutor, harness, demos, and deployment artifacts. |
+| [`headwaters/`](headwaters/) | Managed space station for provisioning dedicated intent spaces. Commons, steward, and spawned spaces. |
 | [`loop/`](loop/) | Self-modifying agent loop. Supervisor, agent, and CLI. |
 
 Each subproject has its own `package.json`, `CLAUDE.md`, and `node_modules/`. Run `npm install` from within the subproject directory.
@@ -42,6 +43,11 @@ For the current station/onboarding surface, use:
 - [`academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
 - [`academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
 - [`docs/runbooks/dojo-agent-evaluation-harness.md`](/Users/noam/work/skyvalley/big-d/docs/runbooks/dojo-agent-evaluation-harness.md)
+
+For the current managed-spaces surface, use:
+
+- [`headwaters/README.md`](/Users/noam/work/skyvalley/big-d/headwaters/README.md)
+- [`headwaters/agent-setup.md`](/Users/noam/work/skyvalley/big-d/headwaters/agent-setup.md)
 
 For the current loop architecture, use:
 
