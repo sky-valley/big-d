@@ -36,7 +36,16 @@ source "$ENV_FILE"
 target_ip="$(jq -r '.targetIp' "$STATE_FILE")"
 station_port="${STATION_PORT:-4443}"
 academy_http_port="${ACADEMY_HTTP_PORT:-8080}"
+academy_app_port="${ACADEMY_APP_PORT:-18080}"
 repo_root="$(cd "$DEPLOY_DIR/../.." && pwd)"
+
+if [[ -n "${ACADEMY_HOSTNAME:-}" ]]; then
+  academy_public_origin="https://$ACADEMY_HOSTNAME"
+  station_public_host="$ACADEMY_HOSTNAME"
+else
+  academy_public_origin="http://$target_ip:$academy_http_port"
+  station_public_host="$target_ip"
+fi
 
 remote() {
   ssh -i "$DEPLOY_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=accept-new "root@$target_ip" "$@"
@@ -64,7 +73,7 @@ fi
 apt-get update
 apt-get install -y nodejs caddy
 
-mkdir -p /srv/big-d /var/www/academy /etc/intent-space /var/lib/intent-space
+mkdir -p /srv/big-d /etc/intent-space /var/lib/intent-space
 EOF
 
 echo "syncing repo artifacts"
@@ -87,13 +96,14 @@ rsync -az --delete \
 echo "installing node deps remotely"
 remote "cd /srv/big-d/intent-space && npm install"
 
-echo "publishing academy site"
-remote "bash /srv/big-d/academy/deploy/scripts/deploy-academy.sh /var/www/academy"
-
 echo "installing configs"
 scp -i "$DEPLOY_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=accept-new \
   "$repo_root/academy/deploy/Caddyfile" \
   "root@$target_ip:/etc/caddy/Caddyfile"
+
+scp -i "$DEPLOY_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=accept-new \
+  "$repo_root/academy/deploy/systemd/academy.service" \
+  "root@$target_ip:/etc/systemd/system/academy.service"
 
 scp -i "$DEPLOY_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=accept-new \
   "$repo_root/academy/deploy/systemd/intent-space-station.service" \
@@ -103,15 +113,27 @@ scp -i "$DEPLOY_SSH_PRIVATE_KEY" -o StrictHostKeyChecking=accept-new \
   "$repo_root/academy/deploy/systemd/intent-space-tutor.service" \
   "root@$target_ip:/etc/systemd/system/intent-space-tutor.service"
 
+remote "cat > /etc/intent-space/academy.env <<EOF
+ACADEMY_HOST=127.0.0.1
+ACADEMY_PORT=$academy_app_port
+ACADEMY_ORIGIN=$academy_public_origin
+ACADEMY_STATION_ENDPOINT=tcp://$station_public_host:$station_port
+ACADEMY_STATION_AUDIENCE=intent-space://$station_public_host/station
+INTENT_SPACE_AUTH_SECRET=${INTENT_SPACE_AUTH_SECRET:-intent-space-prod-secret}
+EOF"
+
 remote "cat > /etc/intent-space/station.env <<EOF
 DIFFER_INTENT_SPACE_DIR=/var/lib/intent-space
 INTENT_SPACE_PORT=$station_port
 INTENT_SPACE_HOST=0.0.0.0
+ACADEMY_STATION_AUDIENCE=intent-space://$station_public_host/station
+INTENT_SPACE_AUTH_SECRET=${INTENT_SPACE_AUTH_SECRET:-intent-space-prod-secret}
 EOF"
 
 remote "cat > /etc/intent-space/tutor.env <<EOF
 INTENT_SPACE_TUTOR_HOST=127.0.0.1
 INTENT_SPACE_TUTOR_PORT=$station_port
+ACADEMY_ORIGIN=http://127.0.0.1:$academy_app_port
 EOF"
 
 if [[ -n "${ACADEMY_HOSTNAME:-}" ]]; then
@@ -119,10 +141,8 @@ if [[ -n "${ACADEMY_HOSTNAME:-}" ]]; then
 else
   remote "cat > /etc/caddy/Caddyfile <<EOF
 :$academy_http_port {
-	root * /var/www/academy
-	file_server
 	encode zstd gzip
-	try_files {path} {path}/ /README.md
+	reverse_proxy 127.0.0.1:$academy_app_port
 }
 EOF"
 fi
@@ -131,7 +151,7 @@ echo "opening firewall"
 remote "ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow $academy_http_port/tcp && ufw allow $station_port/tcp && yes | ufw enable"
 
 echo "starting services"
-remote "systemctl daemon-reload && systemctl enable intent-space-station intent-space-tutor caddy && systemctl restart caddy intent-space-station intent-space-tutor"
+remote "systemctl daemon-reload && systemctl enable academy intent-space-station intent-space-tutor caddy && systemctl restart academy caddy intent-space-station intent-space-tutor"
 
 echo "bootstrap complete"
 echo "  target_ip=$target_ip"

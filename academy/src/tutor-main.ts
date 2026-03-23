@@ -31,6 +31,7 @@ function buildTarget(): ClientTarget {
 
 const tutor = new StationTutor({
   target: buildTarget(),
+  academyUrl: process.env.ACADEMY_ORIGIN ?? 'http://127.0.0.1:8080',
   agentId: process.env.INTENT_SPACE_TUTOR_ID ?? 'differ-tutor',
 });
 

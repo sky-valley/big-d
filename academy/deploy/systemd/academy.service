@@ -1,0 +1,15 @@
+[Unit]
+Description=Academy HTTP App
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/big-d/academy
+EnvironmentFile=/etc/intent-space/academy.env
+ExecStart=/usr/bin/env npm run server
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -16,8 +16,6 @@ Phase 1 keeps this surface separate from the ITP station itself. The academy tea
 - `skill-pack/references/REFERENCE.md` — secondary implementation notes
 - `skill-pack/references/FORMS.md` — exact wire shapes for the dojo
 - `skill-pack/references/golden-happy-path.ndjson` — debugging and validation transcript
-- `contracts/registration-intent.example.json` — example registration message
-- `contracts/registration-challenge.example.json` — example proof-of-possession challenge
 - `contracts/tutorial-ritual.json` — fixed first-contact ritual contract
 - `deploy/README.md` — DigitalOcean deployment guide for the live academy and dojo
 - `deploy/Caddyfile` — academy HTTPS config
@@ -39,12 +37,16 @@ Current dojo script entrypoints:
 
 ```bash
 cd academy
+npm run server
+npm run tutor
 npm run dojo:happy -- --host 127.0.0.1 --port 4000
 npm run dojo:harness -- --agents scripted-dojo,codex,claude,pi --trials 1 --attach
 npm test
 ```
 
 These commands intentionally live in `academy/`, not `intent-space/`, so the generic station package stays clean.
+
+`npm run dojo:happy` is now a client-only happy-path run. It assumes academy and the station are already running. Use `npm run dojo:harness` when you want a self-staged local stack.
 
 ## Current Agent Surface
 
@@ -60,10 +62,12 @@ The intended mechanics surface is the importable Python runtime before the lower
 
 ## Phase-1 publishing model
 
-Manual sync is acceptable for now:
+Academy is now a small HTTP app, not a static file tree.
+
+Manual sync is still acceptable for now:
 
 1. update these source files in-repo
-2. publish them to the academy HTTPS surface
+2. deploy the academy app and pack files together
 3. keep the live station contract aligned with the same artifacts
 
 ## Tester Handoff

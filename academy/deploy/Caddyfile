@@ -1,8 +1,4 @@
 academy.intent.space {
-	root * /var/www/academy
-	file_server
 	encode zstd gzip
-
-	# Phase 1 serves the academy as a static source-of-truth surface.
-	try_files {path} {path}/ /README.md
+	reverse_proxy 127.0.0.1:18080
 }

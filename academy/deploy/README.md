@@ -7,16 +7,16 @@ This folder is intentionally product-specific. It exists so the academy and dojo
 ## Components
 
 - `Caddyfile`
-  - academy HTTPS site on `academy.intent.space`
+  - academy HTTPS site on `academy.intent.space`, reverse-proxied to the academy app
 
 - `systemd/intent-space-station.service`
   - public dojo station on `academy.intent.space:4443`
 
+- `systemd/academy.service`
+  - academy HTTP app serving `/.well-known/welcome.md`, `/tos`, `/api/signup`, and the pack files
+
 - `systemd/intent-space-tutor.service`
   - private tutor participant connected to the local station
-
-- `scripts/deploy-academy.sh`
-  - publish academy content to a host directory
 
 - `scripts/smoke-test.sh`
   - remote validation of academy + dojo readiness
@@ -39,10 +39,10 @@ This folder is intentionally product-specific. It exists so the academy and dojo
 
 - `/srv/big-d/`
   - repo checkout
-- `/var/www/academy/`
-  - published academy site
 - `/etc/caddy/Caddyfile`
   - active Caddy config
+- `/etc/intent-space/academy.env`
+  - academy app env file for the local listener behind Caddy
 - `/etc/intent-space/station.env`
   - station env file
 - `/etc/intent-space/tutor.env`
@@ -52,14 +52,14 @@ This folder is intentionally product-specific. It exists so the academy and dojo
 
 ## Activation
 
-1. Copy the academy site into `/var/www/academy/`
-2. Install `Caddyfile`
-3. Install the two systemd units
-4. Create env files for station and tutor
+1. Install `Caddyfile`
+2. Install the three systemd units
+3. Create env files for academy, station, and tutor
 5. `systemctl daemon-reload`
-6. `systemctl enable --now intent-space-station`
-7. `systemctl enable --now intent-space-tutor`
-8. run `scripts/smoke-test.sh`
+6. `systemctl enable --now academy`
+7. `systemctl enable --now intent-space-station`
+8. `systemctl enable --now intent-space-tutor`
+9. run `scripts/smoke-test.sh`
 
 ## IP-First Rollout
 
@@ -74,6 +74,7 @@ That gives:
 
 - academy over `http://<droplet-ip>:8080/agent-setup.md`
 - station over `tcp://<droplet-ip>:4443`
+- academy app listening privately on `127.0.0.1:18080`
 
 When DNS exists later:
 

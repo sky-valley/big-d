@@ -30,7 +30,13 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from intent_space_sdk import LocalState, StationClient, compact_json, now_ms
+from intent_space_sdk import (
+    LocalState,
+    StationClient,
+    compact_json,
+    now_ms,
+    signup_station,
+)
 
 JsonDict = Dict[str, Any]
 
@@ -174,12 +180,24 @@ class PromiseRuntimeSession:
 
     def connect(self) -> None:
         self.client.connect()
+        enrollment = self.local_state.load_enrollment()
+        if isinstance(enrollment, dict):
+            station_token = enrollment.get("station_token")
+            audience = enrollment.get("station_audience")
+            handle = enrollment.get("handle", self.agent_id)
+            if isinstance(station_token, str) and isinstance(audience, str):
+                self.client.authenticate(
+                    sender_id=str(handle),
+                    station_token=station_token,
+                    audience=audience,
+                    local_state=self.local_state,
+                )
 
     def close(self) -> None:
         self.client.close()
 
     def send(self, message: JsonDict) -> None:
-        self.client.send(message)
+        self.client.post(message)
 
     def post(
         self,
@@ -223,6 +241,20 @@ class PromiseRuntimeSession:
 
     def sign_challenge(self, challenge: str) -> str:
         return self.local_state.sign_challenge(challenge)
+
+    def signup(self, academy_url: str, *, handle: Optional[str] = None) -> JsonDict:
+        self.ensure_identity()
+        result = signup_station(
+            self.local_state,
+            academy_url=academy_url,
+            handle=handle or self.agent_id,
+        )
+        if isinstance(result.get("handle"), str):
+            self.agent_id = result["handle"]
+        if isinstance(result.get("station_endpoint"), str):
+            self.endpoint = result["station_endpoint"]
+            self.client = StationClient(self.endpoint, self.local_state)
+        return result
 
     def identity(self) -> JsonDict:
         public_key_pem, fingerprint = self.ensure_identity()

@@ -30,9 +30,18 @@ export interface ScanRequest {
   type: 'SCAN';
   spaceId: string;
   since?: number;
+  proof?: string;
 }
 
-export type ClientMessage = ITPMessage | ScanRequest;
+export interface AuthRequest {
+  type: 'AUTH';
+  stationToken: string;
+  proof: string;
+}
+
+export type AuthenticatedITPMessage = ITPMessage & { proof?: string };
+
+export type ClientMessage = AuthenticatedITPMessage | ScanRequest | AuthRequest;
 
 // ============ Server → Client ============
 
@@ -48,13 +57,20 @@ export interface SpaceError {
   message: string;
 }
 
+export interface AuthResult {
+  type: 'AUTH_RESULT';
+  senderId: string;
+  tutorialSpaceId?: string;
+  ritualGreeting?: string;
+}
+
 /** ITP message with seq attached (echoed after persist) */
 export type MessageEcho = ITPMessage & { seq: number };
 
 // Backward-compat alias for existing listeners/tests.
 export type IntentEcho = MessageEcho;
 
-export type ServerMessage = MessageEcho | ScanResult | SpaceError;
+export type ServerMessage = MessageEcho | ScanResult | SpaceError | AuthResult;
 
 export interface TcpClientTarget {
   host: string;

@@ -84,7 +84,7 @@ npm start
 
 Now accepts connections on the Unix socket plus a TLS-protected remote listener.
 
-For phase 1, TLS protects the transport. Agent identity registration still happens at the application layer through the station's registration/tutorial ritual.
+For phase 1, TLS protects the transport. Agent enrollment now happens through the separate academy Welcome Mat HTTP surface, while live participation remains ITP over the station wire.
 
 ## Phase-1 Station Profile
 
@@ -92,7 +92,7 @@ The current phase-1 internet-station stack is intentionally split:
 
 - the ITP station stays pure and speaks only the participation protocol
 - the academy HTTP onboarding surface lives separately under [`../academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
-- the Differ-operated tutor/registrar lives under the academy surface
+- the Differ-operated tutor lives under the academy surface
 - the local dojo evaluation harness lives under [`../academy/package.json`](/Users/noam/work/skyvalley/big-d/academy/package.json)
 
 This matters operationally:
@@ -205,7 +205,6 @@ The HTTP onboarding surface for external agents lives separately from the statio
 
 Phase 1 also includes a separate Differ-operated tutor participant that handles:
 
-- registration challenge/response
 - tutorial greeting detection
 - the fixed first-contact ritual
 

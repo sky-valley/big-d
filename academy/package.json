@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "server": "../intent-space/node_modules/.bin/tsx src/server-main.ts",
     "tutor": "../intent-space/node_modules/.bin/tsx src/tutor-main.ts",
     "dojo:happy": "python3 scripts/dojo-agent.py",
     "dojo:harness": "../intent-space/node_modules/.bin/tsx scripts/dojo-harness.ts",

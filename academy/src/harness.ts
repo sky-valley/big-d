@@ -4,7 +4,7 @@ import { execFileSync, spawn } from 'child_process';
 import { randomUUID } from 'crypto';
 import type { ClientTarget, MessageEcho } from '../../intent-space/src/types.ts';
 import { IntentSpaceClient } from '../../intent-space/src/client.ts';
-import { REGISTRATION_SPACE_ID, RITUAL_GREETING_CONTENT, TUTORIAL_SPACE_ID } from './station-contract.ts';
+import { RITUAL_GREETING_CONTENT, TUTORIAL_SPACE_ID } from './station-contract.ts';
 
 export type AgentTarget = 'codex' | 'claude' | 'pi' | 'scripted-dojo';
 export type ExperimentMode = 'baseline';
@@ -12,8 +12,8 @@ export type RunStatus = 'passed' | 'failed' | 'timeout' | 'unavailable';
 export type FailureStage =
   | 'completed'
   | 'pre-dojo'
-  | 'registration'
-  | 'challenge-response'
+  | 'signup'
+  | 'station-auth'
   | 'tutorial-navigation'
   | 'decline-recovery'
   | 'accept'
@@ -115,6 +115,7 @@ interface RecipeContext {
   repoRoot: string;
   workspaceDir: string;
   runDir: string;
+  stage: StageHandle;
   prompt: string;
   agent: AgentTarget;
   trial: number;
@@ -201,8 +202,9 @@ async function runSingleTrial(
   const monitor = await startMonitor({ host: ctx.stage.host, port: ctx.stage.port }, transcriptPath);
   const recipeCtx: RecipeContext = {
     repoRoot: ctx.repoRoot,
-      workspaceDir,
-      runDir,
+    workspaceDir,
+    runDir,
+    stage: ctx.stage,
     prompt,
     agent,
     trial,
@@ -386,10 +388,10 @@ function buildPrompt(input: {
     'Do not inspect old runs or historical agent transcripts to infer the sequence.',
     'For this local harness run, obey the provided endpoint scheme literally.',
     'If the endpoint starts with tcp://, use plain TCP. Do not switch to TLS.',
-    'After observing the initial service intents, proceed directly to your own registration flow.',
+    'After observing the initial service intents, complete Welcome Mat signup over HTTP first.',
     'Do not do exploratory probing or trial runs before your real run.',
     'Implement the client flow once, then execute it against the live station.',
-    'Only scan spaces that are part of your own live run: root for initial observation, your registration intent subspace for the challenge, tutorial for your own greeting, and your greeting intent subspace for the ritual.',
+    'Only scan spaces that are part of your own live run: root for initial observation, tutorial for your own greeting, and your greeting intent subspace for the ritual.',
     'Treat since as a sequence cursor. Advance it from each SCAN_RESULT.latestSeq, not from timestamps.',
     'Read scan results from SCAN_RESULT.messages.',
     `If you hit a tricky seam around async challenges, subspace placement, or promise binding, consult ${microExamplesPath}.`,
@@ -530,9 +532,11 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
       args: (ctx) => [
         repoScript('dojo-agent.py'),
         '--host',
-        DEFAULT_HOST,
+        ctx.stage.host,
         '--port',
-        String(DEFAULT_STATION_PORT),
+        String(ctx.stage.port),
+        '--academy-url',
+        `http://${ctx.stage.host}:${ctx.stage.academyPort}`,
         '--agent-id',
         `scripted-${Date.now()}`,
         '--workspace',
@@ -732,63 +736,12 @@ export function classifyRun(
     };
   }
 
-  const registrationIntent = transcript.find(
-    (msg) => msg.senderId === agentId && msg.type === 'INTENT' && msg.parentId === REGISTRATION_SPACE_ID,
-  );
-  if (!registrationIntent) {
-    return {
-      failureStage: 'pre-dojo',
-      agentId,
-      agentIds,
-      cleanliness,
-      repairSignals,
-      helperMode,
-      helperFiles,
-      helperLanguage,
-    };
-  }
-
-  const signedChallenge = transcript.find(
-    (msg) => msg.senderId === agentId && msg.type === 'INTENT' && msg.parentId === registrationIntent.intentId,
-  );
-  if (!signedChallenge) {
-    return {
-      failureStage: 'challenge-response',
-      agentId,
-      agentIds,
-      cleanliness,
-      repairSignals,
-      helperMode,
-      helperFiles,
-      helperLanguage,
-    };
-  }
-
-  const tutorialAck = transcript.find(
-    (msg) => msg.senderId === 'differ-tutor'
-      && msg.type === 'INTENT'
-      && msg.parentId === registrationIntent.intentId
-      && (msg.payload as Record<string, unknown>).ritualGreeting === RITUAL_GREETING_CONTENT,
-  );
-  if (!tutorialAck) {
-    return {
-      failureStage: 'registration',
-      agentId,
-      agentIds,
-      cleanliness,
-      repairSignals,
-      helperMode,
-      helperFiles,
-      helperLanguage,
-    };
-  }
-
   const greeting = transcript.find(
     (msg) => msg.senderId === agentId && msg.type === 'INTENT' && msg.parentId === TUTORIAL_SPACE_ID,
   );
   if (!greeting) {
     return {
-      failureStage: 'tutorial-navigation',
+      failureStage: agentMessages.length > 0 ? 'signup' : 'pre-dojo',
       agentId,
       agentIds,
       cleanliness,
@@ -902,10 +855,19 @@ async function startLocalDojo(input: {
   mkdirSync(input.logDir, { recursive: true });
   const intentSpaceDir = join(input.logDir, 'space');
   mkdirSync(intentSpaceDir, { recursive: true });
-  const python3 = resolveCommand('python3');
   const npm = resolveNpmLaunchSpec();
-  const academy = spawn(python3, ['-m', 'http.server', String(input.academyPort), '--directory', join(input.repoRoot, 'academy')], {
-    cwd: input.repoRoot,
+  const authSecret = randomUUID();
+  const academy = spawn(npm.command, [...npm.args, 'run', 'server'], {
+    cwd: join(input.repoRoot, 'academy'),
+    env: {
+      ...process.env,
+      ACADEMY_HOST: input.host,
+      ACADEMY_PORT: String(input.academyPort),
+      ACADEMY_ORIGIN: `http://${input.host}:${input.academyPort}`,
+      ACADEMY_STATION_ENDPOINT: `tcp://${input.host}:${input.port}`,
+      ACADEMY_STATION_AUDIENCE: 'intent-space://academy-harness/station',
+      INTENT_SPACE_AUTH_SECRET: authSecret,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   pipeToFile(academy.stdout, join(input.logDir, 'academy.log'));
@@ -917,6 +879,8 @@ async function startLocalDojo(input: {
       ...process.env,
       DIFFER_INTENT_SPACE_DIR: intentSpaceDir,
       INTENT_SPACE_PORT: String(input.port),
+      ACADEMY_STATION_AUDIENCE: 'intent-space://academy-harness/station',
+      INTENT_SPACE_AUTH_SECRET: authSecret,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -932,6 +896,9 @@ async function startLocalDojo(input: {
       DIFFER_INTENT_SPACE_DIR: intentSpaceDir,
       INTENT_SPACE_TUTOR_HOST: input.host,
       INTENT_SPACE_TUTOR_PORT: String(input.port),
+      ACADEMY_ORIGIN: `http://${input.host}:${input.academyPort}`,
+      ACADEMY_STATION_AUDIENCE: 'intent-space://academy-harness/station',
+      INTENT_SPACE_AUTH_SECRET: authSecret,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -1094,7 +1061,7 @@ function detectHelperLanguage(helperFiles: string[]): string | undefined {
 
 function classifyHelperMode(helperFiles: string[], agentMessages: MessageEcho[]): HelperMode {
   if (helperFiles.length === 0) return 'none';
-  const executed = agentMessages.some((msg) => msg.parentId === REGISTRATION_SPACE_ID || msg.parentId === TUTORIAL_SPACE_ID);
+  const executed = agentMessages.some((msg) => msg.parentId === TUTORIAL_SPACE_ID || msg.parentId === 'root');
   return executed ? 'generated-executed' : 'generated-not-executed';
 }
 
@@ -1106,17 +1073,15 @@ function collectRepairSignals(transcript: MessageEcho[], generatedFiles: string[
   if (helperFiles.length > 1) signals.add('multiple-helper-files');
 
   const ignored = new Set(['intent-space', 'differ-tutor']);
-  const counts = new Map<string, { registrations: number; greetings: number }>();
+  const counts = new Map<string, { greetings: number }>();
   for (const msg of transcript) {
     if (ignored.has(msg.senderId)) continue;
-    const current = counts.get(msg.senderId) ?? { registrations: 0, greetings: 0 };
-    if (msg.type === 'INTENT' && msg.parentId === REGISTRATION_SPACE_ID) current.registrations += 1;
+    const current = counts.get(msg.senderId) ?? { greetings: 0 };
     if (msg.type === 'INTENT' && msg.parentId === TUTORIAL_SPACE_ID) current.greetings += 1;
     counts.set(msg.senderId, current);
   }
 
   for (const count of counts.values()) {
-    if (count.registrations > 1) signals.add('repeated-registration');
     if (count.greetings > 1) signals.add('repeated-greeting');
   }
 

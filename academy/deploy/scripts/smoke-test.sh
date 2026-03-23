@@ -6,7 +6,8 @@ STATION_PORT="${2:-4443}"
 ACADEMY_URL="${3:-https://$HOST/}"
 
 echo "academy: $ACADEMY_URL"
-curl -fsS "$ACADEMY_URL" >/dev/null
+curl -fsS "$ACADEMY_URL/.well-known/welcome.md" >/dev/null
+curl -fsS "$ACADEMY_URL/tos" >/dev/null
 
 echo "station: tcp://$HOST:$STATION_PORT"
 python3 - "$HOST" "$STATION_PORT" <<'PY'

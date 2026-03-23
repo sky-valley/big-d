@@ -20,8 +20,9 @@ import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { IntentStore, DEFAULT_DB_DIR } from './store.ts';
 import { buildServiceIntents } from './service-intents.ts';
-import type { ClientMessage, ServerMessage, ScanRequest, MessageEcho } from './types.ts';
+import type { ClientMessage, ServerMessage, ScanRequest, MessageEcho, AuthRequest, AuthenticatedITPMessage } from './types.ts';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
+import { verifyAuthRequest, verifyPerMessageProof, type StationSessionAuth } from './auth.ts';
 
 const MAX_LINE_LENGTH = 1024 * 1024; // 1MB
 
@@ -29,6 +30,7 @@ interface ClientConnection {
   socket: Socket;
   buffer: string;
   introduced: boolean;
+  authenticated?: StationSessionAuth;
 }
 
 export interface IntentSpaceOptions {
@@ -60,6 +62,7 @@ export class IntentSpace {
   private _tlsPort?: number;
   private _tlsHost: string;
   private _tlsOptions?: TlsOptions;
+  private _authSecret: string;
 
   constructor(opts: IntentSpaceOptions = {}) {
     this._agentId = opts.agentId ?? process.env.DIFFER_INTENT_SPACE_ID ?? 'intent-space';
@@ -72,6 +75,7 @@ export class IntentSpace {
     this._tlsPort = opts.tlsPort ?? (process.env.INTENT_SPACE_TLS_PORT ? parseInt(process.env.INTENT_SPACE_TLS_PORT, 10) : undefined);
     this._tlsHost = opts.tlsHost ?? process.env.INTENT_SPACE_TLS_HOST ?? '0.0.0.0';
     this._tlsOptions = loadTlsOptions(opts);
+    this._authSecret = process.env.INTENT_SPACE_AUTH_SECRET ?? 'intent-space-dev-secret';
     this.store = new IntentStore(opts.dbPath);
   }
 
@@ -230,10 +234,44 @@ export class IntentSpace {
       this.handleScan(client, msg as ScanRequest);
       return;
     }
-    this.handlePost(client, msg as ITPMessage);
+    if (msg.type === 'AUTH') {
+      this.handleAuth(client, msg as AuthRequest);
+      return;
+    }
+    if (!client.authenticated) {
+      this.send(client, { type: 'ERROR', message: 'Authenticate before station participation' });
+      return;
+    }
+    this.handlePost(client, msg as AuthenticatedITPMessage);
   }
 
-  private handlePost(client: ClientConnection, msg: ITPMessage): void {
+  private handleAuth(client: ClientConnection, msg: AuthRequest): void {
+    try {
+      client.authenticated = verifyAuthRequest(msg, this._authSecret);
+      this.send(client, {
+        type: 'AUTH_RESULT',
+        senderId: client.authenticated.senderId,
+        tutorialSpaceId: 'tutorial',
+        ritualGreeting: 'academy tutorial greeting',
+      });
+    } catch (err) {
+      this.send(client, {
+        type: 'ERROR',
+        message: `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
+
+  private handlePost(client: ClientConnection, msg: AuthenticatedITPMessage): void {
+    try {
+      verifyPerMessageProof(client.authenticated!, msg.proof, msg);
+    } catch (err) {
+      this.send(client, {
+        type: 'ERROR',
+        message: `Proof validation failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
+      return;
+    }
     if (!msg.intentId) {
       if (msg.type === 'INTENT') {
         this.send(client, { type: 'ERROR', message: 'INTENT must have an intentId' });
@@ -243,7 +281,16 @@ export class IntentSpace {
 
     let seq: number;
     try {
-      seq = this.store.post(msg);
+      const storedMessage: ITPMessage = {
+        type: msg.type,
+        promiseId: msg.promiseId,
+        intentId: msg.intentId,
+        parentId: msg.parentId,
+        timestamp: msg.timestamp,
+        senderId: msg.senderId,
+        payload: msg.payload,
+      };
+      seq = this.store.post(storedMessage);
     } catch (err) {
       this.send(client, {
         type: 'ERROR',
@@ -258,6 +305,19 @@ export class IntentSpace {
   }
 
   private handleScan(client: ClientConnection, msg: ScanRequest): void {
+    if (!client.authenticated) {
+      this.send(client, { type: 'ERROR', message: 'Authenticate before station participation' });
+      return;
+    }
+    try {
+      verifyPerMessageProof(client.authenticated, msg.proof, msg);
+    } catch (err) {
+      this.send(client, {
+        type: 'ERROR',
+        message: `Proof validation failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
+      return;
+    }
     const messages = this.store.scan(msg.spaceId, msg.since ?? 0);
     this.send(client, {
       type: 'SCAN_RESULT',

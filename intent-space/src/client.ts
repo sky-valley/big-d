@@ -11,14 +11,32 @@
 import { connect as netConnect, isIP, type Socket } from 'net';
 import { connect as tlsConnect, type TLSSocket, type ConnectionOptions as TlsConnectionOptions } from 'tls';
 import { EventEmitter } from 'events';
-import type { ServerMessage, StoredMessage, MessageEcho, ClientTarget, TlsClientTarget } from './types.ts';
+import type {
+  ServerMessage,
+  StoredMessage,
+  MessageEcho,
+  ClientTarget,
+  TlsClientTarget,
+  AuthRequest,
+  AuthenticatedITPMessage,
+  ScanRequest,
+  AuthResult,
+} from './types.ts';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
+
+type ProofFactory = (action: string, requestWithoutProof: Record<string, unknown>) => string;
+
+interface AuthContext {
+  stationToken: string;
+  proofFactory: ProofFactory;
+}
 
 export class IntentSpaceClient extends EventEmitter {
   private socket: Socket | TLSSocket | null = null;
   private buffer = '';
   private _latestSeq = 0;
   private target: ClientTarget;
+  private authContext: AuthContext | null = null;
 
   constructor(target: ClientTarget) {
     super();
@@ -58,7 +76,19 @@ export class IntentSpaceClient extends EventEmitter {
 
   /** Post an ITP message. */
   post(msg: ITPMessage): void {
-    this.writeLine(msg);
+    const request: AuthenticatedITPMessage = { ...msg };
+    if (this.authContext) {
+      request.proof = this.authContext.proofFactory(request.type, stripUndefined({
+        type: request.type,
+        promiseId: request.promiseId,
+        intentId: request.intentId,
+        parentId: request.parentId,
+        timestamp: request.timestamp,
+        senderId: request.senderId,
+        payload: request.payload,
+      }));
+    }
+    this.writeLine(request);
   }
 
   /** Scan a space. Returns stored messages with parentId = spaceId and seq > since. */
@@ -88,7 +118,50 @@ export class IntentSpaceClient extends EventEmitter {
       };
 
       this.on('_message', handler);
-      this.writeLine({ type: 'SCAN', spaceId, since: since ?? 0 });
+      const request: ScanRequest = { type: 'SCAN', spaceId, since: since ?? 0 };
+      if (this.authContext) {
+        request.proof = this.authContext.proofFactory('SCAN', stripUndefined({
+          type: 'SCAN',
+          spaceId,
+          since: since ?? 0,
+        }));
+      }
+      this.writeLine(request);
+    });
+  }
+
+  authenticate(stationToken: string, proofFactory: ProofFactory): Promise<AuthResult> {
+    return new Promise((resolve, reject) => {
+      const requestShape = { type: 'AUTH' };
+      const request: AuthRequest = {
+        type: 'AUTH',
+        stationToken,
+        proof: proofFactory('AUTH', requestShape),
+      };
+
+      const handler = (msg: ServerMessage) => {
+        if (msg.type === 'AUTH_RESULT') {
+          cleanup();
+          this.authContext = { stationToken, proofFactory };
+          resolve(msg);
+        } else if (msg.type === 'ERROR') {
+          cleanup();
+          reject(new Error(msg.message));
+        }
+      };
+
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error('Authentication timed out'));
+      }, 5000);
+
+      const cleanup = () => {
+        this.off('_message', handler);
+        clearTimeout(timer);
+      };
+
+      this.on('_message', handler);
+      this.writeLine(request);
     });
   }
 
@@ -119,6 +192,10 @@ export class IntentSpaceClient extends EventEmitter {
       return;
     }
     if (msg.type === 'SCAN_RESULT') {
+      return;
+    }
+    if (msg.type === 'AUTH_RESULT') {
+      this.emit('auth', msg);
       return;
     }
 
@@ -159,4 +236,8 @@ export class IntentSpaceClient extends EventEmitter {
     }
     return tlsConnect(opts);
   }
+}
+
+function stripUndefined<T extends Record<string, unknown>>(input: T): T {
+  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)) as T;
 }

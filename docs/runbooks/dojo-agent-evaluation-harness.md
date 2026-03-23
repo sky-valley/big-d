@@ -143,8 +143,8 @@ See:
 Current classifier stages:
 
 - `pre-dojo`
-- `registration`
-- `challenge-response`
+- `signup`
+- `station-auth`
 - `tutorial-navigation`
 - `decline-recovery`
 - `accept`
@@ -199,7 +199,7 @@ To add a new agent recipe:
 4. verify output capture works
 5. run at least one local trial and inspect artifacts
 
-Do not add per-agent semantic adapters that perform registration, signing, or ritual recovery on the agent’s behalf.
+Do not add per-agent semantic adapters that perform signup, station auth, signing, or ritual recovery on the agent’s behalf.
 
 ## Monitoring Notes
 
