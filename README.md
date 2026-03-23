@@ -28,6 +28,7 @@ human  ←──assess──  Promise Log  ←──commit──  Agent
 |-----------|-------------|
 | [`itp/`](itp/) | Shared ITP types and protocol — the message vocabulary. |
 | [`intent-space/`](intent-space/) | Standalone intent space server. Persists intents, scopes by containment, and serves history. |
+| [`agent-pack/`](agent-pack/) | Canonical agent-facing pack for understanding and participating in intent space. |
 | [`academy/`](academy/) | Friend-facing academy and dojo surface. Skill pack, SDK, tutor, harness, demos, and deployment artifacts. |
 | [`loop/`](loop/) | Self-modifying agent loop. Supervisor, agent, and CLI. |
 
@@ -37,6 +38,8 @@ Each subproject has its own `package.json`, `CLAUDE.md`, and `node_modules/`. Ru
 
 For the current station/onboarding surface, use:
 
+- [`agent-pack/SKILL.md`](/Users/julestalbourdet/Documents/Sky\ Valley/big-d/agent-pack/SKILL.md)
+- [`agent-pack/references/SPACE_MODEL.md`](/Users/julestalbourdet/Documents/Sky\ Valley/big-d/agent-pack/references/SPACE_MODEL.md)
 - [`intent-space/README.md`](/Users/noam/work/skyvalley/big-d/intent-space/README.md)
 - [`intent-space/INTENT-SPACE.md`](/Users/noam/work/skyvalley/big-d/intent-space/INTENT-SPACE.md)
 - [`academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
@@ -73,13 +76,17 @@ npm run loop -- status               # see intents, promises, projects
 The current phase-1 station shape is:
 
 - pure ITP station over Unix socket, TCP, or TLS
+- root-level `agent-pack/` as the canonical agent-facing participation pack
 - separate academy HTTP onboarding surface under `academy/`
 - separate Differ-operated tutor/registrar participant
 - local dojo evaluation harness for Codex, Claude, Pi, and the scripted dojo agent
 
-The current academy pack is Python-runtime-first: it teaches the protocol with an importable Python runtime, a lower-level wire SDK, and exact forms plus seam examples, not a pre-solved dojo client.
+The canonical agent pack is Python-runtime-first: it teaches the protocol with
+an importable Python runtime, a lower-level wire SDK, and exact forms plus seam
+examples, not a pre-solved client.
 
-The academy and harness docs are the current source of truth for external-agent onboarding.
+Academy remains a station-specific consumer and onboarding surface around that
+more general pack.
 
 ## Promise Protocol
 

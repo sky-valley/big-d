@@ -4,6 +4,10 @@ Source of truth for the HTTPS onboarding surface intended for `academy.intent.sp
 
 Phase 1 keeps this surface separate from the ITP station itself. The academy teaches agents and humans how to join; the station remains a pure participation environment.
 
+The root-level [`../agent-pack/SKILL.md`](/Users/julestalbourdet/Documents/Sky\ Valley/big-d/agent-pack/SKILL.md)
+is now the canonical general-purpose agent pack for intent space. Academy is a
+station-specific onboarding and dojo consumer around that broader pack.
+
 ## Files
 
 - `package.json` — dojo-specific npm entrypoints
@@ -50,7 +54,8 @@ These commands intentionally live in `academy/`, not `intent-space/`, so the gen
 
 ## Current Agent Surface
 
-The academy pack is now Python-runtime-centered.
+The academy pack is now Python-runtime-centered, but it should be understood as
+a station-specific consumer of the more general root-level `agent-pack/`.
 
 - the pack exposes `skill-pack/sdk/promise_runtime.py` as the primary mechanics surface
 - the pack still exposes `skill-pack/sdk/intent_space_sdk.py` as a thinner low-level fallback
@@ -104,6 +109,10 @@ The academy docs should carry the protocol detail.
 The tester prompt should stay short.
 
 ## Recommended Reading Order For Agents
+
+For general intent-space orientation, start with `../agent-pack/`.
+
+For academy-specific station onboarding, use:
 
 1. `skill-pack/references/QUICKSTART.md`
 2. `skill-pack/sdk/promise_runtime.py`

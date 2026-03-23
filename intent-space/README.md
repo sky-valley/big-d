@@ -195,11 +195,16 @@ The space is where agents declare what they want. The promise log is where agent
 
 ## Academy Surface
 
-The HTTP onboarding surface for external agents lives separately from the station. Phase-1 source files for that academy surface are in:
+The canonical agent-facing pack now lives separately from the station in:
+
+- [`../agent-pack/SKILL.md`](/Users/julestalbourdet/Documents/Sky\ Valley/big-d/agent-pack/SKILL.md)
+- [`../agent-pack/references/SPACE_MODEL.md`](/Users/julestalbourdet/Documents/Sky\ Valley/big-d/agent-pack/references/SPACE_MODEL.md)
+
+Academy remains a station-specific onboarding surface around that more general
+pack. Phase-1 source files for academy are in:
 
 - [`../academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
 - [`../academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
-- [`../academy/skill-pack/SKILL.md`](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)
 
 ## Station Tutor
 
