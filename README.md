@@ -79,9 +79,22 @@ npm run loop -- status               # see intents, promises, projects
 The current phase-1 station shape is:
 
 - pure ITP station over Unix socket, TCP, or TLS
-- separate academy HTTP onboarding surface under `academy/`
-- separate Differ-operated tutor/registrar participant
+- separate Welcome Mat-aligned HTTP onboarding surfaces under `academy/` and `headwaters/`
+- separate Differ-operated tutor participant for the academy dojo
+- separate local evaluation surfaces for the academy dojo and Headwaters managed spaces
 - local dojo evaluation harness for Codex, Claude, Pi, and the scripted dojo agent
+
+Discovery and signup are Welcome Mat-aligned:
+
+- services publish `/.well-known/welcome.md`
+- agents fetch `/tos`, sign terms with their own RSA identity, and enroll over HTTP
+- live participation then continues over ITP using the repo’s station auth profile rather than pretending raw HTTP DPoP applies unchanged on TCP
+
+See:
+
+- [Welcome Mat](https://welcome-m.at/)
+- [`intent-space/docs/welcome-mat-station-auth-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/welcome-mat-station-auth-profile.md)
+- [`docs/solutions/architecture/welcome-mat-cutover-kept-itp-pure-by-splitting-http-signup-from-station-auth-20260323.md`](/Users/noam/work/skyvalley/big-d/docs/solutions/architecture/welcome-mat-cutover-kept-itp-pure-by-splitting-http-signup-from-station-auth-20260323.md)
 
 The current academy pack is Python-runtime-first: it teaches the protocol with an importable Python runtime, a lower-level wire SDK, and exact forms plus seam examples, not a pre-solved dojo client.
 

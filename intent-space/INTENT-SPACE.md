@@ -200,8 +200,8 @@ The space is the body of desire. The promise log is the body of commitment. Proj
 
 Phase-1 currently layers two separate participants around the space:
 
-- a separate academy HTTP onboarding surface
-- a separate tutor/registrar participant that teaches the first ritual
+- separate Welcome Mat-aligned HTTP onboarding surfaces such as academy and Headwaters
+- a separate tutor participant for the academy dojo
 
 Those sit around the space. They do not change the space's core invariants.
 

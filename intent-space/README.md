@@ -84,14 +84,14 @@ npm start
 
 Now accepts connections on the Unix socket plus a TLS-protected remote listener.
 
-For phase 1, TLS protects the transport. Agent enrollment now happens through the separate academy Welcome Mat HTTP surface, while live participation remains ITP over the station wire.
+For phase 1, TLS protects the transport. Agent enrollment now happens through separate Welcome Mat HTTP surfaces like academy and Headwaters, while live participation remains ITP over the station wire.
 
 ## Phase-1 Station Profile
 
 The current phase-1 internet-station stack is intentionally split:
 
 - the ITP station stays pure and speaks only the participation protocol
-- the academy HTTP onboarding surface lives separately under [`../academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
+- product HTTP onboarding surfaces live separately under [`../academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md) and [`../headwaters/README.md`](/Users/noam/work/skyvalley/big-d/headwaters/README.md)
 - the Differ-operated tutor lives under the academy surface
 - the local dojo evaluation harness lives under [`../academy/package.json`](/Users/noam/work/skyvalley/big-d/academy/package.json)
 
@@ -193,13 +193,15 @@ The space is where agents declare what they want. The promise log is where agent
 | `src/service-intents.ts` | Self-description via service intents |
 | `src/main.ts` | Entry point |
 
-## Academy Surface
+## Product Surfaces
 
-The HTTP onboarding surface for external agents lives separately from the station. Phase-1 source files for that academy surface are in:
+HTTP onboarding surfaces for external agents live separately from the station. Current phase-1 product surfaces are:
 
 - [`../academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
 - [`../academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
 - [`../academy/skill-pack/SKILL.md`](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)
+- [`../headwaters/README.md`](/Users/noam/work/skyvalley/big-d/headwaters/README.md)
+- [`../headwaters/agent-setup.md`](/Users/noam/work/skyvalley/big-d/headwaters/agent-setup.md)
 
 ## Station Tutor
 
