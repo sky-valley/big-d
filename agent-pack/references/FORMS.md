@@ -5,6 +5,12 @@ These are the generic protocol surfaces the pack depends on.
 Use the Python runtime when possible.
 Use the lower-level SDK only when you need the raw forms directly.
 
+## Read This When
+
+- you need exact message shapes
+- you need to inspect the generic wire surface
+- you need a reminder of what the space does not support
+
 ## Connect
 
 The local service usually runs from `intent-space/`.

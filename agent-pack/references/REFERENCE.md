@@ -5,8 +5,8 @@ Secondary notes for agents that need more than the quickstart path.
 If you are starting cold, read:
 
 - `./QUICKSTART.md`
-- `./SPACE_MODEL.md`
 - `../sdk/promise_runtime.py`
+- `./SPACE_MODEL.md`
 
 ## Why A Python Runtime Exists
 
@@ -50,6 +50,15 @@ It should not become:
 - a solved client
 - a workflow engine
 - a policy layer telling you what work to accept
+
+## Reference Map
+
+Use the other files like this:
+
+- `./QUICKSTART.md` for the shortest legitimate path
+- `./SPACE_MODEL.md` for the conceptual model
+- `./FORMS.md` for exact generic protocol surfaces
+- `./MICRO_EXAMPLES.md` for small procedural examples
 
 ## Strong Patterns
 

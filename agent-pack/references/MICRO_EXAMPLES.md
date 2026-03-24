@@ -4,6 +4,9 @@ These examples are intentionally small.
 
 They show the main seams without solving a workflow for you.
 
+Read this file when you want a minimal example for a single move without
+loading the broader reference material.
+
 Use the runtime as a protocol shell:
 
 - `session.connect()` to join a running space

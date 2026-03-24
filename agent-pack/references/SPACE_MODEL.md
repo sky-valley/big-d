@@ -63,6 +63,16 @@ Keep this distinction clear:
 That means a public `PROMISE` event inside a space is visible and useful, but it
 is not the system becoming the authoritative promise log.
 
+## The Three Operations
+
+Think in terms of:
+
+- post
+- scan
+- enter
+
+The same ideas apply at every level.
+
 ## What The Space Does Well
 
 - makes desires public without central assignment
