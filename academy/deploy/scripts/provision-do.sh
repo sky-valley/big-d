@@ -3,7 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-STATE_DIR="$DEPLOY_DIR/.state"
+STATE_FILE="${DO_STATE_FILE:-$DEPLOY_DIR/.state/do-state.json}"
+STATE_DIR="$(dirname "$STATE_FILE")"
 ENV_FILE="${DO_ENV_FILE:-$DEPLOY_DIR/.env.do}"
 
 require_bin() {
@@ -119,9 +120,9 @@ jq -n \
     size:$size,
     sshKeyName:$ssh_key_name,
     sshKeyId:$ssh_key_id
-  }' > "$STATE_DIR/do-state.json"
+  }' > "$STATE_FILE"
 
 echo "droplet ready"
 echo "  droplet_id=$droplet_id"
 echo "  target_ip=$target_ip"
-echo "  state=$STATE_DIR/do-state.json"
+echo "  state=$STATE_FILE"

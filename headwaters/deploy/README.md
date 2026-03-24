@@ -56,6 +56,21 @@ This folder mirrors the academy dojo deployment pattern, but adapts it to the si
 
 The smoke test defaults to the full happy path. If you only want the cheap HTTP + TCP checks, run it with `RUN_HAPPY=false`.
 
+## Default Size
+
+The current recommended default for the first public Headwaters host is:
+
+- DigitalOcean General Purpose `g-2vcpu-8gb`
+
+That recommendation is based on live validation:
+
+- full public smoke passed
+- `100` hosted spaces provisioned cleanly
+- honest capacity refusal at the configured ceiling
+- `200` simultaneous held commons connections succeeded
+
+Use a larger host only if you want extra headroom before testing richer shared-space traffic.
+
 ## Local Validation
 
 You can run the same smoke test locally before touching a Droplet.
