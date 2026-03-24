@@ -1,6 +1,7 @@
 import { resolve } from 'path';
 import { startHeadwatersHttpServer } from './server.ts';
 import { HeadwatersService } from './service.ts';
+import { spawnHeadwatersStewardProcess } from './steward-process.ts';
 
 const host = process.env.HEADWATERS_HOST ?? '127.0.0.1';
 const httpPort = parseInt(process.env.HEADWATERS_PORT ?? '8090', 10);
@@ -25,18 +26,30 @@ await startHeadwatersHttpServer({
   host,
   port: httpPort,
   rootDir,
+  dataDir,
   authSecret,
+});
+const steward = spawnHeadwatersStewardProcess({
+  cwd: process.cwd(),
+  host,
+  commonsPort,
+  dataDir,
+  authSecret,
+  stdio: 'inherit',
 });
 
 console.log(`headwaters: http listening on http://${host}:${httpPort}`);
 console.log(`headwaters: commons listening on ${service.commonsEndpoint}`);
+console.log(`headwaters: steward process pid ${steward.pid ?? 'unknown'}`);
 
 process.on('SIGINT', async () => {
+  steward.kill('SIGINT');
   await service.stop();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
+  steward.kill('SIGTERM');
   await service.stop();
   process.exit(0);
 });

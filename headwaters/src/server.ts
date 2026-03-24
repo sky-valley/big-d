@@ -9,6 +9,7 @@ import {
   termsPath,
   welcomeWellKnownPath,
 } from './contract.ts';
+import { HeadwatersEnrollmentRegistry } from './enrollment-registry.ts';
 import { issueCommonsStationToken, validateSignup, welcomeMatMarkdown } from './welcome-mat.ts';
 
 const MIME_TYPES: Record<string, string> = {
@@ -23,6 +24,7 @@ export interface HeadwatersHttpServerOptions {
   host: string;
   port: number;
   rootDir: string;
+  dataDir: string;
   authSecret: string;
 }
 
@@ -65,6 +67,7 @@ function serveStatic(rootDir: string, req: IncomingMessage, res: ServerResponse)
 }
 
 export function createHeadwatersHttpServer(options: HeadwatersHttpServerOptions) {
+  const registry = new HeadwatersEnrollmentRegistry(resolve(options.dataDir, 'enrollment-registry.json'));
   return createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', headwatersOrigin());
     try {
@@ -93,6 +96,7 @@ export function createHeadwatersHttpServer(options: HeadwatersHttpServerOptions)
           tosSignatureB64url: body.tos_signature!,
           handle: body.handle!,
         });
+        registry.remember(validated.handle, validated.jwkThumbprint);
         const signup = issueCommonsStationToken(validated.handle, validated.jwkThumbprint, options.authSecret);
         sendJson(res, 200, signup);
         return;

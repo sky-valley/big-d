@@ -9,8 +9,6 @@ export const HEADWATERS_PROOF_MAX_AGE_SECONDS = 120;
 export const WELCOME_MAT_PROTOCOL = 'welcome mat v1 (DPoP)';
 export const WELCOME_MAT_DPOP_ALGORITHM = 'RS256';
 export const WELCOME_MAT_MINIMUM_RSA_BITS = 4096;
-export const CREATE_HOME_SPACE_ACTION = 'create-home-space';
-
 export function headwatersOrigin(): string {
   return process.env.HEADWATERS_ORIGIN ?? 'http://localhost:8090';
 }
@@ -82,9 +80,19 @@ export interface JwtPayload extends Record<string, unknown> {
   req_hash?: string;
 }
 
-export interface HomeSpaceRequestPayload extends Record<string, unknown> {
-  headwatersAction: 'create-home-space';
+export interface RequestedSpace extends Record<string, unknown> {
+  kind: 'home';
   requestedName?: string;
+}
+
+export interface PrivateRequestSpacePolicy extends Record<string, unknown> {
+  visibility: 'private';
+  participants: string[];
+}
+
+export interface HomeSpaceRequestPayload extends Record<string, unknown> {
+  requestedSpace: RequestedSpace;
+  spacePolicy: PrivateRequestSpacePolicy;
 }
 
 export interface ProvisionedSpaceReply extends Record<string, unknown> {
@@ -106,5 +114,16 @@ export function isSignupRequestBody(value: unknown): value is SignupRequestBody 
 
 export function isCreateHomeSpacePayload(value: unknown): value is HomeSpaceRequestPayload {
   if (!value || typeof value !== 'object') return false;
-  return (value as Record<string, unknown>).headwatersAction === CREATE_HOME_SPACE_ACTION;
+  const record = value as Record<string, unknown>;
+  const requestedSpace = record.requestedSpace;
+  const spacePolicy = record.spacePolicy;
+  return Boolean(
+    requestedSpace
+      && typeof requestedSpace === 'object'
+      && (requestedSpace as Record<string, unknown>).kind === 'home'
+      && spacePolicy
+      && typeof spacePolicy === 'object'
+      && (spacePolicy as Record<string, unknown>).visibility === 'private'
+      && Array.isArray((spacePolicy as Record<string, unknown>).participants)
+  );
 }

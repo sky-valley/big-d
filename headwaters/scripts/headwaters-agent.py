@@ -66,24 +66,58 @@ def main(argv: list[str]) -> int:
             session.intent(
                 "Please create my home space.",
                 parent_id=COMMONS_SPACE_ID,
-                payload={"headwatersAction": "create-home-space"},
+                payload={
+                    "requestedSpace": {"kind": "home"},
+                    "spacePolicy": {
+                        "visibility": "private",
+                        "participants": [session.agent_id, "headwaters-steward"],
+                    },
+                },
             ),
             step="headwaters.request_home_space",
             artifact_filename="headwaters-home-request.json",
         )
 
-        reply = session.wait_for_intent(
+        promise = session.wait_for_promise(
             request["intentId"],
             sender_id="headwaters-steward",
             wait_seconds=20.0,
         )
-        save_if_present(session, "headwaters-home-reply.json", reply)
+        save_if_present(session, "headwaters-home-promise.json", promise)
+
+        accepted = session.post(
+            session.accept(
+                promise_id=promise["promiseId"],
+                parent_id=request["intentId"],
+            ),
+            step="headwaters.accept_home_space_promise",
+            artifact_filename="headwaters-home-accept.json",
+        )
+        save_if_present(session, "headwaters-home-accept-echo.json", accepted)
+
+        reply = session.wait_for_complete(
+            request["intentId"],
+            promise_id=promise["promiseId"],
+            sender_id="headwaters-steward",
+            wait_seconds=20.0,
+        )
+        save_if_present(session, "headwaters-home-complete.json", reply)
         payload = reply.get("payload", {})
         endpoint = payload.get("stationEndpoint")
         audience = payload.get("stationAudience")
         station_token = payload.get("stationToken")
         if not isinstance(endpoint, str) or not isinstance(audience, str) or not isinstance(station_token, str):
             raise RuntimeError(f"invalid headwaters reply payload: {payload}")
+
+        session.post(
+            session.assess(
+                promise_id=promise["promiseId"],
+                parent_id=request["intentId"],
+                assessment="FULFILLED",
+            ),
+            step="headwaters.assess_home_space_promise",
+            artifact_filename="headwaters-home-assess.json",
+        )
 
         session.connect_to(
             endpoint=endpoint,
