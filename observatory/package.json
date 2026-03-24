@@ -1,0 +1,9 @@
+{
+  "name": "@differ/observatory",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "../node_modules/.bin/tsx src/server.ts",
+    "test": "../node_modules/.bin/tsx --test tests/*.test.ts"
+  }
+}
