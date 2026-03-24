@@ -294,6 +294,13 @@ Success criteria:
 
 - Public host is live on one `m-2vcpu-16gb` Droplet in `nyc1`
 - Public smoke passed before and after restart
+- Updated host-health probe now aggregates the full `systemd -> npm -> tsx -> node` process tree, not just the wrapper PID
+- Current measured idle resource profile on the public host:
+  - `processCount: 6`
+  - `rssKb: ~401568`
+  - `fdCount: 446`
+  - `tcpConnections: 2`
+  - `cpuPct: ~88.6`
 - Hosted-space ramp results:
   - `10`, `25`, `50`, and `75` total hosted spaces all provisioned successfully
   - `100` hosted spaces were reached successfully
@@ -307,6 +314,10 @@ Success criteria:
   - about `52` live TCP connections during the `50`-connection hold run
   - about `102` live TCP connections during the `100`-connection hold run
   - about `202` live TCP connections during the `200`-connection hold run
+  - during the `200`-connection hold run:
+    - `rssKb: ~410396`
+    - `fdCount: 647`
+    - `cpuPct: ~88.2`
 - Recovery checks under non-trivial hosted state succeeded:
   - service restart returned to `active`
   - an already provisioned home space reconnected and accepted a new post after restart
@@ -317,6 +328,8 @@ Success criteria:
 - The first hard product limit is currently the configured hosted-space ceiling, not observed commons connection pressure.
 - The public host handled `200` simultaneous commons connections on the shared endpoint without observed service failure.
 - The first `100`-connection failure was caused by the local load generator hitting `EMFILE`, not by the public Headwaters host.
+- The new probe shows that commons connection pressure only raised process-tree RSS by about `9 MB` and fd usage by about `201` descriptors over idle.
+- The dominant observed runtime issue is now high steady-state CPU in the steward-side Node process, not connection collapse on the shared host.
 - The next useful measurement is no longer “can the box basically work?” It is “how much memory, fd growth, and latency do we see once mixed traffic and non-commons participation are involved?”
 
 ## Execution Checklist

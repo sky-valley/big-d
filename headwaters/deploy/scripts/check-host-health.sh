@@ -43,11 +43,34 @@ if [[ -z "$main_pid" || "$main_pid" == "0" ]]; then
   exit 0
 fi
 
-node_children="$(pgrep -P "$main_pid" node || true)"
-fd_count="$(find "/proc/$main_pid/fd" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
+declare -a pids=("$main_pid")
+index=0
+while [[ $index -lt ${#pids[@]} ]]; do
+  parent_pid="${pids[$index]}"
+  while IFS= read -r child_pid; do
+    [[ -n "$child_pid" ]] || continue
+    pids+=("$child_pid")
+  done < <(pgrep -P "$parent_pid" || true)
+  index=$((index + 1))
+done
+
+process_list="$(printf '%s\n' "${pids[@]}" | awk '!seen[$0]++')"
+process_csv="$(printf '%s\n' "$process_list" | paste -sd, -)"
+node_children="$(printf '%s\n' "$process_list" | tail -n +2)"
+
+fd_count="0"
+while IFS= read -r pid; do
+  [[ -n "$pid" ]] || continue
+  if [[ -d "/proc/$pid/fd" ]]; then
+    count="$(find "/proc/$pid/fd" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
+    fd_count=$((fd_count + count))
+  fi
+done < <(printf '%s\n' "$process_list")
+
 tcp_connections="$(ss -tan "sport = :$STATION_PORT" | tail -n +2 | wc -l | tr -d ' ')"
-rss_kb="$(ps -o rss= -p "$main_pid" | tr -d ' ')"
-cpu_pct="$(ps -o %cpu= -p "$main_pid" | tr -d ' ')"
+
+rss_kb="$(ps -o rss= -p "$process_csv" | awk '{sum += $1} END {printf "%d", sum}')"
+cpu_pct="$(ps -o %cpu= -p "$process_csv" | awk '{sum += $1} END {printf "%.1f", sum}')"
 elapsed="$(ps -o etime= -p "$main_pid" | xargs)"
 spaces_dir="/var/lib/headwaters/spaces"
 space_count="0"
@@ -59,6 +82,7 @@ jq -n \
   --arg status "$(systemctl is-active headwaters)" \
   --arg mainPid "$main_pid" \
   --arg childPids "$node_children" \
+  --arg processCount "$(printf '%s\n' "$process_list" | wc -l | tr -d ' ')" \
   --arg rssKb "$rss_kb" \
   --arg cpuPct "$cpu_pct" \
   --arg elapsed "$elapsed" \
@@ -69,6 +93,7 @@ jq -n \
     status:$status,
     mainPid:($mainPid | tonumber),
     childPids:($childPids | split("\n") | map(select(length > 0))),
+    processCount:($processCount | tonumber),
     rssKb:($rssKb | tonumber),
     cpuPct:$cpuPct,
     elapsed:$elapsed,
