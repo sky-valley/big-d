@@ -186,9 +186,13 @@ export class HeadwatersSteward {
   private readonly provisioner: HeadwatersProvisioner;
   private readonly registry: HeadwatersEnrollmentRegistry;
   private readonly identity: StewardIdentity;
-  private loop: NodeJS.Timeout | null = null;
   private running = false;
-  private reconciling = false;
+  private readonly inFlightRequests = new Set<string>();
+  private readonly handleClientMessage = (message: StoredMessage): void => {
+    void this.onClientMessage(message).catch((error) => {
+      console.error('headwaters-steward: client message handling failed', error);
+    });
+  };
 
   constructor(options: HeadwatersStewardOptions) {
     this.options = options;
@@ -206,22 +210,15 @@ export class HeadwatersSteward {
   async start(): Promise<void> {
     await this.client.connect();
     await this.client.authenticate(this.identity.stationToken, this.identity.buildProof);
+    this.client.on('message', this.handleClientMessage);
     this.publishPresence();
     this.running = true;
     await this.reconcile();
-    this.loop = setInterval(() => {
-      void this.reconcile().catch((error) => {
-        console.error('headwaters-steward: reconcile failed', error);
-      });
-    }, 750);
   }
 
   async stop(): Promise<void> {
     this.running = false;
-    if (this.loop) {
-      clearInterval(this.loop);
-      this.loop = null;
-    }
+    this.client.off('message', this.handleClientMessage);
     this.client.disconnect();
     await this.provisioner.stop();
   }
@@ -253,111 +250,151 @@ export class HeadwatersSteward {
   }
 
   private async reconcile(): Promise<void> {
-    if (!this.running || this.reconciling) return;
-    this.reconciling = true;
-    try {
-      const requests = await this.client.scan(HEADWATERS_COMMONS_SPACE_ID, 0);
-      for (const request of requests) {
-        if (request.type !== 'INTENT' || request.senderId === HEADWATERS_STEWARD_ID) continue;
-        if (!request.intentId || !isCreateHomeSpacePayload(request.payload)) continue;
-        await this.handleRequest(request);
-      }
-    } finally {
-      this.reconciling = false;
+    if (!this.running) return;
+    const requests = await this.client.scan(HEADWATERS_COMMONS_SPACE_ID, 0);
+    for (const request of requests) {
+      if (!this.isProvisioningRequest(request)) continue;
+      await this.handleRequest(request);
     }
   }
 
+  private async onClientMessage(message: StoredMessage): Promise<void> {
+    if (!this.running) return;
+
+    if (this.isProvisioningRequest(message)) {
+      await this.handleRequest(message);
+      return;
+    }
+
+    const requestId = this.requestIdFromMessage(message);
+    if (!requestId) return;
+
+    const request = await this.lookupProvisioningRequest(requestId);
+    if (!request) return;
+    await this.handleRequest(request);
+  }
+
+  private isProvisioningRequest(message: StoredMessage): boolean {
+    return message.type === 'INTENT'
+      && message.senderId !== HEADWATERS_STEWARD_ID
+      && message.parentId === HEADWATERS_COMMONS_SPACE_ID
+      && Boolean(message.intentId)
+      && isCreateHomeSpacePayload(message.payload);
+  }
+
+  private requestIdFromMessage(message: StoredMessage): string | null {
+    if (message.parentId && message.parentId !== 'root') {
+      return message.parentId;
+    }
+    if (message.intentId) {
+      return message.intentId;
+    }
+    return null;
+  }
+
+  private async lookupProvisioningRequest(requestId: string): Promise<StoredMessage | null> {
+    const requests = await this.client.scan(HEADWATERS_COMMONS_SPACE_ID, 0);
+    return requests.find((message) => this.isProvisioningRequest(message) && message.intentId === requestId) ?? null;
+  }
+
   private async handleRequest(request: StoredMessage): Promise<void> {
-    const payload = request.payload as Record<string, unknown>;
-    const policy = payload.spacePolicy as Record<string, unknown> | undefined;
-    const participants = Array.isArray(policy?.participants)
-      ? policy!.participants.filter((value): value is string => typeof value === 'string')
-      : [];
-    if (!participants.includes(HEADWATERS_STEWARD_ID) || !participants.includes(request.senderId)) {
-      return;
-    }
-
-    const subspace = await this.client.scan(request.intentId!, 0);
-    const terminal = subspace.find((message) =>
-      (message.type === 'COMPLETE' || message.type === 'DECLINE')
-      && message.senderId === HEADWATERS_STEWARD_ID,
-    );
-    if (terminal) return;
-
-    const existingPromise = subspace.find((message) =>
-      message.type === 'PROMISE'
-      && message.senderId === HEADWATERS_STEWARD_ID
-      && message.intentId === request.intentId,
-    );
-
-    if (!existingPromise) {
-      const requestedSpace = (payload.requestedSpace ?? {}) as Record<string, unknown>;
-      const requestedKind = String(requestedSpace.kind ?? 'space');
-      this.client.post(buildPromise(
-        HEADWATERS_STEWARD_ID,
-        {
-          promiseId: `headwaters-promise-${randomUUID()}`,
-          intentId: request.intentId!,
-          parentId: request.intentId!,
-          content: `I will provision your ${requestedKind} space and return its dedicated endpoint.`,
-        },
-      ));
-      return;
-    }
-
-    const accepted = subspace.find((message) =>
-      message.type === 'ACCEPT'
-      && message.promiseId === existingPromise.promiseId
-      && message.senderId === request.senderId,
-    );
-    if (!accepted) return;
-
-    const requesterJkt = await this.lookupParticipantThumbprint(request.senderId);
-    if (!requesterJkt) {
-      this.client.post(buildDecline(
-        HEADWATERS_STEWARD_ID,
-        {
-          intentId: request.intentId!,
-          parentId: request.intentId!,
-          reason: `Could not determine station binding for ${request.senderId}.`,
-          payload: { reasonCode: 'HEADWATERS_UNKNOWN_REQUESTER_BINDING' },
-        },
-      ));
-      return;
-    }
-
-    let provisioned;
+    const requestId = request.intentId;
+    if (!requestId || this.inFlightRequests.has(requestId)) return;
+    this.inFlightRequests.add(requestId);
     try {
-      provisioned = await this.provisioner.provisionHomeSpace(request.senderId, requesterJkt);
-    } catch (error) {
-      this.client.post(buildDecline(
+      const payload = request.payload as Record<string, unknown>;
+      const policy = payload.spacePolicy as Record<string, unknown> | undefined;
+      const participants = Array.isArray(policy?.participants)
+        ? policy!.participants.filter((value): value is string => typeof value === 'string')
+        : [];
+      if (!participants.includes(HEADWATERS_STEWARD_ID) || !participants.includes(request.senderId)) {
+        return;
+      }
+
+      const subspace = await this.client.scan(request.intentId!, 0);
+      const terminal = subspace.find((message) =>
+        (message.type === 'COMPLETE' || message.type === 'DECLINE')
+        && message.senderId === HEADWATERS_STEWARD_ID,
+      );
+      if (terminal) return;
+
+      const existingPromise = subspace.find((message) =>
+        message.type === 'PROMISE'
+        && message.senderId === HEADWATERS_STEWARD_ID
+        && message.intentId === request.intentId,
+      );
+
+      if (!existingPromise) {
+        const requestedSpace = (payload.requestedSpace ?? {}) as Record<string, unknown>;
+        const requestedKind = String(requestedSpace.kind ?? 'space');
+        this.client.post(buildPromise(
+          HEADWATERS_STEWARD_ID,
+          {
+            promiseId: `headwaters-promise-${randomUUID()}`,
+            intentId: request.intentId!,
+            parentId: request.intentId!,
+            content: `I will provision your ${requestedKind} space and return its dedicated endpoint.`,
+          },
+        ));
+        return;
+      }
+
+      const accepted = subspace.find((message) =>
+        message.type === 'ACCEPT'
+        && message.promiseId === existingPromise.promiseId
+        && message.senderId === request.senderId,
+      );
+      if (!accepted) return;
+
+      const requesterJkt = await this.lookupParticipantThumbprint(request.senderId);
+      if (!requesterJkt) {
+        this.client.post(buildDecline(
+          HEADWATERS_STEWARD_ID,
+          {
+            intentId: request.intentId!,
+            parentId: request.intentId!,
+            reason: `Could not determine station binding for ${request.senderId}.`,
+            payload: { reasonCode: 'HEADWATERS_UNKNOWN_REQUESTER_BINDING' },
+          },
+        ));
+        return;
+      }
+
+      let provisioned;
+      try {
+        provisioned = await this.provisioner.provisionHomeSpace(request.senderId, requesterJkt);
+      } catch (error) {
+        this.client.post(buildDecline(
+          HEADWATERS_STEWARD_ID,
+          {
+            intentId: request.intentId!,
+            parentId: request.intentId!,
+            reason: error instanceof Error ? error.message : String(error),
+            payload: { reasonCode: 'HEADWATERS_CAPACITY_OR_PROVISIONING_FAILURE' },
+          },
+        ));
+        return;
+      }
+      const completePayload: ProvisionedSpaceReply = {
+        headwatersStatus: provisioned.created ? 'SPACE_CREATED' : 'SPACE_ALREADY_EXISTS',
+        spaceKind: 'home',
+        spaceId: provisioned.spaceId,
+        stationEndpoint: provisioned.endpoint,
+        stationAudience: provisioned.audience,
+        stationToken: provisioned.stationToken,
+      };
+      this.client.post(buildComplete(
         HEADWATERS_STEWARD_ID,
         {
-          intentId: request.intentId!,
+          promiseId: existingPromise.promiseId!,
           parentId: request.intentId!,
-          reason: error instanceof Error ? error.message : String(error),
-          payload: { reasonCode: 'HEADWATERS_CAPACITY_OR_PROVISIONING_FAILURE' },
+          summary: 'Home space provisioned. Connect directly to your dedicated space and assess the result.',
+          payload: completePayload,
         },
       ));
-      return;
+    } finally {
+      this.inFlightRequests.delete(requestId);
     }
-    const completePayload: ProvisionedSpaceReply = {
-      headwatersStatus: provisioned.created ? 'SPACE_CREATED' : 'SPACE_ALREADY_EXISTS',
-      spaceKind: 'home',
-      spaceId: provisioned.spaceId,
-      stationEndpoint: provisioned.endpoint,
-      stationAudience: provisioned.audience,
-      stationToken: provisioned.stationToken,
-    };
-    this.client.post(buildComplete(
-      HEADWATERS_STEWARD_ID,
-      {
-        promiseId: existingPromise.promiseId!,
-        parentId: request.intentId!,
-        summary: 'Home space provisioned. Connect directly to your dedicated space and assess the result.',
-        payload: completePayload,
-      },
-    ));
   }
 
   private async lookupParticipantThumbprint(senderId: string): Promise<string | null> {
