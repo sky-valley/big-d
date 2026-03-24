@@ -1,4 +1,4 @@
-import { createHash, createHmac, createPublicKey, createVerify } from 'crypto';
+import { createHash, createHmac, createPublicKey, createVerify, type JsonWebKey as CryptoJsonWebKey } from 'crypto';
 import type { AuthenticatedITPMessage, AuthRequest, ScanRequest } from './types.ts';
 
 const STATION_PROOF_TYP = 'itp-pop+jwt';
@@ -144,7 +144,7 @@ function verifyRs256Jwt(parsed: ParsedJwt, expectedTyp: string): Record<string, 
   if (!jwk || typeof jwk !== 'object') {
     throw new Error('JWT header missing jwk');
   }
-  const publicKey = createPublicKey({ format: 'jwk', key: jwk as JsonWebKey });
+  const publicKey = createPublicKey({ format: 'jwk', key: jwk as CryptoJsonWebKey });
   const details = publicKey.asymmetricKeyDetails;
   if (!details || details.modulusLength == null || details.modulusLength < MIN_RSA_BITS) {
     throw new Error(`RSA key must be at least ${MIN_RSA_BITS} bits`);

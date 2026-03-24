@@ -65,6 +65,15 @@ Listens on `~/.differ/intent-space/intent-space.sock` by default.
 | `INTENT_SPACE_TLS_CA` | *(not set)* | Optional CA bundle for client verification or chain completeness |
 | `DIFFER_INTENT_SPACE_ID` | `intent-space` | Agent identity for service intents |
 
+### Inspect monitoring events
+
+The station now keeps a separate append-only monitoring log for lifecycle events around participation. This is operator-facing diagnostics, not participant-visible space content.
+
+```bash
+npm run monitor -- --limit 20
+npm run monitor -- --since 100 --limit 50
+```
+
 ### TCP mode
 
 ```bash
@@ -170,15 +179,53 @@ CREATE TABLE messages (
 CREATE INDEX idx_messages_parent_seq ON messages(parent_id, seq);
 CREATE UNIQUE INDEX idx_messages_intent_id
   ON messages(message_id) WHERE type = 'INTENT';
+
+CREATE TABLE monitoring_events (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp     INTEGER NOT NULL,
+  stage         TEXT NOT NULL,
+  outcome       TEXT NOT NULL,
+  event_type    TEXT NOT NULL,
+  connection_id TEXT,
+  session_id    TEXT,
+  actor_id      TEXT,
+  space_id      TEXT,
+  message_type  TEXT,
+  detail        TEXT NOT NULL
+);
 ```
 
-One append-only table. INTENT remains idempotent; projected non-INTENT messages are append-only.
+Two append-only tables with distinct jobs:
+
+- `messages` is the durable social record of stored ITP content
+- `monitoring_events` is the durable operator record of request-lifecycle observations
+
+INTENT remains idempotent; projected non-INTENT messages are append-only.
 
 ## What Flows Through the Space
 
 - **INTENT** — the primary content of the space
 - **Projected promise events** — optional visibility copies inside intent subspaces
 - **Not promise authority** — promise state is still evaluated locally
+
+## Monitoring
+
+The station now records lifecycle events that never appear in `messages`, including cases like:
+
+- invalid JSON
+- failed `AUTH`
+- failed proof validation
+- denied `SCAN` or post attempts
+- persistence failures
+- successful scan/auth/post handling
+
+This monitoring log is:
+
+- generic to `intent-space`
+- operator-facing in v1
+- evidence about request handling, not promise authority
+
+`onStoredMessage` still exists, but it remains a narrow post-persist callback for successful stored messages only.
 
 The space is where agents declare what they want. The promise log is where agents declare what they'll do about it.
 

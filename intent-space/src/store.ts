@@ -10,7 +10,13 @@ import { mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { homedir } from 'os';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
-import type { PrivateSpacePolicy, StoredMessage, StoredSpacePolicy } from './types.ts';
+import type {
+  MonitoringEvent,
+  MonitoringEventInput,
+  PrivateSpacePolicy,
+  StoredMessage,
+  StoredSpacePolicy,
+} from './types.ts';
 
 export const DEFAULT_DB_DIR = process.env.DIFFER_INTENT_SPACE_DIR ?? join(homedir(), '.differ', 'intent-space');
 export const DEFAULT_DB_PATH = join(DEFAULT_DB_DIR, 'intent-space.db');
@@ -35,6 +41,24 @@ CREATE TABLE IF NOT EXISTS space_policies (
   space_id      TEXT PRIMARY KEY,
   participants  TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS monitoring_events (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp     INTEGER NOT NULL,
+  stage         TEXT NOT NULL,
+  outcome       TEXT NOT NULL,
+  event_type    TEXT NOT NULL,
+  connection_id TEXT,
+  session_id    TEXT,
+  actor_id      TEXT,
+  space_id      TEXT,
+  message_type  TEXT,
+  detail        TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_monitoring_events_id ON monitoring_events(id);
+CREATE INDEX IF NOT EXISTS idx_monitoring_events_connection_id ON monitoring_events(connection_id, id);
+CREATE INDEX IF NOT EXISTS idx_monitoring_events_session_id ON monitoring_events(session_id, id);
 `;
 
 function parsePrivateSpacePolicy(payload: Record<string, unknown>): PrivateSpacePolicy | null {
@@ -69,6 +93,28 @@ function rowToMessage(row: Record<string, unknown>): StoredMessage {
   };
 }
 
+function rowToMonitoringEvent(row: Record<string, unknown>): MonitoringEvent {
+  let detail: Record<string, unknown> = {};
+  try {
+    detail = JSON.parse(row.detail as string);
+  } catch {
+    detail = {};
+  }
+  return {
+    id: row.id as number,
+    timestamp: row.timestamp as number,
+    stage: row.stage as MonitoringEvent['stage'],
+    outcome: row.outcome as MonitoringEvent['outcome'],
+    eventType: row.event_type as string,
+    connectionId: row.connection_id as string | undefined,
+    sessionId: row.session_id as string | undefined,
+    actorId: row.actor_id as string | undefined,
+    spaceId: row.space_id as string | undefined,
+    messageType: row.message_type as string | undefined,
+    detail,
+  };
+}
+
 export class IntentStore {
   private db: Database.Database;
   private _seq: number;
@@ -91,6 +137,47 @@ export class IntentStore {
 
   get latestSeq(): number {
     return this._seq;
+  }
+
+  appendMonitoringEvent(event: MonitoringEventInput): number {
+    const result = this.db.prepare(`
+      INSERT INTO monitoring_events (
+        timestamp,
+        stage,
+        outcome,
+        event_type,
+        connection_id,
+        session_id,
+        actor_id,
+        space_id,
+        message_type,
+        detail
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      event.timestamp ?? Date.now(),
+      event.stage,
+      event.outcome,
+      event.eventType,
+      event.connectionId ?? null,
+      event.sessionId ?? null,
+      event.actorId ?? null,
+      event.spaceId ?? null,
+      event.messageType ?? null,
+      JSON.stringify(event.detail ?? {}),
+    );
+    return Number(result.lastInsertRowid);
+  }
+
+  scanMonitoringEvents(sinceId: number = 0, limit: number = 100): MonitoringEvent[] {
+    const rows = this.db.prepare(`
+      SELECT *
+      FROM monitoring_events
+      WHERE id > ?
+      ORDER BY id ASC
+      LIMIT ?
+    `).all(sinceId, limit) as Array<Record<string, unknown>>;
+    return rows.map(rowToMonitoringEvent);
   }
 
   /** Persist a message. INTENT posts are idempotent; non-INTENT posts are append-only. */

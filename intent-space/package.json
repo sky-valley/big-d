@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",
+    "monitor": "tsx scripts/monitor.ts",
     "test": "tsx scripts/test.ts",
     "typecheck": "tsc --noEmit"
   },

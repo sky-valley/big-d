@@ -31,6 +31,50 @@ export interface StoredSpacePolicy {
   participants: string[];
 }
 
+export type MonitoringStage =
+  | 'connection'
+  | 'parse'
+  | 'dispatch'
+  | 'auth'
+  | 'scan'
+  | 'post'
+  | 'persistence';
+
+export type MonitoringOutcome =
+  | 'attempt'
+  | 'accepted'
+  | 'rejected'
+  | 'sent'
+  | 'persisted'
+  | 'failed';
+
+export interface MonitoringEvent {
+  id: number;
+  timestamp: number;
+  stage: MonitoringStage;
+  outcome: MonitoringOutcome;
+  eventType: string;
+  connectionId?: string;
+  sessionId?: string;
+  actorId?: string;
+  spaceId?: string;
+  messageType?: string;
+  detail: Record<string, unknown>;
+}
+
+export interface MonitoringEventInput {
+  timestamp?: number;
+  stage: MonitoringStage;
+  outcome: MonitoringOutcome;
+  eventType: string;
+  connectionId?: string;
+  sessionId?: string;
+  actorId?: string;
+  spaceId?: string;
+  messageType?: string;
+  detail?: Record<string, unknown>;
+}
+
 // Backward-compat alias for existing loop imports.
 export type StoredIntent = StoredMessage;
 

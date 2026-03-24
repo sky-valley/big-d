@@ -18,15 +18,26 @@ import { createServer, connect as netConnect, type Socket, type Server } from 'n
 import { createServer as createTlsServer, type Server as TlsServer, type TlsOptions } from 'tls';
 import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
+import { createHash } from 'crypto';
 import { IntentStore, DEFAULT_DB_DIR } from './store.ts';
 import { buildServiceIntents } from './service-intents.ts';
-import type { ClientMessage, ServerMessage, ScanRequest, MessageEcho, AuthRequest, AuthenticatedITPMessage } from './types.ts';
+import type {
+  AuthenticatedITPMessage,
+  AuthRequest,
+  ClientMessage,
+  MessageEcho,
+  MonitoringEvent,
+  MonitoringEventInput,
+  ScanRequest,
+  ServerMessage,
+} from './types.ts';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
 import { defaultStationAudience, verifyAuthRequest, verifyPerMessageProof, type StationSessionAuth } from './auth.ts';
 
 const MAX_LINE_LENGTH = 1024 * 1024; // 1MB
 
 interface ClientConnection {
+  id: string;
   socket: Socket;
   buffer: string;
   introduced: boolean;
@@ -76,6 +87,9 @@ export class IntentSpace {
     ritualGreeting?: string;
   };
   private _onStoredMessage?: (echo: MessageEcho, auth: StationSessionAuth | null) => void;
+  private connectionCount = 0;
+  private droppedMonitoringEvents = 0;
+  private stopping = false;
 
   constructor(opts: IntentSpaceOptions = {}) {
     this._agentId = opts.agentId ?? process.env.DIFFER_INTENT_SPACE_ID ?? 'intent-space';
@@ -104,6 +118,7 @@ export class IntentSpace {
   get tlsPort(): number | undefined { return this._tlsPort; }
   get clientCount(): number { return this.clients.size; }
   get stationAudience(): string { return this._stationAudience; }
+  get monitoringDroppedEvents(): number { return this.droppedMonitoringEvents; }
 
   async start(): Promise<void> {
     await this.cleanStaleSocket();
@@ -152,6 +167,7 @@ export class IntentSpace {
   }
 
   async stop(): Promise<void> {
+    this.stopping = true;
     for (const client of this.clients) {
       client.socket.destroy();
     }
@@ -182,8 +198,20 @@ export class IntentSpace {
   // ============ Connection ============
 
   private handleConnection(socket: Socket): void {
-    const client: ClientConnection = { socket, buffer: '', introduced: false };
+    const client: ClientConnection = {
+      id: `conn-${++this.connectionCount}`,
+      socket,
+      buffer: '',
+      introduced: false,
+    };
     this.clients.add(client);
+    this.recordMonitoring({
+      stage: 'connection',
+      outcome: 'accepted',
+      eventType: 'connection_opened',
+      connectionId: client.id,
+      detail: {},
+    });
 
     // Introduce ourselves: send service intents as ITP INTENT messages.
     // The space finishes speaking before accepting input (observe-before-act).
@@ -191,8 +219,32 @@ export class IntentSpace {
     client.introduced = true;
 
     socket.on('data', (chunk: Buffer) => this.handleData(client, chunk.toString()));
-    socket.on('close', () => this.clients.delete(client));
-    socket.on('error', () => this.clients.delete(client));
+    socket.on('close', () => {
+      this.clients.delete(client);
+      this.recordMonitoring({
+        stage: 'connection',
+        outcome: 'accepted',
+        eventType: 'connection_closed',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        detail: {},
+      });
+    });
+    socket.on('error', (err) => {
+      this.clients.delete(client);
+      this.recordMonitoring({
+        stage: 'connection',
+        outcome: 'failed',
+        eventType: 'connection_error',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        detail: {
+          message: err instanceof Error ? err.message : String(err),
+        },
+      });
+    });
   }
 
   private sendServiceIntents(client: ClientConnection): void {
@@ -220,6 +272,19 @@ export class IntentSpace {
     client.buffer += chunk;
 
     if (client.buffer.length > MAX_LINE_LENGTH) {
+      this.recordMonitoring({
+        stage: 'parse',
+        outcome: 'rejected',
+        eventType: 'line_too_long',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        detail: {
+          size: client.buffer.length,
+          max: MAX_LINE_LENGTH,
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, { type: 'ERROR', message: `Line exceeds ${MAX_LINE_LENGTH} bytes` });
       client.buffer = '';
       return;
@@ -232,8 +297,29 @@ export class IntentSpace {
       if (!line.trim()) continue;
       try {
         const msg: ClientMessage = JSON.parse(line);
+        this.recordMonitoring({
+          stage: 'parse',
+          outcome: 'accepted',
+          eventType: 'json_parsed',
+          connectionId: client.id,
+          sessionId: this.sessionIdForClient(client),
+          actorId: client.authenticated?.senderId,
+          messageType: msg.type,
+          detail: {},
+        });
         this.handleMessage(client, msg);
       } catch {
+        this.recordMonitoring({
+          stage: 'parse',
+          outcome: 'rejected',
+          eventType: 'invalid_json',
+          connectionId: client.id,
+          sessionId: this.sessionIdForClient(client),
+          actorId: client.authenticated?.senderId,
+          detail: {
+            responseType: 'ERROR',
+          },
+        });
         this.send(client, { type: 'ERROR', message: 'Invalid JSON' });
       }
     }
@@ -243,6 +329,18 @@ export class IntentSpace {
 
   private handleMessage(client: ClientConnection, msg: ClientMessage): void {
     if (!client.introduced) {
+      this.recordMonitoring({
+        stage: 'dispatch',
+        outcome: 'rejected',
+        eventType: 'observe_before_act_rejected',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        messageType: msg.type,
+        detail: {
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, {
         type: 'ERROR',
         message: 'Space is still introducing itself — observe before acting',
@@ -259,6 +357,16 @@ export class IntentSpace {
       return;
     }
     if (!client.authenticated) {
+      this.recordMonitoring({
+        stage: 'dispatch',
+        outcome: 'rejected',
+        eventType: 'unauthenticated_participation_rejected',
+        connectionId: client.id,
+        messageType: msg.type,
+        detail: {
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, { type: 'ERROR', message: 'Authenticate before station participation' });
       return;
     }
@@ -266,8 +374,28 @@ export class IntentSpace {
   }
 
   private handleAuth(client: ClientConnection, msg: AuthRequest): void {
+    this.recordMonitoring({
+      stage: 'auth',
+      outcome: 'attempt',
+      eventType: 'auth_requested',
+      connectionId: client.id,
+      messageType: msg.type,
+      detail: {},
+    });
     try {
       client.authenticated = verifyAuthRequest(msg, this._authSecret, this._stationAudience);
+      this.recordMonitoring({
+        stage: 'auth',
+        outcome: 'accepted',
+        eventType: 'auth_succeeded',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated.senderId,
+        messageType: msg.type,
+        detail: {
+          responseType: 'AUTH_RESULT',
+        },
+      });
       this.send(client, {
         type: 'AUTH_RESULT',
         senderId: client.authenticated.senderId,
@@ -275,6 +403,17 @@ export class IntentSpace {
         ritualGreeting: this._authResult.ritualGreeting,
       });
     } catch (err) {
+      this.recordMonitoring({
+        stage: 'auth',
+        outcome: 'rejected',
+        eventType: 'auth_failed',
+        connectionId: client.id,
+        messageType: msg.type,
+        detail: {
+          message: err instanceof Error ? err.message : String(err),
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, {
         type: 'ERROR',
         message: `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -283,9 +422,45 @@ export class IntentSpace {
   }
 
   private handlePost(client: ClientConnection, msg: AuthenticatedITPMessage): void {
+    this.recordMonitoring({
+      stage: 'post',
+      outcome: 'attempt',
+      eventType: 'post_requested',
+      connectionId: client.id,
+      sessionId: this.sessionIdForClient(client),
+      actorId: client.authenticated?.senderId,
+      spaceId: msg.parentId ?? 'root',
+      messageType: msg.type,
+      detail: {},
+    });
     try {
       verifyPerMessageProof(client.authenticated!, msg.proof, msg, this._stationAudience);
+      this.recordMonitoring({
+        stage: 'post',
+        outcome: 'accepted',
+        eventType: 'post_proof_valid',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {},
+      });
     } catch (err) {
+      this.recordMonitoring({
+        stage: 'post',
+        outcome: 'rejected',
+        eventType: 'post_proof_invalid',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {
+          message: err instanceof Error ? err.message : String(err),
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, {
         type: 'ERROR',
         message: `Proof validation failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -294,11 +469,37 @@ export class IntentSpace {
     }
     if (!msg.intentId) {
       if (msg.type === 'INTENT') {
+        this.recordMonitoring({
+          stage: 'post',
+          outcome: 'rejected',
+          eventType: 'intent_id_missing',
+          connectionId: client.id,
+          sessionId: this.sessionIdForClient(client),
+          actorId: client.authenticated?.senderId,
+          spaceId: msg.parentId ?? 'root',
+          messageType: msg.type,
+          detail: {
+            responseType: 'ERROR',
+          },
+        });
         this.send(client, { type: 'ERROR', message: 'INTENT must have an intentId' });
         return;
       }
     }
     if (!this.store.canAccessSpace(msg.parentId ?? 'root', client.authenticated!.senderId)) {
+      this.recordMonitoring({
+        stage: 'post',
+        outcome: 'rejected',
+        eventType: 'space_access_denied',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, {
         type: 'ERROR',
         message: `Access denied to space ${msg.parentId ?? 'root'}`,
@@ -308,6 +509,17 @@ export class IntentSpace {
 
     let seq: number;
     try {
+      this.recordMonitoring({
+        stage: 'persistence',
+        outcome: 'attempt',
+        eventType: 'message_persist_requested',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {},
+      });
       const storedMessage: ITPMessage = {
         type: msg.type,
         promiseId: msg.promiseId,
@@ -318,7 +530,34 @@ export class IntentSpace {
         payload: msg.payload,
       };
       seq = this.store.post(storedMessage);
+      this.recordMonitoring({
+        stage: 'persistence',
+        outcome: 'persisted',
+        eventType: 'message_persisted',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {
+          seq,
+        },
+      });
     } catch (err) {
+      this.recordMonitoring({
+        stage: 'persistence',
+        outcome: 'failed',
+        eventType: 'message_persist_failed',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {
+          message: err instanceof Error ? err.message : String(err),
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, {
         type: 'ERROR',
         message: `Failed to persist: ${err instanceof Error ? err.message : String(err)}`,
@@ -333,12 +572,61 @@ export class IntentSpace {
 
   private handleScan(client: ClientConnection, msg: ScanRequest): void {
     if (!client.authenticated) {
+      this.recordMonitoring({
+        stage: 'scan',
+        outcome: 'rejected',
+        eventType: 'scan_requires_auth',
+        connectionId: client.id,
+        messageType: msg.type,
+        spaceId: msg.spaceId,
+        detail: {
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, { type: 'ERROR', message: 'Authenticate before station participation' });
       return;
     }
+    this.recordMonitoring({
+      stage: 'scan',
+      outcome: 'attempt',
+      eventType: 'scan_requested',
+      connectionId: client.id,
+      sessionId: this.sessionIdForClient(client),
+      actorId: client.authenticated.senderId,
+      messageType: msg.type,
+      spaceId: msg.spaceId,
+      detail: {
+        since: msg.since ?? 0,
+      },
+    });
     try {
       verifyPerMessageProof(client.authenticated, msg.proof, msg, this._stationAudience);
+      this.recordMonitoring({
+        stage: 'scan',
+        outcome: 'accepted',
+        eventType: 'scan_proof_valid',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated.senderId,
+        messageType: msg.type,
+        spaceId: msg.spaceId,
+        detail: {},
+      });
     } catch (err) {
+      this.recordMonitoring({
+        stage: 'scan',
+        outcome: 'rejected',
+        eventType: 'scan_proof_invalid',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated.senderId,
+        messageType: msg.type,
+        spaceId: msg.spaceId,
+        detail: {
+          message: err instanceof Error ? err.message : String(err),
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, {
         type: 'ERROR',
         message: `Proof validation failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -347,6 +635,21 @@ export class IntentSpace {
     }
     try {
       const messages = this.store.scan(msg.spaceId, msg.since ?? 0, client.authenticated.senderId);
+      this.recordMonitoring({
+        stage: 'scan',
+        outcome: 'accepted',
+        eventType: 'scan_succeeded',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated.senderId,
+        messageType: msg.type,
+        spaceId: msg.spaceId,
+        detail: {
+          latestSeq: this.store.latestSeq,
+          messageCount: messages.length,
+          responseType: 'SCAN_RESULT',
+        },
+      });
       this.send(client, {
         type: 'SCAN_RESULT',
         spaceId: msg.spaceId,
@@ -354,6 +657,20 @@ export class IntentSpace {
         latestSeq: this.store.latestSeq,
       });
     } catch (err) {
+      this.recordMonitoring({
+        stage: 'scan',
+        outcome: 'failed',
+        eventType: 'scan_failed',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated.senderId,
+        messageType: msg.type,
+        spaceId: msg.spaceId,
+        detail: {
+          message: err instanceof Error ? err.message : String(err),
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, {
         type: 'ERROR',
         message: err instanceof Error ? err.message : String(err),
@@ -386,11 +703,35 @@ export class IntentSpace {
   }
 
   publish(msg: ITPMessage): MessageEcho {
+    this.recordMonitoring({
+      stage: 'persistence',
+      outcome: 'attempt',
+      eventType: 'service_publish_requested',
+      actorId: msg.senderId,
+      spaceId: msg.parentId ?? 'root',
+      messageType: msg.type,
+      detail: {},
+    });
     const seq = this.store.post(msg);
+    this.recordMonitoring({
+      stage: 'persistence',
+      outcome: 'persisted',
+      eventType: 'service_message_persisted',
+      actorId: msg.senderId,
+      spaceId: msg.parentId ?? 'root',
+      messageType: msg.type,
+      detail: {
+        seq,
+      },
+    });
     const echo: MessageEcho = { ...msg, seq };
     this.broadcast(echo);
     this._onStoredMessage?.(echo, null);
     return echo;
+  }
+
+  scanMonitoringEvents(sinceId: number = 0, limit: number = 100): MonitoringEvent[] {
+    return this.store.scanMonitoringEvents(sinceId, limit);
   }
 
   // ============ Service intents ============
@@ -427,6 +768,24 @@ export class IntentSpace {
     }
 
     unlinkSync(this._socketPath);
+  }
+
+  private recordMonitoring(event: MonitoringEventInput): void {
+    if (this.stopping) return;
+    try {
+      this.store.appendMonitoringEvent(event);
+    } catch (err) {
+      this.droppedMonitoringEvents += 1;
+      console.error(
+        '[intent-space monitoring degraded]',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  private sessionIdForClient(client: ClientConnection): string | undefined {
+    if (!client.authenticated?.stationToken) return undefined;
+    return createHash('sha256').update(client.authenticated.stationToken).digest('base64url');
   }
 }
 

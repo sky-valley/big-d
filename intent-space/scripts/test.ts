@@ -10,6 +10,7 @@ import { execFileSync } from 'child_process';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { createHash, createHmac, generateKeyPairSync, randomUUID, sign } from 'crypto';
+import { connect as netConnect } from 'net';
 import { IntentSpace } from '../src/space.ts';
 import { IntentSpaceClient } from '../src/client.ts';
 import { createIntent, createPromise } from '@differ/itp/src/protocol.ts';
@@ -165,6 +166,40 @@ async function connectAuthenticated(client: IntentSpaceClient, senderId: string)
   await client.connect();
   await client.authenticate(identity.stationToken, identity.buildProof);
   return identity;
+}
+
+function latestMonitoringEvent(eventType: string): any {
+  const events = space.scanMonitoringEvents(0, 500);
+  const matches = events.filter((event) => event.eventType === eventType);
+  return matches.at(-1);
+}
+
+async function sendRawUnixLines(lines: string[]): Promise<string[]> {
+  return await new Promise((resolve, reject) => {
+    const responses: string[] = [];
+    const socket = netConnect(socketPath);
+    let buffer = '';
+
+    socket.on('data', (chunk) => {
+      buffer += chunk.toString();
+      const parts = buffer.split('\n');
+      buffer = parts.pop() ?? '';
+      for (const part of parts) {
+        if (part.trim()) responses.push(part);
+      }
+    });
+
+    socket.on('error', reject);
+    socket.on('connect', () => {
+      for (const line of lines) {
+        socket.write(`${line}\n`);
+      }
+      setTimeout(() => {
+        socket.end();
+        resolve(responses);
+      }, 120);
+    });
+  });
 }
 
 // ============ Setup ============
@@ -573,6 +608,96 @@ test('TLS and Unix clients see each other');
 
   tlsClient.disconnect();
   unixClient.disconnect();
+}
+
+// --- Test 16: monitoring records persisted message path ---
+test('Monitoring records successful persisted message path');
+{
+  const event = latestMonitoringEvent('message_persisted');
+  assert(
+    event
+      && event.stage === 'persistence'
+      && event.messageType === 'INTENT'
+      && typeof event.detail.seq === 'number',
+    `Expected message_persisted event, got: ${JSON.stringify(event)}`,
+  );
+}
+
+// --- Test 17: monitoring records invalid JSON ---
+test('Monitoring records invalid JSON');
+{
+  const responses = await sendRawUnixLines(['{not-json']);
+  const invalidJsonEvent = latestMonitoringEvent('invalid_json');
+  assert(
+    responses.some((line) => line.includes('Invalid JSON')),
+    `Expected Invalid JSON response, got: ${responses.join(' | ')}`,
+  );
+  assert(
+    invalidJsonEvent
+      && invalidJsonEvent.stage === 'parse'
+      && invalidJsonEvent.outcome === 'rejected',
+    `Expected invalid_json monitoring event, got: ${JSON.stringify(invalidJsonEvent)}`,
+  );
+}
+
+// --- Test 18: monitoring records auth failure ---
+test('Monitoring records auth failure');
+{
+  const responses = await sendRawUnixLines([
+    JSON.stringify({ type: 'AUTH', stationToken: '', proof: '' }),
+  ]);
+  const authFailedEvent = latestMonitoringEvent('auth_failed');
+  assert(
+    responses.some((line) => line.includes('Authentication failed')),
+    `Expected auth failure response, got: ${responses.join(' | ')}`,
+  );
+  assert(
+    authFailedEvent
+      && authFailedEvent.stage === 'auth'
+      && authFailedEvent.outcome === 'rejected',
+    `Expected auth_failed monitoring event, got: ${JSON.stringify(authFailedEvent)}`,
+  );
+}
+
+// --- Test 19: monitoring records denied private-space scan ---
+test('Monitoring records denied private-space scan');
+{
+  const owner = new IntentSpaceClient(socketPath);
+  const outsider = new IntentSpaceClient(socketPath);
+  await connectAuthenticated(owner, 'private-owner');
+  await connectAuthenticated(outsider, 'private-outsider');
+  await new Promise((r) => setTimeout(r, 50));
+
+  const privateIntent = createIntent('private-owner', 'private workspace');
+  privateIntent.intentId = 'private-space-1';
+  privateIntent.payload = {
+    content: 'private workspace',
+    spacePolicy: {
+      visibility: 'private',
+      participants: ['private-owner'],
+    },
+  };
+  owner.post(privateIntent);
+  await new Promise((r) => setTimeout(r, 100));
+
+  let denied = false;
+  try {
+    await outsider.scan('private-space-1');
+  } catch (err) {
+    denied = err instanceof Error && err.message.includes('Access denied');
+  }
+
+  const scanFailedEvent = latestMonitoringEvent('scan_failed');
+  assert(denied, 'Expected outsider scan to be denied');
+  assert(
+    scanFailedEvent
+      && scanFailedEvent.stage === 'scan'
+      && scanFailedEvent.spaceId === 'private-space-1',
+    `Expected scan_failed monitoring event, got: ${JSON.stringify(scanFailedEvent)}`,
+  );
+
+  owner.disconnect();
+  outsider.disconnect();
 }
 
 // ============ Teardown ============
