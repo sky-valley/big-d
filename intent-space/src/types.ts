@@ -21,6 +21,16 @@ export interface StoredMessage {
   timestamp: number;
 }
 
+export interface PrivateSpacePolicy {
+  visibility: 'private';
+  participants: string[];
+}
+
+export interface StoredSpacePolicy {
+  spaceId: string;
+  participants: string[];
+}
+
 // Backward-compat alias for existing loop imports.
 export type StoredIntent = StoredMessage;
 

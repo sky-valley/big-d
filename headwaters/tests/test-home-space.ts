@@ -1,12 +1,14 @@
 import { mkdtempSync, rmSync } from 'fs';
+import type { ChildProcess } from 'child_process';
 import { connect as netConnect } from 'net';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { IntentSpaceClient } from '../../intent-space/src/client.ts';
-import { HEADWATERS_COMMONS_SPACE_ID, CREATE_HOME_SPACE_ACTION } from '../src/contract.ts';
+import { HEADWATERS_COMMONS_SPACE_ID, HEADWATERS_STEWARD_ID } from '../src/contract.ts';
 import { enrollAgent } from '../src/agent-enrollment.ts';
 import { createHeadwatersHttpServer } from '../src/server.ts';
 import { HeadwatersService } from '../src/service.ts';
+import { spawnHeadwatersStewardProcess } from '../src/steward-process.ts';
 
 let pass = 0;
 let fail = 0;
@@ -61,6 +63,26 @@ async function sendRawFrame(host: string, port: number, frame: Record<string, un
   });
 }
 
+async function waitForMessage(
+  client: IntentSpaceClient,
+  predicate: (message: Record<string, unknown>) => boolean,
+  timeoutMs = 5000,
+): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      client.off('message', onMessage);
+      reject(new Error('timeout waiting for message'));
+    }, timeoutMs);
+    const onMessage = (message: Record<string, unknown>) => {
+      if (!predicate(message)) return;
+      clearTimeout(timer);
+      client.off('message', onMessage);
+      resolve(message);
+    };
+    client.on('message', onMessage);
+  });
+}
+
 async function main(): Promise<void> {
   const host = '127.0.0.1';
   const httpPort = 18090;
@@ -83,8 +105,10 @@ async function main(): Promise<void> {
     host,
     port: httpPort,
     rootDir,
+    dataDir,
     authSecret,
   });
+  let steward: ChildProcess | null = null;
 
   try {
     await service.start();
@@ -92,13 +116,26 @@ async function main(): Promise<void> {
       server.once('error', reject);
       server.listen(httpPort, host, () => resolve());
     });
+    steward = spawnHeadwatersStewardProcess({
+      cwd: process.cwd(),
+      host,
+      commonsPort,
+      dataDir,
+      authSecret,
+      stdio: 'pipe',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    test('agent can request a home space in commons and use the spawned space directly');
+    test('agent can provision a home space through PROMISE, ACCEPT, COMPLETE, and ASSESS');
     {
       const enrollment = await enrollAgent(`http://${host}:${httpPort}`, 'agent-alpha');
+      const otherEnrollment = await enrollAgent(`http://${host}:${httpPort}`, 'agent-beta');
       const commonsClient = new IntentSpaceClient({ host, port: commonsPort });
+      const otherClient = new IntentSpaceClient({ host, port: commonsPort });
       await commonsClient.connect();
       await commonsClient.authenticate(enrollment.stationToken, enrollment.buildProof);
+      await otherClient.connect();
+      await otherClient.authenticate(otherEnrollment.stationToken, otherEnrollment.buildProof);
 
       const request = {
         type: 'INTENT' as const,
@@ -108,30 +145,62 @@ async function main(): Promise<void> {
         timestamp: Date.now(),
         payload: {
           content: 'Please create my home space.',
-          headwatersAction: CREATE_HOME_SPACE_ACTION,
+          requestedSpace: { kind: 'home' },
+          spacePolicy: {
+            visibility: 'private',
+            participants: [enrollment.senderId, HEADWATERS_STEWARD_ID],
+          },
         },
       };
-      const reply = await new Promise<Record<string, unknown>>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('timeout waiting for steward reply')), 5000);
-        commonsClient.on('message', (msg) => {
-          if (msg.parentId === request.intentId && msg.senderId === 'headwaters-steward') {
-            clearTimeout(timer);
-            resolve(msg);
-          }
-        });
-        commonsClient.post(request);
+      commonsClient.post(request);
+      const promise = await waitForMessage(
+        commonsClient,
+        (msg) => msg.type === 'PROMISE' && msg.parentId === request.intentId && msg.senderId === HEADWATERS_STEWARD_ID,
+      );
+      assert(promise.type === 'PROMISE', `expected steward PROMISE, got ${String(promise.type)}`);
+      assert(typeof promise.promiseId === 'string', 'expected promiseId on steward promise');
+
+      let denied = false;
+      try {
+        await otherClient.scan(request.intentId, 0);
+      } catch (error) {
+        denied = error instanceof Error && error.message.includes(`Access denied to space ${request.intentId}`);
+      }
+      assert(denied, 'expected other participant to be denied from private request subspace');
+
+      commonsClient.post({
+        type: 'ACCEPT',
+        promiseId: promise.promiseId as string,
+        parentId: request.intentId,
+        senderId: enrollment.senderId,
+        timestamp: Date.now(),
+        payload: {},
       });
 
+      const reply = await waitForMessage(
+        commonsClient,
+        (msg) => (msg.type === 'COMPLETE' || msg.type === 'DECLINE') && msg.parentId === request.intentId && msg.senderId === HEADWATERS_STEWARD_ID,
+      );
       const payload = reply.payload as Record<string, unknown>;
-      assert(reply.type === 'INTENT', `expected steward INTENT reply, got ${reply.type} (${JSON.stringify(payload)})`);
-      if (reply.type !== 'INTENT') {
+      assert(reply.type === 'COMPLETE', `expected steward COMPLETE, got ${reply.type} (${JSON.stringify(payload)})`);
+      if (reply.type !== 'COMPLETE') {
         commonsClient.disconnect();
+        otherClient.disconnect();
         return;
       }
       assert(payload.headwatersStatus === 'SPACE_CREATED', `expected SPACE_CREATED, got ${String(payload.headwatersStatus)}`);
       assert(typeof payload.stationEndpoint === 'string', 'expected stationEndpoint in steward reply');
       assert(typeof payload.stationAudience === 'string', 'expected stationAudience in steward reply');
       assert(typeof payload.stationToken === 'string', 'expected stationToken in steward reply');
+
+      commonsClient.post({
+        type: 'ASSESS',
+        promiseId: promise.promiseId as string,
+        parentId: request.intentId,
+        senderId: enrollment.senderId,
+        timestamp: Date.now(),
+        payload: { assessment: 'FULFILLED' },
+      });
 
       const homeUrl = new URL(String(payload.stationEndpoint));
       const homeClient = new IntentSpaceClient({ host: homeUrl.hostname, port: Number(homeUrl.port) });
@@ -162,6 +231,7 @@ async function main(): Promise<void> {
 
       homeClient.disconnect();
       commonsClient.disconnect();
+      otherClient.disconnect();
     }
 
     test('public setup doc exposes downloadable runtime files');
@@ -189,6 +259,9 @@ async function main(): Promise<void> {
       );
     }
   } finally {
+    if (steward) {
+      steward.kill('SIGTERM');
+    }
     await service.stop();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     rmSync(dataDir, { recursive: true, force: true });

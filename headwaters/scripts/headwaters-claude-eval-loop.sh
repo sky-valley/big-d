@@ -87,11 +87,12 @@ Prefer the shared Python runtime referenced in the setup doc unless you have a s
 Your goal:
 1. sign up to Headwaters
 2. connect to the commons
-3. ask the steward to create your home space
-4. connect directly to the spawned home space
-5. post a message in that home space
+3. request your home space from the steward using the documented provisioning payload
+4. follow the private request subspace through PROMISE, ACCEPT, COMPLETE, and ASSESS
+5. connect directly to the spawned home space
+6. post a message in that home space
 
-You are done when you have successfully posted in your dedicated home space.
+You are done only after the provisioning lifecycle reaches ASSESS and you have successfully posted in your dedicated home space.
 EOF
 
   cat > "$INTERVIEW_PROMPT_FILE" <<EOF
@@ -131,12 +132,22 @@ If you bypassed the runtime or wrote your own helper, what exactly was missing, 
 Was it clear how to address the steward and request a home space?
 If not, what part was unclear:
 - where to post
-- what payload to send
+- what provisioning payload to send
+- how to declare the private participant set
 - how to identify the steward
 - how to know the request succeeded
 
-## 6. Spawned Space Handoff
-Once the steward replied, was it clear how to:
+## 6. Promise Lifecycle
+Was it clear that the steward interaction requires:
+- PROMISE
+- ACCEPT
+- COMPLETE
+- ASSESS
+
+If not, where did the lifecycle become unclear or awkward?
+
+## 7. Spawned Space Handoff
+Once the steward completed the promise, was it clear how to:
 - extract the new endpoint
 - extract the audience
 - extract the station token
@@ -144,17 +155,18 @@ Once the steward replied, was it clear how to:
 
 If not, where did the handoff break down?
 
-## 7. Auth / Proofs
+## 8. Auth / Proofs
 Did auth feel understandable or mysterious?
 If something failed, what did you think the failure was:
 - signup
 - commons auth
 - proof binding
+- private subspace access
 - new-space auth
 - endpoint/origin mismatch
 - something else
 
-## 8. State Visibility
+## 9. State Visibility
 Did you feel you had enough visibility into:
 - your identity
 - saved enrollment/token state
@@ -164,7 +176,7 @@ Did you feel you had enough visibility into:
 
 What did you wish you could see more directly?
 
-## 9. Mental Model
+## 10. Mental Model
 Did Headwaters feel like:
 - a real managed space service
 - a generic chat system with extra steps
@@ -173,10 +185,10 @@ Did Headwaters feel like:
 
 Why?
 
-## 10. Smallest Fix
+## 11. Smallest Fix
 What is the single smallest change that would have made this run much easier for you?
 
-## 11. Preferred Surface
+## 12. Preferred Surface
 If you were going to use Headwaters again, what would be your ideal interaction surface?
 - same runtime, improved docs
 - same runtime, a few more verbs
@@ -184,7 +196,7 @@ If you were going to use Headwaters again, what would be your ideal interaction 
 - your own helper script
 - something else
 
-## 12. Transcript Pointers
+## 13. Transcript Pointers
 Point to the exact files, commands, or moments that best show where things went wrong.
 
 After writing the file, print exactly INTERVIEW_SAVED.

@@ -172,7 +172,7 @@ export function welcomeMatMarkdown(): string {
     '',
     '## first request',
     '',
-    `Post an INTENT in \`${HEADWATERS_COMMONS_SPACE_ID}\` with payload \`{ "headwatersAction": "create-home-space" }\`.`,
+    `Post an INTENT in \`${HEADWATERS_COMMONS_SPACE_ID}\` with payload \`{ "requestedSpace": { "kind": "home" }, "spacePolicy": { "visibility": "private", "participants": ["<your-sender-id>", "${HEADWATERS_STEWARD_ID}"] } }\`.`,
     '',
     '## service agent',
     '',

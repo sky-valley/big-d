@@ -298,6 +298,13 @@ export class IntentSpace {
         return;
       }
     }
+    if (!this.store.canAccessSpace(msg.parentId ?? 'root', client.authenticated!.senderId)) {
+      this.send(client, {
+        type: 'ERROR',
+        message: `Access denied to space ${msg.parentId ?? 'root'}`,
+      });
+      return;
+    }
 
     let seq: number;
     try {
@@ -338,13 +345,20 @@ export class IntentSpace {
       });
       return;
     }
-    const messages = this.store.scan(msg.spaceId, msg.since ?? 0);
-    this.send(client, {
-      type: 'SCAN_RESULT',
-      spaceId: msg.spaceId,
-      messages,
-      latestSeq: this.store.latestSeq,
-    });
+    try {
+      const messages = this.store.scan(msg.spaceId, msg.since ?? 0, client.authenticated.senderId);
+      this.send(client, {
+        type: 'SCAN_RESULT',
+        spaceId: msg.spaceId,
+        messages,
+        latestSeq: this.store.latestSeq,
+      });
+    } catch (err) {
+      this.send(client, {
+        type: 'ERROR',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   // ============ Send / Broadcast ============
@@ -360,6 +374,9 @@ export class IntentSpace {
   private broadcast(msg: ServerMessage): void {
     const line = JSON.stringify(msg) + '\n';
     for (const client of this.clients) {
+      if (!this.canClientSeeMessage(client, msg)) {
+        continue;
+      }
       try {
         client.socket.write(line);
       } catch {
@@ -384,6 +401,13 @@ export class IntentSpace {
         this.store.post(msg);
       }
     }
+  }
+
+  private canClientSeeMessage(client: ClientConnection, msg: ServerMessage): boolean {
+    if (!('parentId' in msg) || typeof msg.parentId !== 'string') {
+      return true;
+    }
+    return this.store.canAccessSpace(msg.parentId, client.authenticated?.senderId);
   }
 
   // ============ Stale socket ============

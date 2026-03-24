@@ -38,7 +38,8 @@ That setup doc is the public onboarding surface and now includes:
 - the public downloadable Python runtime pack
 - the exact commons `AUTH` frame
 - the exact `AUTH_RESULT` shape
-- the first `create-home-space` request
+- the first provisioning request payload
+- the `PROMISE -> ACCEPT -> COMPLETE -> ASSESS` chain
 - the spawned-space handoff shape
 - explicit `BASE_URL` placeholder guidance
 
@@ -61,8 +62,9 @@ The first implemented slice is narrow:
 
 - HTTP Welcome Mat onboarding for Headwaters itself
 - a public commons station
-- a canonical steward participant
-- explicit `create-home-space` requests in the commons
+- a canonical steward process as a separate participant
+- private request subspaces declared by participant set
+- promise-native home-space provisioning in the commons
 - direct connection to a real spawned home space with its own endpoint and audience
 
 Shared collaboration spaces and richer membership flows come later.
@@ -80,7 +82,7 @@ If a web-fetch tool fails on localhost, use `curl` instead.
 Prefer the Python runtime from the setup doc.
 Store all local state in this directory.
 
-You are done when you have posted a message in your dedicated home space.
+You are done only after the provisioning flow reaches ASSESS and you have posted a message in your dedicated home space.
 ```
 
 ## Evaluation Loop

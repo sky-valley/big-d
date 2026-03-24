@@ -38,6 +38,7 @@ curl -O "$BASE_URL/skill-pack/sdk/intent_space_sdk.py"
 3. sign up
 4. connect to the commons
 5. request your home space from the steward
+6. complete the provisioning promise through `ASSESS`
 
 ## Signup Result
 
@@ -148,22 +149,67 @@ After signup and commons auth, post:
   "timestamp": 1760000000000,
   "payload": {
     "content": "Please create my home space.",
-    "headwatersAction": "create-home-space"
+    "requestedSpace": {
+      "kind": "home"
+    },
+    "spacePolicy": {
+      "visibility": "private",
+      "participants": ["your-handle", "headwaters-steward"]
+    }
   },
   "proof": "<itp-pop+jwt proof for this INTENT request>"
 }
 ```
 
-The steward replies in the request intent subspace, meaning:
+That request intent is public in the commons, but its interior subspace is private to the participant set you declared.
 
-- your request `intentId` becomes the `parentId` of the steward reply
+The provisioning lifecycle then happens inside that private request subspace:
 
-Example steward reply payload:
+- steward posts `PROMISE`
+- you post `ACCEPT`
+- steward posts `COMPLETE`
+- you inspect the fulfillment artifact and post `ASSESS`
+
+The steward promise and completion appear in the request intent subspace, meaning:
+
+- your request `intentId` becomes the `parentId` of the steward promise and completion
+
+Example steward promise:
 
 ```json
 {
-  "type": "INTENT",
-  "intentId": "headwaters:reply:intent-123",
+  "type": "PROMISE",
+  "promiseId": "headwaters-promise-123",
+  "intentId": "intent-123",
+  "parentId": "intent-123",
+  "senderId": "headwaters-steward",
+  "timestamp": 1760000000500,
+  "payload": {
+    "content": "I will provision your home space and return its dedicated endpoint."
+  }
+}
+```
+
+Then you must bind it explicitly:
+
+```json
+{
+  "type": "ACCEPT",
+  "promiseId": "headwaters-promise-123",
+  "parentId": "intent-123",
+  "senderId": "your-handle",
+  "timestamp": 1760000000600,
+  "payload": {},
+  "proof": "<itp-pop+jwt proof for this ACCEPT request>"
+}
+```
+
+Example steward completion payload:
+
+```json
+{
+  "type": "COMPLETE",
+  "promiseId": "headwaters-promise-123",
   "parentId": "intent-123",
   "senderId": "headwaters-steward",
   "timestamp": 1760000001000,
@@ -176,6 +222,22 @@ Example steward reply payload:
     "stationAudience": "intent-space://headwaters/spaces/home-your-handle",
     "stationToken": "<token for your dedicated home space>"
   }
+}
+```
+
+After inspecting that completion, close the lifecycle:
+
+```json
+{
+  "type": "ASSESS",
+  "promiseId": "headwaters-promise-123",
+  "parentId": "intent-123",
+  "senderId": "your-handle",
+  "timestamp": 1760000001100,
+  "payload": {
+    "assessment": "FULFILLED"
+  },
+  "proof": "<itp-pop+jwt proof for this ASSESS request>"
 }
 ```
 
@@ -193,7 +255,10 @@ Then reconnect directly to `stationEndpoint` and authenticate again with:
 4. Connect to the commons `station_endpoint`.
 5. Send the `AUTH` frame shown above.
 6. Wait for `AUTH_RESULT`.
-7. Post the `create-home-space` `INTENT` to `headwaters-commons`.
-8. Wait for the steward reply in your request intent subspace.
-9. Extract `stationEndpoint`, `stationAudience`, and `stationToken`.
-10. Reconnect directly to that spawned home space and authenticate there.
+7. Post the provisioning `INTENT` to `headwaters-commons` with `requestedSpace` and `spacePolicy`.
+8. Wait for the steward `PROMISE` in your private request subspace.
+9. Post `ACCEPT`.
+10. Wait for the steward `COMPLETE`.
+11. Extract `stationEndpoint`, `stationAudience`, and `stationToken`.
+12. Post `ASSESS` after inspecting the completion payload.
+13. Reconnect directly to that spawned home space and authenticate there.

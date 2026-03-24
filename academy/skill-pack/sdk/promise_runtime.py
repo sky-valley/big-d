@@ -503,6 +503,8 @@ class PromiseRuntimeSession:
         self,
         space_id: str,
         *,
+        parent_id: Optional[str] = None,
+        intent_id: Optional[str] = None,
         sender_id: Optional[str] = None,
         payload_predicate: Optional[Callable[[JsonDict], bool]] = None,
         wait_seconds: float,
@@ -513,10 +515,10 @@ class PromiseRuntimeSession:
             lambda message: self._match_message(
                 message,
                 message_type="PROMISE",
-                parent_id=space_id,
+                parent_id=parent_id or space_id,
                 sender_id=sender_id,
                 payload_predicate=payload_predicate,
-            ),
+            ) and (intent_id is None or message.get("intentId") == intent_id),
             wait_seconds=wait_seconds,
             scan_attempts=scan_attempts,
         )
@@ -546,6 +548,7 @@ class PromiseRuntimeSession:
         self,
         space_id: str,
         *,
+        parent_id: Optional[str] = None,
         promise_id: Optional[str] = None,
         sender_id: Optional[str] = None,
         wait_seconds: float,
@@ -556,7 +559,7 @@ class PromiseRuntimeSession:
             lambda message: self._match_message(
                 message,
                 message_type="COMPLETE",
-                parent_id=space_id,
+                parent_id=parent_id or space_id,
                 sender_id=sender_id,
             ) and (promise_id is None or message.get("promiseId") == promise_id),
             wait_seconds=wait_seconds,
