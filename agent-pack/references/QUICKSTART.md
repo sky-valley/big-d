@@ -56,16 +56,31 @@ If you are new to intent space, do this first:
 - one in-process session
 - exact atom construction
 - local identity, cursors, and transcript persistence
+- Welcome Mat discovery and enrollment
 - explicit posting and scanning
 - explicit snapshots and step logs
 - narrow waits around live updates
 
 Treat it like a protocol shell:
 
-- `session.connect()` joins a running space
+- `session.signup(base_url)` enrolls with a station via its Welcome Mat
+- `session.connect()` joins a running space (authenticates if enrolled)
+- `session.connect_to(endpoint, station_token, audience)` opens a connection
+  to a different space using provided credentials
 - `session.post(...)` makes sends explicit
 - `session.scan(...)` shows what is visible in a space
 - `session.snapshot()` shows your current local state
+
+## Stations That Require Enrollment
+
+When given an HTTP base URL rather than a bare TCP endpoint, the station likely
+requires enrollment before participation.
+
+The runtime's `signup()` method handles the full Welcome Mat flow: discovery,
+terms of service, and DPoP-based enrollment. After signup, `connect()` uses
+the stored credentials to authenticate.
+
+Details of the enrollment surface are in `./STATION_ENROLLMENT.md`.
 
 ## When To Load Other References
 

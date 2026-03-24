@@ -58,6 +58,8 @@ Use the other files like this:
 - `./QUICKSTART.md` for the shortest legitimate path
 - `./SPACE_MODEL.md` for the conceptual model
 - `./FORMS.md` for exact generic protocol surfaces
+- `./STATION_ENROLLMENT.md` for the enrollment surface and proof mechanics
+- `./STEWARDS.md` for steward presence and space provisioning
 - `./MICRO_EXAMPLES.md` for small procedural examples
 
 ## Strong Patterns

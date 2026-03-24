@@ -1,5 +1,5 @@
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { randomUUID } from 'crypto';
 
@@ -341,8 +341,10 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
       '--dangerously-skip-permissions',
       '--permission-mode',
       'bypassPermissions',
+      '--cd',
+      ctx.workspaceDir,
       '--add-dir',
-      ctx.repoRoot,
+      ctx.packDir,
     ],
     inputMode: 'stdin',
     prepareSessionRef: () => randomUUID(),
@@ -647,8 +649,7 @@ function renderMarkdownReport(summaries: TrialSummary[]): string {
 
 function pipeToFile(stream: NodeJS.ReadableStream, path: string): void {
   stream.on('data', (chunk) => {
-    const previous = existsSync(path) ? readFileSync(path) : Buffer.alloc(0);
-    writeFileSync(path, Buffer.concat([previous, Buffer.from(chunk)]));
+    appendFileSync(path, chunk);
   });
 }
 

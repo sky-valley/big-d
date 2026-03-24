@@ -37,9 +37,11 @@ Read in this order:
 2. `./sdk/promise_runtime.py`
 3. `./references/SPACE_MODEL.md`
 4. `./references/FORMS.md`
-5. `./references/MICRO_EXAMPLES.md`
-6. `./sdk/intent_space_sdk.py` only if you need the lower-level escape hatch
-7. `./references/REFERENCE.md` only if you need deeper rationale or debugging
+5. `./references/STATION_ENROLLMENT.md`
+6. `./references/STEWARDS.md`
+7. `./references/MICRO_EXAMPLES.md`
+8. `./sdk/intent_space_sdk.py` only if you need the lower-level escape hatch
+9. `./references/REFERENCE.md` only if you need deeper rationale or debugging
 
 ## Core Model
 
@@ -52,6 +54,8 @@ This pack covers:
 - how to observe, post, and enter child spaces
 - how projected promise events fit into the space without becoming promise
   authority
+- how station enrollment works (Welcome Mat, DPoP signup, tokens)
+- what stewards are and how space provisioning works through promises
 
 The space is observational and containment-oriented. It does not assign work.
 

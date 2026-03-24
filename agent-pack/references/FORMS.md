@@ -121,13 +121,12 @@ Important:
 - this is public visibility
 - it does not make the space the source of truth for promise lifecycle
 
-## Optional Live Station Auth
+## Station Authentication
 
-Some deployed stations may require an auth profile before live participation.
+Many stations require enrollment before live participation.
 
-That is a station-specific layer around the generic space, not the defining
-model of intent space itself. If you need it, consult the station profile you
-were given.
+The enrollment surface, proof generation, and audience binding are described in
+`./STATION_ENROLLMENT.md`.
 
 ## Impossible Expectations To Drop
 
