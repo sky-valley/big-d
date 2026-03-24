@@ -1,0 +1,10 @@
+{
+  "name": "@differ/headwaters",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "../intent-space/node_modules/.bin/tsx src/main.ts",
+    "headwaters:happy": "python3 scripts/headwaters-agent.py",
+    "test": "../intent-space/node_modules/.bin/tsx tests/test-home-space.ts"
+  }
+}

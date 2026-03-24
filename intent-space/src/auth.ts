@@ -38,7 +38,7 @@ export interface StationSessionAuth {
   jkt: string;
 }
 
-export function stationAudience(): string {
+export function defaultStationAudience(): string {
   return process.env.ACADEMY_STATION_AUDIENCE ?? 'intent-space://academy/station';
 }
 
@@ -46,19 +46,34 @@ function b64urlDecode(value: string): Buffer {
   return Buffer.from(value, 'base64url');
 }
 
-function parseJwt(raw: string): ParsedJwt {
-  const parts = raw.split('.');
+function requireJwtString(raw: unknown, fieldName: string): string {
+  if (typeof raw !== 'string') {
+    throw new Error(`${fieldName} must be a string JWT`);
+  }
+  if (!raw.trim()) {
+    throw new Error(`${fieldName} must not be empty`);
+  }
+  return raw;
+}
+
+function parseJwt(raw: unknown, fieldName: string): ParsedJwt {
+  const token = requireJwtString(raw, fieldName);
+  const parts = token.split('.');
   if (parts.length !== 3) {
-    throw new Error('JWT must have exactly three parts');
+    throw new Error(`${fieldName} must have exactly three JWT parts`);
   }
   const [headerPart, payloadPart, signaturePart] = parts;
-  return {
-    raw,
-    signingInput: `${headerPart}.${payloadPart}`,
-    signature: b64urlDecode(signaturePart),
-    header: JSON.parse(b64urlDecode(headerPart).toString('utf8')) as JwtHeader,
-    payload: JSON.parse(b64urlDecode(payloadPart).toString('utf8')) as JwtPayload,
-  };
+  try {
+    return {
+      raw: token,
+      signingInput: `${headerPart}.${payloadPart}`,
+      signature: b64urlDecode(signaturePart),
+      header: JSON.parse(b64urlDecode(headerPart).toString('utf8')) as JwtHeader,
+      payload: JSON.parse(b64urlDecode(payloadPart).toString('utf8')) as JwtPayload,
+    };
+  } catch {
+    throw new Error(`${fieldName} is not a valid JWT`);
+  }
 }
 
 function assertRecent(iat: number | undefined, nowSeconds: number, maxAgeSeconds: number): void {
@@ -143,8 +158,8 @@ function verifyRs256Jwt(parsed: ParsedJwt, expectedTyp: string): Record<string, 
   return jwk as Record<string, unknown>;
 }
 
-function verifyHs256Jwt(raw: string, secret: string): ParsedJwt {
-  const parsed = parseJwt(raw);
+function verifyHs256Jwt(raw: unknown, secret: string, fieldName: string): ParsedJwt {
+  const parsed = parseJwt(raw, fieldName);
   if (parsed.header.typ !== STATION_TOKEN_TYP || parsed.header.alg !== 'HS256') {
     throw new Error('Expected HS256 station token');
   }
@@ -155,10 +170,16 @@ function verifyHs256Jwt(raw: string, secret: string): ParsedJwt {
   return parsed;
 }
 
-export function verifyAuthRequest(request: AuthRequest, authSecret: string): StationSessionAuth {
-  const stationToken = verifyHs256Jwt(request.stationToken, authSecret);
+export function verifyAuthRequest(
+  request: AuthRequest,
+  authSecret: string,
+  audience: string = defaultStationAudience(),
+): StationSessionAuth {
+  const stationTokenRaw = requireJwtString(request.stationToken, 'AUTH.stationToken');
+  const proofRaw = requireJwtString(request.proof, 'AUTH.proof');
+  const stationToken = verifyHs256Jwt(stationTokenRaw, authSecret, 'AUTH.stationToken');
   const nowSeconds = Math.floor(Date.now() / 1000);
-  if (stationToken.payload.aud !== stationAudience()) {
+  if (stationToken.payload.aud !== audience) {
     throw new Error('Station token aud mismatch');
   }
   if (typeof stationToken.payload.exp === 'number' && stationToken.payload.exp < nowSeconds) {
@@ -171,10 +192,10 @@ export function verifyAuthRequest(request: AuthRequest, authSecret: string): Sta
     throw new Error('Station token missing cnf.jkt');
   }
 
-  const proof = parseJwt(request.proof);
+  const proof = parseJwt(proofRaw, 'AUTH.proof');
   const jwk = verifyRs256Jwt(proof, STATION_PROOF_TYP);
   assertRecent(proof.payload.iat, nowSeconds, PROOF_MAX_AGE_SECONDS);
-  if (proof.payload.aud !== stationAudience()) {
+  if (proof.payload.aud !== audience) {
     throw new Error('Station proof aud mismatch');
   }
   if (proof.payload.action !== 'AUTH') {
@@ -183,7 +204,7 @@ export function verifyAuthRequest(request: AuthRequest, authSecret: string): Sta
   if (proof.payload.req_hash !== reqHash({ type: 'AUTH' })) {
     throw new Error('Station proof req_hash mismatch');
   }
-  if (proof.payload.ath !== createHash('sha256').update(request.stationToken).digest('base64url')) {
+  if (proof.payload.ath !== createHash('sha256').update(stationTokenRaw).digest('base64url')) {
     throw new Error('Station proof ath mismatch');
   }
   if (jwkThumbprint(jwk) !== stationToken.payload.cnf.jkt) {
@@ -195,7 +216,7 @@ export function verifyAuthRequest(request: AuthRequest, authSecret: string): Sta
 
   return {
     senderId: stationToken.payload.sub,
-    stationToken: request.stationToken,
+    stationToken: stationTokenRaw,
     jkt: stationToken.payload.cnf.jkt,
   };
 }
@@ -204,15 +225,14 @@ export function verifyPerMessageProof(
   session: StationSessionAuth,
   proof: string | undefined,
   request: ScanRequest | AuthenticatedITPMessage,
+  audience: string = defaultStationAudience(),
 ): void {
-  if (!proof) {
-    throw new Error('Authenticated station requests require a proof');
-  }
-  const parsed = parseJwt(proof);
+  const proofRaw = requireJwtString(proof, `${request.type}.proof`);
+  const parsed = parseJwt(proofRaw, `${request.type}.proof`);
   const jwk = verifyRs256Jwt(parsed, STATION_PROOF_TYP);
   const nowSeconds = Math.floor(Date.now() / 1000);
   assertRecent(parsed.payload.iat, nowSeconds, PROOF_MAX_AGE_SECONDS);
-  if (parsed.payload.aud !== stationAudience()) {
+  if (parsed.payload.aud !== audience) {
     throw new Error('Station proof aud mismatch');
   }
   const action = request.type === 'SCAN' ? 'SCAN' : request.type;

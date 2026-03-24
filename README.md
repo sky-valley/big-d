@@ -30,6 +30,7 @@ human  ←──assess──  Promise Log  ←──commit──  Agent
 | [`intent-space/`](intent-space/) | Standalone intent space server. Persists intents, scopes by containment, and serves history. |
 | [`agent-pack/`](agent-pack/) | Canonical agent-facing pack for understanding and participating in intent space. |
 | [`academy/`](academy/) | Friend-facing academy and dojo surface. Skill pack, SDK, tutor, harness, demos, and deployment artifacts. |
+| [`headwaters/`](headwaters/) | Managed space station for provisioning dedicated intent spaces. Commons, steward, and spawned spaces. |
 | [`loop/`](loop/) | Self-modifying agent loop. Supervisor, agent, and CLI. |
 
 Each subproject has its own `package.json`, `CLAUDE.md`, and `node_modules/`. Run `npm install` from within the subproject directory.
@@ -38,13 +39,18 @@ Each subproject has its own `package.json`, `CLAUDE.md`, and `node_modules/`. Ru
 
 For the current station/onboarding surface, use:
 
-- [`agent-pack/SKILL.md`](</Users/julestalbourdet/Documents/Sky Valley/big-d/agent-pack/SKILL.md>)
-- [`agent-pack/references/SPACE_MODEL.md`](</Users/julestalbourdet/Documents/Sky Valley/big-d/agent-pack/references/SPACE_MODEL.md>)
+- [`agent-pack/SKILL.md`](</Users/julestalbourdet/Documents/sky_valley/big-d/agent-pack/SKILL.md>)
+- [`agent-pack/references/SPACE_MODEL.md`](</Users/julestalbourdet/Documents/sky_valley/big-d/agent-pack/references/SPACE_MODEL.md>)
 - [`intent-space/README.md`](/Users/noam/work/skyvalley/big-d/intent-space/README.md)
 - [`intent-space/INTENT-SPACE.md`](/Users/noam/work/skyvalley/big-d/intent-space/INTENT-SPACE.md)
 - [`academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
 - [`academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
 - [`docs/runbooks/dojo-agent-evaluation-harness.md`](/Users/noam/work/skyvalley/big-d/docs/runbooks/dojo-agent-evaluation-harness.md)
+
+For the current managed-spaces surface, use:
+
+- [`headwaters/README.md`](/Users/noam/work/skyvalley/big-d/headwaters/README.md)
+- [`headwaters/agent-setup.md`](/Users/noam/work/skyvalley/big-d/headwaters/agent-setup.md)
 
 For the current loop architecture, use:
 
@@ -77,13 +83,26 @@ The current phase-1 station shape is:
 
 - pure ITP station over Unix socket, TCP, or TLS
 - root-level `agent-pack/` as the canonical agent-facing participation pack
-- separate academy HTTP onboarding surface under `academy/`
-- separate Differ-operated tutor/registrar participant
+- separate Welcome Mat-aligned HTTP onboarding surfaces under `academy/` and `headwaters/`
+- separate Differ-operated tutor participant for the academy dojo
+- separate local evaluation surfaces for the academy dojo and Headwaters managed spaces
 - local dojo evaluation harness for Codex, Claude, Pi, and the scripted dojo agent
 
 The canonical agent pack is Python-runtime-first: it teaches the protocol with
 an importable Python runtime, a lower-level wire SDK, and exact forms plus seam
 examples, not a pre-solved client.
+
+Discovery and signup are Welcome Mat-aligned:
+
+- services publish `/.well-known/welcome.md`
+- agents fetch `/tos`, sign terms with their own RSA identity, and enroll over HTTP
+- live participation then continues over ITP using the repo’s station auth profile rather than pretending raw HTTP DPoP applies unchanged on TCP
+
+See:
+
+- [Welcome Mat](https://welcome-m.at/)
+- [`intent-space/docs/welcome-mat-station-auth-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/welcome-mat-station-auth-profile.md)
+- [`docs/solutions/architecture/welcome-mat-cutover-kept-itp-pure-by-splitting-http-signup-from-station-auth-20260323.md`](/Users/noam/work/skyvalley/big-d/docs/solutions/architecture/welcome-mat-cutover-kept-itp-pure-by-splitting-http-signup-from-station-auth-20260323.md)
 
 Academy remains a station-specific consumer and onboarding surface around that
 more general pack.

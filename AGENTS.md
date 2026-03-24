@@ -15,6 +15,8 @@ Current architecture references:
 - `intent-space/README.md`
 - `academy/README.md`
 - `academy/agent-setup.md`
+- `headwaters/README.md`
+- `headwaters/agent-setup.md`
 - `docs/runbooks/dojo-agent-evaluation-harness.md`
 
 Archived early root-level `loop/` drafts:
@@ -26,6 +28,7 @@ Archived early root-level `loop/` drafts:
 - `itp/` — shared protocol and types
 - `intent-space/` — body of desire and observational space
 - `academy/` — dojo pack, Python promise runtime, intent space SDK, tutor participant, harness, demos, and deploy artifacts
+- `headwaters/` — managed space station, commons, steward, and spawned-space product surface
 - `loop/` — adaptive agent loop and local promise authority
 
 ## Architectural Stance

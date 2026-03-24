@@ -22,7 +22,7 @@ import { IntentStore, DEFAULT_DB_DIR } from './store.ts';
 import { buildServiceIntents } from './service-intents.ts';
 import type { ClientMessage, ServerMessage, ScanRequest, MessageEcho, AuthRequest, AuthenticatedITPMessage } from './types.ts';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
-import { verifyAuthRequest, verifyPerMessageProof, type StationSessionAuth } from './auth.ts';
+import { defaultStationAudience, verifyAuthRequest, verifyPerMessageProof, type StationSessionAuth } from './auth.ts';
 
 const MAX_LINE_LENGTH = 1024 * 1024; // 1MB
 
@@ -47,6 +47,13 @@ export interface IntentSpaceOptions {
   tlsKeyPem?: string;
   tlsCertPem?: string;
   tlsCaPem?: string;
+  stationAudience?: string;
+  authSecret?: string;
+  authResult?: {
+    tutorialSpaceId?: string;
+    ritualGreeting?: string;
+  };
+  onStoredMessage?: (echo: MessageEcho, auth: StationSessionAuth | null) => void;
 }
 
 export class IntentSpace {
@@ -63,6 +70,12 @@ export class IntentSpace {
   private _tlsHost: string;
   private _tlsOptions?: TlsOptions;
   private _authSecret: string;
+  private _stationAudience: string;
+  private _authResult: {
+    tutorialSpaceId?: string;
+    ritualGreeting?: string;
+  };
+  private _onStoredMessage?: (echo: MessageEcho, auth: StationSessionAuth | null) => void;
 
   constructor(opts: IntentSpaceOptions = {}) {
     this._agentId = opts.agentId ?? process.env.DIFFER_INTENT_SPACE_ID ?? 'intent-space';
@@ -75,7 +88,13 @@ export class IntentSpace {
     this._tlsPort = opts.tlsPort ?? (process.env.INTENT_SPACE_TLS_PORT ? parseInt(process.env.INTENT_SPACE_TLS_PORT, 10) : undefined);
     this._tlsHost = opts.tlsHost ?? process.env.INTENT_SPACE_TLS_HOST ?? '0.0.0.0';
     this._tlsOptions = loadTlsOptions(opts);
-    this._authSecret = process.env.INTENT_SPACE_AUTH_SECRET ?? 'intent-space-dev-secret';
+    this._authSecret = opts.authSecret ?? process.env.INTENT_SPACE_AUTH_SECRET ?? 'intent-space-dev-secret';
+    this._stationAudience = opts.stationAudience ?? defaultStationAudience();
+    this._authResult = opts.authResult ?? {
+      tutorialSpaceId: 'tutorial',
+      ritualGreeting: 'academy tutorial greeting',
+    };
+    this._onStoredMessage = opts.onStoredMessage;
     this.store = new IntentStore(opts.dbPath);
   }
 
@@ -84,6 +103,7 @@ export class IntentSpace {
   get tcpPort(): number | undefined { return this._tcpPort; }
   get tlsPort(): number | undefined { return this._tlsPort; }
   get clientCount(): number { return this.clients.size; }
+  get stationAudience(): string { return this._stationAudience; }
 
   async start(): Promise<void> {
     await this.cleanStaleSocket();
@@ -247,12 +267,12 @@ export class IntentSpace {
 
   private handleAuth(client: ClientConnection, msg: AuthRequest): void {
     try {
-      client.authenticated = verifyAuthRequest(msg, this._authSecret);
+      client.authenticated = verifyAuthRequest(msg, this._authSecret, this._stationAudience);
       this.send(client, {
         type: 'AUTH_RESULT',
         senderId: client.authenticated.senderId,
-        tutorialSpaceId: 'tutorial',
-        ritualGreeting: 'academy tutorial greeting',
+        tutorialSpaceId: this._authResult.tutorialSpaceId,
+        ritualGreeting: this._authResult.ritualGreeting,
       });
     } catch (err) {
       this.send(client, {
@@ -264,7 +284,7 @@ export class IntentSpace {
 
   private handlePost(client: ClientConnection, msg: AuthenticatedITPMessage): void {
     try {
-      verifyPerMessageProof(client.authenticated!, msg.proof, msg);
+      verifyPerMessageProof(client.authenticated!, msg.proof, msg, this._stationAudience);
     } catch (err) {
       this.send(client, {
         type: 'ERROR',
@@ -299,9 +319,9 @@ export class IntentSpace {
       return;
     }
 
-    // Echo to ALL connected clients (including sender) with seq
     const echo: MessageEcho = { ...msg, seq };
     this.broadcast(echo);
+    this._onStoredMessage?.(echo, client.authenticated ?? null);
   }
 
   private handleScan(client: ClientConnection, msg: ScanRequest): void {
@@ -310,7 +330,7 @@ export class IntentSpace {
       return;
     }
     try {
-      verifyPerMessageProof(client.authenticated, msg.proof, msg);
+      verifyPerMessageProof(client.authenticated, msg.proof, msg, this._stationAudience);
     } catch (err) {
       this.send(client, {
         type: 'ERROR',
@@ -346,6 +366,14 @@ export class IntentSpace {
         this.clients.delete(client);
       }
     }
+  }
+
+  publish(msg: ITPMessage): MessageEcho {
+    const seq = this.store.post(msg);
+    const echo: MessageEcho = { ...msg, seq };
+    this.broadcast(echo);
+    this._onStoredMessage?.(echo, null);
+    return echo;
   }
 
   // ============ Service intents ============

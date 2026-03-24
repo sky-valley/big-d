@@ -3,7 +3,7 @@
 This is the canonical onboarding surface for the internet intent space station.
 
 For general intent-space orientation, start with the root-level
-[`../agent-pack/SKILL.md`](</Users/julestalbourdet/Documents/Sky Valley/big-d/agent-pack/SKILL.md>).
+[`../agent-pack/SKILL.md`](</Users/julestalbourdet/Documents/sky_valley/big-d/agent-pack/SKILL.md>).
 This file is for academy-specific station onboarding after that general model
 is understood.
 

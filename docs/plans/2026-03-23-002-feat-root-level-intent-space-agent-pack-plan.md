@@ -433,7 +433,7 @@ Files likely to be updated:
 
 ### Origin
 
-- **Origin document:** [docs/brainstorms/2026-03-23-global-intent-space-agent-pack-requirements.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/docs/brainstorms/2026-03-23-global-intent-space-agent-pack-requirements.md>)
+- **Origin document:** [docs/brainstorms/2026-03-23-global-intent-space-agent-pack-requirements.md](</Users/julestalbourdet/Documents/sky_valley/big-d/docs/brainstorms/2026-03-23-global-intent-space-agent-pack-requirements.md>)
   - Key decisions carried forward:
     - root-level canonical pack in `agent-pack/`
     - external-agent-first framing
@@ -443,21 +443,21 @@ Files likely to be updated:
 
 ### Internal References
 
-- [academy/skill-pack/SKILL.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/academy/skill-pack/SKILL.md>)
-- [academy/skill-pack/references/QUICKSTART.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/academy/skill-pack/references/QUICKSTART.md>)
-- [academy/skill-pack/references/REFERENCE.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/academy/skill-pack/references/REFERENCE.md>)
-- [academy/skill-pack/references/FORMS.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/academy/skill-pack/references/FORMS.md>)
-- [academy/skill-pack/references/MICRO_EXAMPLES.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/academy/skill-pack/references/MICRO_EXAMPLES.md>)
-- [academy/skill-pack/sdk/promise_runtime.py](</Users/julestalbourdet/Documents/Sky Valley/big-d/academy/skill-pack/sdk/promise_runtime.py>)
-- [academy/skill-pack/sdk/intent_space_sdk.py](</Users/julestalbourdet/Documents/Sky Valley/big-d/academy/skill-pack/sdk/intent_space_sdk.py>)
-- [intent-space/README.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/intent-space/README.md>)
-- [intent-space/INTENT-SPACE.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/intent-space/INTENT-SPACE.md>)
-- [docs/runbooks/dojo-agent-evaluation-harness.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/docs/runbooks/dojo-agent-evaluation-harness.md>)
+- [academy/skill-pack/SKILL.md](</Users/julestalbourdet/Documents/sky_valley/big-d/academy/skill-pack/SKILL.md>)
+- [academy/skill-pack/references/QUICKSTART.md](</Users/julestalbourdet/Documents/sky_valley/big-d/academy/skill-pack/references/QUICKSTART.md>)
+- [academy/skill-pack/references/REFERENCE.md](</Users/julestalbourdet/Documents/sky_valley/big-d/academy/skill-pack/references/REFERENCE.md>)
+- [academy/skill-pack/references/FORMS.md](</Users/julestalbourdet/Documents/sky_valley/big-d/academy/skill-pack/references/FORMS.md>)
+- [academy/skill-pack/references/MICRO_EXAMPLES.md](</Users/julestalbourdet/Documents/sky_valley/big-d/academy/skill-pack/references/MICRO_EXAMPLES.md>)
+- [academy/skill-pack/sdk/promise_runtime.py](</Users/julestalbourdet/Documents/sky_valley/big-d/academy/skill-pack/sdk/promise_runtime.py>)
+- [academy/skill-pack/sdk/intent_space_sdk.py](</Users/julestalbourdet/Documents/sky_valley/big-d/academy/skill-pack/sdk/intent_space_sdk.py>)
+- [intent-space/README.md](</Users/julestalbourdet/Documents/sky_valley/big-d/intent-space/README.md>)
+- [intent-space/INTENT-SPACE.md](</Users/julestalbourdet/Documents/sky_valley/big-d/intent-space/INTENT-SPACE.md>)
+- [docs/runbooks/dojo-agent-evaluation-harness.md](</Users/julestalbourdet/Documents/sky_valley/big-d/docs/runbooks/dojo-agent-evaluation-harness.md>)
 
 ### Institutional Learnings
 
-- [docs/solutions/integration-issues/python-pack-runtime-matched-agent-preferences-better-than-ts-wrapper-20260317.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/docs/solutions/integration-issues/python-pack-runtime-matched-agent-preferences-better-than-ts-wrapper-20260317.md>)
-- [docs/solutions/integration-issues/protocol-shell-python-runtime-made-agents-comfortable-with-mechanics-but-not-sequencing-20260322.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/docs/solutions/integration-issues/protocol-shell-python-runtime-made-agents-comfortable-with-mechanics-but-not-sequencing-20260322.md>)
-- [docs/solutions/integration-issues/intent-space-promise-theory-participant.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/docs/solutions/integration-issues/intent-space-promise-theory-participant.md>)
-- [docs/solutions/architecture-decisions/promise-native-runtime-should-keep-space-primitive-and-thread-derived-20260316.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/docs/solutions/architecture-decisions/promise-native-runtime-should-keep-space-primitive-and-thread-derived-20260316.md>)
-- [docs/solutions/architecture/welcome-mat-cutover-kept-itp-pure-by-splitting-http-signup-from-station-auth-20260323.md](</Users/julestalbourdet/Documents/Sky Valley/big-d/docs/solutions/architecture/welcome-mat-cutover-kept-itp-pure-by-splitting-http-signup-from-station-auth-20260323.md>)
+- [docs/solutions/integration-issues/python-pack-runtime-matched-agent-preferences-better-than-ts-wrapper-20260317.md](</Users/julestalbourdet/Documents/sky_valley/big-d/docs/solutions/integration-issues/python-pack-runtime-matched-agent-preferences-better-than-ts-wrapper-20260317.md>)
+- [docs/solutions/integration-issues/protocol-shell-python-runtime-made-agents-comfortable-with-mechanics-but-not-sequencing-20260322.md](</Users/julestalbourdet/Documents/sky_valley/big-d/docs/solutions/integration-issues/protocol-shell-python-runtime-made-agents-comfortable-with-mechanics-but-not-sequencing-20260322.md>)
+- [docs/solutions/integration-issues/intent-space-promise-theory-participant.md](</Users/julestalbourdet/Documents/sky_valley/big-d/docs/solutions/integration-issues/intent-space-promise-theory-participant.md>)
+- [docs/solutions/architecture-decisions/promise-native-runtime-should-keep-space-primitive-and-thread-derived-20260316.md](</Users/julestalbourdet/Documents/sky_valley/big-d/docs/solutions/architecture-decisions/promise-native-runtime-should-keep-space-primitive-and-thread-derived-20260316.md>)
+- [docs/solutions/architecture/welcome-mat-cutover-kept-itp-pure-by-splitting-http-signup-from-station-auth-20260323.md](</Users/julestalbourdet/Documents/sky_valley/big-d/docs/solutions/architecture/welcome-mat-cutover-kept-itp-pure-by-splitting-http-signup-from-station-auth-20260323.md>)
