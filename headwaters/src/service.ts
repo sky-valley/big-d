@@ -2,7 +2,7 @@ import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { SharedHeadwatersHost } from './shared-host.ts';
 import { HeadwatersProvisioner } from './provisioner.ts';
-import { headwatersOrigin } from './contract.ts';
+import { commonsStationEndpoint, headwatersOrigin } from './contract.ts';
 
 export interface HeadwatersServiceOptions {
   dataDir: string;
@@ -33,7 +33,7 @@ export class HeadwatersService {
     });
     this.provisioner = new HeadwatersProvisioner({
       baseDir: join(this.dataDir, 'spaces'),
-      stationEndpoint: `tcp://${this.host}:${this.commonsPort}`,
+      stationEndpoint: commonsStationEndpoint(),
       issuer: headwatersOrigin(),
       authSecret: this.authSecret,
     });

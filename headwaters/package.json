@@ -5,6 +5,7 @@
   "scripts": {
     "server": "../intent-space/node_modules/.bin/tsx src/main.ts",
     "headwaters:happy": "python3 scripts/headwaters-agent.py",
+    "smoke": "bash deploy/scripts/smoke-test.sh",
     "test": "../intent-space/node_modules/.bin/tsx tests/test-home-space.ts"
   }
 }

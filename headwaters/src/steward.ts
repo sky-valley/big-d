@@ -5,6 +5,7 @@ import type { StoredMessage } from '../../intent-space/src/types.ts';
 import { HeadwatersProvisioner } from './provisioner.ts';
 import { HeadwatersEnrollmentRegistry } from './enrollment-registry.ts';
 import {
+  commonsStationEndpoint,
   commonsStationAudience,
   HEADWATERS_COMMONS_SPACE_ID,
   HEADWATERS_STEWARD_ID,
@@ -194,7 +195,7 @@ export class HeadwatersSteward {
     this.client = new IntentSpaceClient({ host: options.host, port: options.commonsPort });
     this.provisioner = new HeadwatersProvisioner({
       baseDir: join(options.dataDir, 'spaces'),
-      stationEndpoint: `tcp://${options.host}:${options.commonsPort}`,
+      stationEndpoint: commonsStationEndpoint(),
       issuer: headwatersOrigin(),
       authSecret: options.authSecret,
     });

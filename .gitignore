@@ -4,6 +4,8 @@ dist/
 intent-space/.env.pi
 academy/deploy/.env.do
 academy/deploy/.state/
+headwaters/deploy/.env.do
+headwaters/deploy/.state/
 .DS_Store
 compound-engineering.local.md
 intent-space/tmp/

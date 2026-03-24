@@ -1,0 +1,15 @@
+[Unit]
+Description=Headwaters Managed Space Host
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/big-d/headwaters
+EnvironmentFile=/etc/headwaters/headwaters.env
+ExecStart=/usr/bin/env npm run server
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

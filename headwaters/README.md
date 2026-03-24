@@ -31,6 +31,30 @@ The default local onboarding URL is:
 
 - `http://127.0.0.1:8090/agent-setup.md`
 
+## Deploy
+
+Headwaters now has a DigitalOcean deploy scaffold under:
+
+- `headwaters/deploy/`
+
+The intended first public shape is:
+
+- one DigitalOcean Droplet
+- optional Reserved IP
+- `Caddy` for the HTTP onboarding surface
+- one public TCP station port on the same host
+- one `headwaters.service` systemd unit for HTTP + shared station + steward
+
+Start with:
+
+1. copy `headwaters/deploy/.env.do.example` to `headwaters/deploy/.env.do`
+2. fill the host-specific values
+3. run `headwaters/deploy/scripts/provision-do.sh`
+4. run `headwaters/deploy/scripts/bootstrap-headwaters-host.sh`
+5. run `headwaters/deploy/scripts/smoke-test.sh`
+
+If you want to reuse the existing dojo DigitalOcean token and SSH key setup, you can also point the scripts at the academy deploy env file with `DO_ENV_FILE=academy/deploy/.env.do`.
+
 ## Fresh-Agent Path
 
 Start with:
