@@ -5,6 +5,7 @@ import type { StoredMessage } from '../../intent-space/src/types.ts';
 import { HeadwatersProvisioner } from './provisioner.ts';
 import { HeadwatersEnrollmentRegistry } from './enrollment-registry.ts';
 import {
+  commonsStationEndpoint,
   commonsStationAudience,
   HEADWATERS_COMMONS_SPACE_ID,
   HEADWATERS_STEWARD_ID,
@@ -194,7 +195,7 @@ export class HeadwatersSteward {
     this.client = new IntentSpaceClient({ host: options.host, port: options.commonsPort });
     this.provisioner = new HeadwatersProvisioner({
       baseDir: join(options.dataDir, 'spaces'),
-      host: options.host,
+      stationEndpoint: commonsStationEndpoint(),
       issuer: headwatersOrigin(),
       authSecret: options.authSecret,
     });
@@ -325,7 +326,21 @@ export class HeadwatersSteward {
       return;
     }
 
-    const provisioned = await this.provisioner.provisionHomeSpace(request.senderId, requesterJkt);
+    let provisioned;
+    try {
+      provisioned = await this.provisioner.provisionHomeSpace(request.senderId, requesterJkt);
+    } catch (error) {
+      this.client.post(buildDecline(
+        HEADWATERS_STEWARD_ID,
+        {
+          intentId: request.intentId!,
+          parentId: request.intentId!,
+          reason: error instanceof Error ? error.message : String(error),
+          payload: { reasonCode: 'HEADWATERS_CAPACITY_OR_PROVISIONING_FAILURE' },
+        },
+      ));
+      return;
+    }
     const completePayload: ProvisionedSpaceReply = {
       headwatersStatus: provisioned.created ? 'SPACE_CREATED' : 'SPACE_ALREADY_EXISTS',
       spaceKind: 'home',

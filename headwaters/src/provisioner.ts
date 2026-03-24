@@ -1,7 +1,5 @@
-import { mkdirSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { IntentSpace } from '../../intent-space/src/space.ts';
 import { issueSpaceToken } from './welcome-mat.ts';
 
 export interface ProvisionedSpace {
@@ -15,37 +13,45 @@ export interface ProvisionedSpace {
 
 interface HeadwatersProvisionerOptions {
   baseDir: string;
-  host: string;
+  stationEndpoint: string;
   issuer: string;
   authSecret: string;
+  maxSpaces?: number;
 }
 
 export class HeadwatersProvisioner {
   private readonly baseDir: string;
-  private readonly host: string;
+  private readonly stationEndpoint: string;
   private readonly issuer: string;
   private readonly authSecret: string;
-  private readonly spaces = new Map<string, { record: ProvisionedSpace; runtime: IntentSpace }>();
+  private readonly maxSpaces: number;
+  private readonly spaces = new Map<string, ProvisionedSpace>();
 
   constructor(options: HeadwatersProvisionerOptions) {
     this.baseDir = options.baseDir;
-    this.host = options.host;
+    this.stationEndpoint = options.stationEndpoint;
     this.issuer = options.issuer;
     this.authSecret = options.authSecret;
+    this.maxSpaces = options.maxSpaces ?? parseInt(process.env.HEADWATERS_MAX_SPACES ?? '100', 10);
     mkdirSync(this.baseDir, { recursive: true });
+    this.loadPersistedSpaces();
   }
 
   async stop(): Promise<void> {
-    for (const { runtime } of this.spaces.values()) {
-      await runtime.stop();
-    }
     this.spaces.clear();
   }
 
   async provisionHomeSpace(ownerId: string, jwkThumb: string): Promise<ProvisionedSpace & { created: boolean }> {
     const existing = this.spaces.get(ownerId);
     if (existing) {
-      return { ...existing.record, created: false };
+      const normalized = this.refreshRecord(existing, jwkThumb);
+      this.spaces.set(ownerId, normalized);
+      this.persistRecord(normalized);
+      return { ...normalized, created: false };
+    }
+
+    if (this.spaces.size >= this.maxSpaces) {
+      throw new Error(`Headwaters capacity reached (${this.maxSpaces} hosted spaces)`);
     }
 
     const safeOwner = ownerId.replace(/[^a-zA-Z0-9.-]/g, '-');
@@ -53,24 +59,11 @@ export class HeadwatersProvisioner {
     const audience = `intent-space://headwaters/spaces/${spaceId}`;
     const dir = join(this.baseDir, spaceId);
     mkdirSync(dir, { recursive: true });
-
-    const runtime = new IntentSpace({
-      agentId: `headwaters-space:${spaceId}`,
-      dbPath: join(dir, 'intent-space.db'),
-      socketPath: join(tmpdir(), `hw-${spaceId}.sock`),
-      tcpHost: this.host,
-      tcpPort: 0,
-      stationAudience: audience,
-      authSecret: this.authSecret,
-      authResult: {},
-    });
-    await runtime.start();
-
-    const endpoint = `tcp://${this.host}:${runtime.tcpPort}`;
     const stationToken = issueSpaceToken({
       issuer: this.issuer,
       subject: ownerId,
       audience,
+      spaceId,
       jwkThumb,
       secret: this.authSecret,
     });
@@ -80,12 +73,65 @@ export class HeadwatersProvisioner {
       spaceId,
       ownerId,
       audience,
-      endpoint,
+      endpoint: this.stationEndpoint,
       stationToken,
     };
 
-    writeFileSync(join(dir, 'space.json'), JSON.stringify(record, null, 2) + '\n', 'utf8');
-    this.spaces.set(ownerId, { record, runtime });
+    this.persistRecord(record);
+    this.spaces.set(ownerId, record);
     return { ...record, created: true };
+  }
+
+  getSpaceById(spaceId: string): ProvisionedSpace | undefined {
+    return Array.from(this.spaces.values()).find((record) => record.spaceId === spaceId);
+  }
+
+  allSpaces(): ProvisionedSpace[] {
+    return Array.from(this.spaces.values());
+  }
+
+  private loadPersistedSpaces(): void {
+    for (const entry of readdirSync(this.baseDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const path = join(this.baseDir, entry.name, 'space.json');
+      if (!existsSync(path)) continue;
+      try {
+        const parsed = this.normalizeRecord(JSON.parse(readFileSync(path, 'utf8')) as ProvisionedSpace);
+        if (parsed.ownerId && parsed.spaceId) {
+          this.spaces.set(parsed.ownerId, parsed);
+          this.persistRecord(parsed);
+        }
+      } catch {
+        // ignore malformed persisted records; operator cleanup can handle them later
+      }
+    }
+  }
+
+  private normalizeRecord(record: ProvisionedSpace): ProvisionedSpace {
+    return {
+      ...record,
+      endpoint: this.stationEndpoint,
+    };
+  }
+
+  private refreshRecord(record: ProvisionedSpace, jwkThumb: string): ProvisionedSpace {
+    const normalized = this.normalizeRecord(record);
+    return {
+      ...normalized,
+      stationToken: issueSpaceToken({
+        issuer: this.issuer,
+        subject: normalized.ownerId,
+        audience: normalized.audience,
+        spaceId: normalized.spaceId,
+        jwkThumb,
+        secret: this.authSecret,
+      }),
+    };
+  }
+
+  private persistRecord(record: ProvisionedSpace): void {
+    const dir = join(this.baseDir, record.spaceId);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'space.json'), JSON.stringify(record, null, 2) + '\n', 'utf8');
   }
 }

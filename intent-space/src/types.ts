@@ -114,6 +114,7 @@ export interface SpaceError {
 export interface AuthResult {
   type: 'AUTH_RESULT';
   senderId: string;
+  spaceId?: string;
   tutorialSpaceId?: string;
   ritualGreeting?: string;
 }

@@ -15,6 +15,7 @@ interface JwtHeader extends Record<string, unknown> {
 interface JwtPayload extends Record<string, unknown> {
   sub?: string;
   aud?: string;
+  space_id?: string;
   cnf?: { jkt?: string };
   scope?: string;
   iat?: number;
@@ -36,6 +37,8 @@ export interface StationSessionAuth {
   senderId: string;
   stationToken: string;
   jkt: string;
+  audience: string;
+  spaceId?: string;
 }
 
 export function defaultStationAudience(): string {
@@ -173,13 +176,17 @@ function verifyHs256Jwt(raw: unknown, secret: string, fieldName: string): Parsed
 export function verifyAuthRequest(
   request: AuthRequest,
   authSecret: string,
-  audience: string = defaultStationAudience(),
+  audience?: string,
 ): StationSessionAuth {
   const stationTokenRaw = requireJwtString(request.stationToken, 'AUTH.stationToken');
   const proofRaw = requireJwtString(request.proof, 'AUTH.proof');
   const stationToken = verifyHs256Jwt(stationTokenRaw, authSecret, 'AUTH.stationToken');
   const nowSeconds = Math.floor(Date.now() / 1000);
-  if (stationToken.payload.aud !== audience) {
+  const resolvedAudience = audience ?? stationToken.payload.aud;
+  if (typeof resolvedAudience !== 'string' || resolvedAudience.length === 0) {
+    throw new Error('Station token missing aud');
+  }
+  if (stationToken.payload.aud !== resolvedAudience) {
     throw new Error('Station token aud mismatch');
   }
   if (typeof stationToken.payload.exp === 'number' && stationToken.payload.exp < nowSeconds) {
@@ -195,7 +202,7 @@ export function verifyAuthRequest(
   const proof = parseJwt(proofRaw, 'AUTH.proof');
   const jwk = verifyRs256Jwt(proof, STATION_PROOF_TYP);
   assertRecent(proof.payload.iat, nowSeconds, PROOF_MAX_AGE_SECONDS);
-  if (proof.payload.aud !== audience) {
+  if (proof.payload.aud !== resolvedAudience) {
     throw new Error('Station proof aud mismatch');
   }
   if (proof.payload.action !== 'AUTH') {
@@ -218,6 +225,8 @@ export function verifyAuthRequest(
     senderId: stationToken.payload.sub,
     stationToken: stationTokenRaw,
     jkt: stationToken.payload.cnf.jkt,
+    audience: resolvedAudience,
+    spaceId: typeof stationToken.payload.space_id === 'string' ? stationToken.payload.space_id : undefined,
   };
 }
 

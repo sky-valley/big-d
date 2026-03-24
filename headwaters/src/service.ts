@@ -1,7 +1,8 @@
 import { mkdirSync } from 'fs';
 import { join } from 'path';
-import { IntentSpace } from '../../intent-space/src/space.ts';
-import { commonsStationAudience } from './contract.ts';
+import { SharedHeadwatersHost } from './shared-host.ts';
+import { HeadwatersProvisioner } from './provisioner.ts';
+import { commonsStationEndpoint, headwatersOrigin } from './contract.ts';
 
 export interface HeadwatersServiceOptions {
   dataDir: string;
@@ -15,7 +16,8 @@ export class HeadwatersService {
   private readonly host: string;
   private readonly commonsPort: number;
   private readonly authSecret: string;
-  private readonly commons: IntentSpace;
+  private readonly stationHost: SharedHeadwatersHost;
+  private readonly provisioner: HeadwatersProvisioner;
 
   constructor(options: HeadwatersServiceOptions) {
     this.dataDir = options.dataDir;
@@ -23,27 +25,35 @@ export class HeadwatersService {
     this.commonsPort = options.commonsPort;
     this.authSecret = options.authSecret;
     mkdirSync(this.dataDir, { recursive: true });
-    this.commons = new IntentSpace({
-      agentId: 'headwaters-commons',
-      dbPath: join(this.dataDir, 'commons', 'intent-space.db'),
-      socketPath: join(this.dataDir, 'commons', 'intent-space.sock'),
-      tcpHost: this.host,
-      tcpPort: this.commonsPort,
-      stationAudience: commonsStationAudience(),
+    this.stationHost = new SharedHeadwatersHost({
+      dataDir: this.dataDir,
+      host: this.host,
+      port: this.commonsPort,
       authSecret: this.authSecret,
-      authResult: {},
     });
+    this.provisioner = new HeadwatersProvisioner({
+      baseDir: join(this.dataDir, 'spaces'),
+      stationEndpoint: commonsStationEndpoint(),
+      issuer: headwatersOrigin(),
+      authSecret: this.authSecret,
+    });
+    this.stationHost.loadProvisionedSpaces(this.provisioner.allSpaces());
   }
 
   get commonsEndpoint(): string {
-    return `tcp://${this.host}:${this.commons.tcpPort}`;
+    return this.stationHost.endpoint;
+  }
+
+  getProvisioner(): HeadwatersProvisioner {
+    return this.provisioner;
   }
 
   async start(): Promise<void> {
-    await this.commons.start();
+    await this.stationHost.start();
   }
 
   async stop(): Promise<void> {
-    await this.commons.stop();
+    await this.provisioner.stop();
+    await this.stationHost.stop();
   }
 }
