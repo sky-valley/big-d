@@ -62,11 +62,17 @@ The space is not authoritative for promise logic. It may carry projections, but 
 
 ## Current Living Docs
 
+- `../docs/architecture/promise-native-planning-guardrails.md`
+- `../docs/checklists/promise-native-plan-review.md`
 - `README.md`
 - `INTENT-SPACE.md`
 - `../academy/README.md`
 - `../academy/agent-setup.md`
 - `../docs/runbooks/dojo-agent-evaluation-harness.md`
+
+## Planning Rule
+
+For changes to protocol semantics, visibility, lifecycle modeling, auth boundaries, or managed coordination behavior, apply `../docs/architecture/promise-native-planning-guardrails.md` before finalizing a plan and review the result with `../docs/checklists/promise-native-plan-review.md`.
 
 ## Test Gaps
 

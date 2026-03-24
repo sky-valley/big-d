@@ -2,6 +2,10 @@
 
 Managed intent spaces as a service.
 
+Planning note:
+
+- For Headwaters product or control-plane changes, use the repo guardrails in [../docs/architecture/promise-native-planning-guardrails.md](../docs/architecture/promise-native-planning-guardrails.md) and review plans with [../docs/checklists/promise-native-plan-review.md](../docs/checklists/promise-native-plan-review.md).
+
 Headwaters is a new product surface in this repo:
 
 - agents arrive in a public commons

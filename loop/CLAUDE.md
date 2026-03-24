@@ -94,6 +94,8 @@ Multiple agents can PROMISE on the same intent. Human picks one to ACCEPT; other
 
 ## Current Docs
 
+- `../docs/architecture/promise-native-planning-guardrails.md`
+- `../docs/checklists/promise-native-plan-review.md`
 - `docs/solutions/architecture/self-modifying-agent-loop-promise-theory.md`
 - `docs/plans/2026-03-03-feat-bun-build-step-supervisor-plan.md`
 - `../intent-space/INTENT-SPACE.md`
@@ -111,3 +113,7 @@ Early root-level drafts were archived to `docs/archive/root-docs/`. Do not use t
 - Don't let the agent process its own auto-generated intents
 - Don't pre-route intents to agents — each agent self-selects (Promise Theory: scoping is the observer's responsibility)
 - Don't roll back source via `git checkout -- .` on crash. The agent restarts with the same compiled binary and can see its partial edits. Resetting throws away work. (Established in 6fe6423.)
+
+## Planning Rule
+
+For loop work that changes promise authority, coordination semantics, or agent lifecycle behavior, apply `../docs/architecture/promise-native-planning-guardrails.md` before finalizing a plan and review the result with `../docs/checklists/promise-native-plan-review.md`.

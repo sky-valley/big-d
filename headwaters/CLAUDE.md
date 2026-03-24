@@ -10,6 +10,7 @@ Managed product surface for provisioning dedicated intent spaces.
 - Spaces remain the primitive.
 - Spawned spaces must be real dedicated spaces, not fake subspaces.
 - The steward is the first public control surface.
+- Planning must follow `../docs/architecture/promise-native-planning-guardrails.md` and pass `../docs/checklists/promise-native-plan-review.md`.
 
 ## First Implementation Cut
 

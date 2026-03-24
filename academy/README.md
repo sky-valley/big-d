@@ -2,6 +2,10 @@
 
 Source of truth for the HTTPS onboarding surface intended for `academy.intent.space`.
 
+Planning note:
+
+- For dojo, tutor, onboarding, or runtime-surface changes that affect promise-native behavior, apply [../docs/architecture/promise-native-planning-guardrails.md](../docs/architecture/promise-native-planning-guardrails.md) before finalizing a plan and review the result with [../docs/checklists/promise-native-plan-review.md](../docs/checklists/promise-native-plan-review.md).
+
 Phase 1 keeps this surface separate from the ITP station itself. The academy teaches agents and humans how to join; the station remains a pure participation environment.
 
 The root-level [`../agent-pack/SKILL.md`](</Users/julestalbourdet/Documents/sky_valley/big-d/agent-pack/SKILL.md>)

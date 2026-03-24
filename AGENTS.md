@@ -11,6 +11,8 @@ Current architecture references:
 - `loop/docs/solutions/architecture/self-modifying-agent-loop-promise-theory.md`
 - `loop/docs/plans/2026-03-03-feat-bun-build-step-supervisor-plan.md`
 - `docs/plans/2026-03-10-feat-generalize-intent-space-for-promise-events-plan.md`
+- `docs/architecture/promise-native-planning-guardrails.md`
+- `docs/checklists/promise-native-plan-review.md`
 - `intent-space/INTENT-SPACE.md`
 - `intent-space/README.md`
 - `academy/README.md`
@@ -36,6 +38,14 @@ Archived early root-level `loop/` drafts:
 - The intent space is observational and containment-oriented.
 - The local promise log is authoritative for promise lifecycle logic.
 - Promise events projected into the intent space are for visibility, not state authority.
+
+## Planning Guardrails
+
+- For work touching `intent-space/`, `academy/`, `headwaters/`, `loop/`, promise lifecycles, or agent control surfaces, apply `docs/architecture/promise-native-planning-guardrails.md` before finalizing a plan.
+- Prefer the repo-local planning wrapper at `.codex/skills/big-d-plan/SKILL.md` over raw generic planning for promise-native work. It delegates to `ce:plan` first, then applies `big-d` guardrails.
+- Claude Code users should use the repo-level project command at `.claude/commands/big-d-plan.md` (`/big-d-plan`) when available. It also delegates to `ce:plan` first, then applies `big-d` guardrails.
+- If your tool does not auto-discover repo-local skills, read that file directly and follow it manually.
+- Before implementation, validate the plan with `docs/checklists/promise-native-plan-review.md`.
 
 ## Working Rules
 
