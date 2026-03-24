@@ -288,6 +288,37 @@ Success criteria:
 - at least one concurrent-connection ramp result
 - a first real deployed operating envelope
 
+## Execution Notes
+
+### Current Measured Envelope
+
+- Public host is live on one `m-2vcpu-16gb` Droplet in `nyc1`
+- Public smoke passed before and after restart
+- Hosted-space ramp results:
+  - `10`, `25`, `50`, and `75` total hosted spaces all provisioned successfully
+  - `100` hosted spaces were reached successfully
+  - the next provisioning requests declined explicitly with `HEADWATERS_CAPACITY_OR_PROVISIONING_FAILURE`
+- Commons connection ramp results:
+  - `25` concurrent held connections succeeded cleanly
+  - `50` concurrent held connections succeeded cleanly
+  - `100` concurrent held connections succeeded cleanly once the local runner file-descriptor limit was raised
+  - `200` concurrent held connections also succeeded cleanly
+- Mid-run host checks confirmed:
+  - about `52` live TCP connections during the `50`-connection hold run
+  - about `102` live TCP connections during the `100`-connection hold run
+  - about `202` live TCP connections during the `200`-connection hold run
+- Recovery checks under non-trivial hosted state succeeded:
+  - service restart returned to `active`
+  - an already provisioned home space reconnected and accepted a new post after restart
+  - new provisioning still declined honestly after restart when the host remained full
+
+### Current Interpretation
+
+- The first hard product limit is currently the configured hosted-space ceiling, not observed commons connection pressure.
+- The public host handled `200` simultaneous commons connections on the shared endpoint without observed service failure.
+- The first `100`-connection failure was caused by the local load generator hitting `EMFILE`, not by the public Headwaters host.
+- The next useful measurement is no longer “can the box basically work?” It is “how much memory, fd growth, and latency do we see once mixed traffic and non-commons participation are involved?”
+
 ## Execution Checklist
 
 - [x] Local smoke path is defined for the normal two-terminal workflow and the smoke script now exercises the full happy path
@@ -296,12 +327,12 @@ Success criteria:
 - [x] Headwaters is bootstrapped in IP-first mode
 - [x] Public smoke passes
 - [x] Public smoke passes after restart
-- [ ] Hosted-space count ramp script exists
-- [ ] Hosted-space ramp results are recorded
-- [ ] Concurrent-connection ramp script exists
-- [ ] Concurrent-connection results are recorded
-- [ ] Mixed burst/recovery test is run
-- [ ] First deployed operating envelope is written down
+- [x] Hosted-space count ramp script exists
+- [x] Hosted-space ramp results are recorded
+- [x] Concurrent-connection ramp script exists
+- [x] Concurrent-connection results are recorded
+- [x] Mixed burst/recovery test is run
+- [x] First deployed operating envelope is written down
 
 ## References
 
