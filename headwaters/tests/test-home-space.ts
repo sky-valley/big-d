@@ -95,7 +95,9 @@ async function main(): Promise<void> {
   process.env.HEADWATERS_COMMONS_ENDPOINT = `tcp://${host}:${commonsPort}`;
   process.env.HEADWATERS_COMMONS_AUDIENCE = 'intent-space://headwaters/test-commons';
 
-  const service = new HeadwatersService({
+  process.env.HEADWATERS_MAX_SPACES = '1';
+
+  let service = new HeadwatersService({
     dataDir,
     host,
     commonsPort,
@@ -192,6 +194,10 @@ async function main(): Promise<void> {
       assert(typeof payload.stationEndpoint === 'string', 'expected stationEndpoint in steward reply');
       assert(typeof payload.stationAudience === 'string', 'expected stationAudience in steward reply');
       assert(typeof payload.stationToken === 'string', 'expected stationToken in steward reply');
+      assert(
+        payload.stationEndpoint === `tcp://${host}:${commonsPort}`,
+        `expected shared station endpoint, got ${String(payload.stationEndpoint)}`,
+      );
 
       commonsClient.post({
         type: 'ASSESS',
@@ -230,6 +236,85 @@ async function main(): Promise<void> {
       assert(messages.some((message) => message.intentId === homeIntent.intentId), 'expected posted intent in home space scan');
 
       homeClient.disconnect();
+
+      steward?.kill('SIGTERM');
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await service.stop();
+
+      service = new HeadwatersService({
+        dataDir,
+        host,
+        commonsPort,
+        authSecret,
+      });
+      await service.start();
+      steward = spawnHeadwatersStewardProcess({
+        cwd: process.cwd(),
+        host,
+        commonsPort,
+        dataDir,
+        authSecret,
+        stdio: 'pipe',
+      });
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      const recoveredHomeClient = new IntentSpaceClient({ host, port: commonsPort });
+      await recoveredHomeClient.connect();
+      await recoveredHomeClient.authenticate(
+        String(payload.stationToken),
+        (action, request) => enrollment.buildProofFor(
+          String(payload.stationToken),
+          String(payload.stationAudience),
+          action,
+          request,
+        ),
+      );
+      const recoveredMessages = await recoveredHomeClient.scan('root', 0);
+      assert(
+        recoveredMessages.some((message) => message.intentId === homeIntent.intentId),
+        'expected home space messages to survive service restart',
+      );
+      recoveredHomeClient.disconnect();
+
+      const postRestartOtherClient = new IntentSpaceClient({ host, port: commonsPort });
+      await postRestartOtherClient.connect();
+      await postRestartOtherClient.authenticate(otherEnrollment.stationToken, otherEnrollment.buildProof);
+
+      const secondRequest = {
+        type: 'INTENT' as const,
+        intentId: `intent-${Date.now()}-beta`,
+        parentId: HEADWATERS_COMMONS_SPACE_ID,
+        senderId: otherEnrollment.senderId,
+        timestamp: Date.now(),
+        payload: {
+          content: 'Please create my home space too.',
+          requestedSpace: { kind: 'home' },
+          spacePolicy: {
+            visibility: 'private',
+            participants: [otherEnrollment.senderId, HEADWATERS_STEWARD_ID],
+          },
+        },
+      };
+      postRestartOtherClient.post(secondRequest);
+      const secondPromise = await waitForMessage(
+        postRestartOtherClient,
+        (msg) => msg.type === 'PROMISE' && msg.parentId === secondRequest.intentId && msg.senderId === HEADWATERS_STEWARD_ID,
+      );
+      postRestartOtherClient.post({
+        type: 'ACCEPT',
+        promiseId: secondPromise.promiseId as string,
+        parentId: secondRequest.intentId,
+        senderId: otherEnrollment.senderId,
+        timestamp: Date.now(),
+        payload: {},
+      });
+      const secondReply = await waitForMessage(
+        postRestartOtherClient,
+        (msg) => (msg.type === 'COMPLETE' || msg.type === 'DECLINE') && msg.parentId === secondRequest.intentId && msg.senderId === HEADWATERS_STEWARD_ID,
+      );
+      assert(secondReply.type === 'DECLINE', `expected DECLINE when capacity reached, got ${String(secondReply.type)}`);
+      postRestartOtherClient.disconnect();
+
       commonsClient.disconnect();
       otherClient.disconnect();
     }

@@ -148,6 +148,8 @@ export function welcomeMatMarkdown(): string {
     `- signup: POST ${signupUrl()}`,
     `- station: ${commonsStationEndpoint()}`,
     '',
+    'Important: the HTTP onboarding endpoints and the live station endpoint are different. Use the HTTP origin for discovery, terms, and signup. Use the station endpoint for the TCP station connection after signup.',
+    '',
     '## signup requirements',
     '',
     '- handle: required',
@@ -249,6 +251,7 @@ export function issueCommonsStationToken(handle: string, jwkThumb: string, secre
     iss: headwatersOrigin(),
     sub: handle,
     aud: commonsStationAudience(),
+    space_id: HEADWATERS_COMMONS_SPACE_ID,
     cnf: { jkt: jwkThumb },
     scope: HEADWATERS_STATION_TOKEN_SCOPE,
     iat: nowSeconds,
@@ -275,6 +278,7 @@ export function issueSpaceToken(input: {
   issuer: string;
   subject: string;
   audience: string;
+  spaceId: string;
   jwkThumb: string;
   secret: string;
 }): string {
@@ -283,6 +287,7 @@ export function issueSpaceToken(input: {
     iss: input.issuer,
     sub: input.subject,
     aud: input.audience,
+    space_id: input.spaceId,
     cnf: { jkt: input.jwkThumb },
     scope: HEADWATERS_STATION_TOKEN_SCOPE,
     iat: nowSeconds,

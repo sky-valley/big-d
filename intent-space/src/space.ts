@@ -271,6 +271,7 @@ export class IntentSpace {
       this.send(client, {
         type: 'AUTH_RESULT',
         senderId: client.authenticated.senderId,
+        spaceId: client.authenticated.spaceId,
         tutorialSpaceId: this._authResult.tutorialSpaceId,
         ritualGreeting: this._authResult.ritualGreeting,
       });
