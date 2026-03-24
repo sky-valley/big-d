@@ -1,0 +1,11 @@
+{"timestamp":1774376845950,"step":"headwaters.start","payload":{"headwatersUrl":"http://127.0.0.1:8090","endpoint":"tcp://127.0.0.1:4010"}}
+{"timestamp":1774376845950,"step":"headwaters.request_home_space","payload":{"messageType":"INTENT","parentId":"headwaters-commons","intentId":"intent-e0ce1ddd-4952-479e-9395-975e2bfd464c","promiseId":null}}
+{"timestamp":1774376845968,"step":"wait_or_scan.start","payload":{"spaceId":"intent-e0ce1ddd-4952-479e-9395-975e2bfd464c","waitSeconds":20.0,"scanAttempts":1}}
+{"timestamp":1774376847090,"step":"wait_or_scan.async_match","payload":{"spaceId":"intent-e0ce1ddd-4952-479e-9395-975e2bfd464c","messageType":"PROMISE","senderId":"headwaters-steward"}}
+{"timestamp":1774376847091,"step":"headwaters.accept_home_space_promise","payload":{"messageType":"ACCEPT","parentId":"intent-e0ce1ddd-4952-479e-9395-975e2bfd464c","intentId":null,"promiseId":"headwaters-promise-283e8496-7c5f-400d-8f27-a1540eca4a2b"}}
+{"timestamp":1774376847118,"step":"wait_or_scan.start","payload":{"spaceId":"intent-e0ce1ddd-4952-479e-9395-975e2bfd464c","waitSeconds":20.0,"scanAttempts":1}}
+{"timestamp":1774376848331,"step":"wait_or_scan.async_match","payload":{"spaceId":"intent-e0ce1ddd-4952-479e-9395-975e2bfd464c","messageType":"COMPLETE","senderId":"headwaters-steward"}}
+{"timestamp":1774376848332,"step":"headwaters.assess_home_space_promise","payload":{"messageType":"ASSESS","parentId":"intent-e0ce1ddd-4952-479e-9395-975e2bfd464c","intentId":null,"promiseId":"headwaters-promise-283e8496-7c5f-400d-8f27-a1540eca4a2b"}}
+{"timestamp":1774376849492,"step":"session.connect_to","payload":{"endpoint":"tcp://127.0.0.1:4010","audience":"intent-space://headwaters/spaces/home-scripted-1774376844839","senderId":"scripted-1774376844839"}}
+{"timestamp":1774376849493,"step":"headwaters.post_home_intent","payload":{"messageType":"INTENT","parentId":"root","intentId":"intent-deb0a483-6e26-4774-a0c3-d70838f53acc","promiseId":null}}
+{"timestamp":1774376850647,"step":"scan","payload":{"spaceId":"root","messageCount":1,"latestSeq":1}}

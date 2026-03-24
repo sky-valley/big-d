@@ -2,7 +2,14 @@ import { createServer, type Server, type Socket } from 'net';
 import { existsSync, mkdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { IntentStore } from '../../intent-space/src/store.ts';
-import type { AuthRequest, AuthenticatedITPMessage, MessageEcho, ScanRequest, ServerMessage, StoredMessage } from '../../intent-space/src/types.ts';
+import type {
+  AuthRequest,
+  AuthenticatedITPMessage,
+  MessageEcho,
+  MonitoringEventInput,
+  ScanRequest,
+  ServerMessage,
+} from '../../intent-space/src/types.ts';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
 import { verifyAuthRequest, verifyPerMessageProof, type StationSessionAuth } from '../../intent-space/src/auth.ts';
 import { buildServiceIntents } from '../../intent-space/src/service-intents.ts';
@@ -18,6 +25,7 @@ interface HostedSpace {
 }
 
 interface ClientConnection {
+  id: string;
   socket: Socket;
   buffer: string;
   authenticated?: StationSessionAuth & { spaceId: string };
@@ -40,6 +48,7 @@ export class SharedHeadwatersHost {
   private readonly clients = new Set<ClientConnection>();
   private server: Server | null = null;
   private _port: number;
+  private connectionCount = 0;
 
   constructor(options: SharedHeadwatersHostOptions) {
     this.dataDir = options.dataDir;
@@ -144,16 +153,67 @@ export class SharedHeadwatersHost {
   }
 
   private handleConnection(socket: Socket): void {
-    const client: ClientConnection = { socket, buffer: '' };
+    const client: ClientConnection = {
+      id: `conn-${++this.connectionCount}`,
+      socket,
+      buffer: '',
+    };
     this.clients.add(client);
+    this.recordMonitoring({
+      stage: 'connection',
+      outcome: 'accepted',
+      eventType: 'connection_opened',
+      connectionId: client.id,
+      detail: {},
+    });
     socket.on('data', (chunk: Buffer) => this.handleData(client, chunk.toString()));
-    socket.on('close', () => this.clients.delete(client));
-    socket.on('error', () => this.clients.delete(client));
+    socket.on('close', () => {
+      this.clients.delete(client);
+      this.recordMonitoring({
+        stage: 'connection',
+        outcome: 'accepted',
+        eventType: 'connection_closed',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        spaceId: client.authenticated?.spaceId,
+        detail: {},
+      });
+    });
+    socket.on('error', (err) => {
+      this.clients.delete(client);
+      this.recordMonitoring({
+        stage: 'connection',
+        outcome: 'failed',
+        eventType: 'connection_error',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        spaceId: client.authenticated?.spaceId,
+        detail: {
+          message: err instanceof Error ? err.message : String(err),
+        },
+      });
+    });
   }
 
   private handleData(client: ClientConnection, chunk: string): void {
     client.buffer += chunk;
     if (client.buffer.length > MAX_LINE_LENGTH) {
+      this.recordMonitoring({
+        stage: 'parse',
+        outcome: 'rejected',
+        eventType: 'line_too_long',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        spaceId: client.authenticated?.spaceId,
+        detail: {
+          size: client.buffer.length,
+          max: MAX_LINE_LENGTH,
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, { type: 'ERROR', message: `Line exceeds ${MAX_LINE_LENGTH} bytes` });
       client.buffer = '';
       return;
@@ -163,8 +223,32 @@ export class SharedHeadwatersHost {
     for (const line of lines) {
       if (!line.trim()) continue;
       try {
-        this.handleMessage(client, JSON.parse(line) as AuthRequest | ScanRequest | AuthenticatedITPMessage);
+        const message = JSON.parse(line) as AuthRequest | ScanRequest | AuthenticatedITPMessage;
+        this.recordMonitoring({
+          stage: 'parse',
+          outcome: 'accepted',
+          eventType: 'json_parsed',
+          connectionId: client.id,
+          sessionId: this.sessionIdForClient(client),
+          actorId: client.authenticated?.senderId,
+          spaceId: client.authenticated?.spaceId,
+          messageType: message.type,
+          detail: {},
+        });
+        this.handleMessage(client, message);
       } catch {
+        this.recordMonitoring({
+          stage: 'parse',
+          outcome: 'rejected',
+          eventType: 'invalid_json',
+          connectionId: client.id,
+          sessionId: this.sessionIdForClient(client),
+          actorId: client.authenticated?.senderId,
+          spaceId: client.authenticated?.spaceId,
+          detail: {
+            responseType: 'ERROR',
+          },
+        });
         this.send(client, { type: 'ERROR', message: 'Invalid JSON' });
       }
     }
@@ -176,6 +260,16 @@ export class SharedHeadwatersHost {
       return;
     }
     if (!client.authenticated) {
+      this.recordMonitoring({
+        stage: 'dispatch',
+        outcome: 'rejected',
+        eventType: 'unauthenticated_participation_rejected',
+        connectionId: client.id,
+        messageType: msg.type,
+        detail: {
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, { type: 'ERROR', message: 'Authenticate before station participation' });
       return;
     }
@@ -187,6 +281,14 @@ export class SharedHeadwatersHost {
   }
 
   private handleAuth(client: ClientConnection, msg: AuthRequest): void {
+    this.recordMonitoring({
+      stage: 'auth',
+      outcome: 'attempt',
+      eventType: 'auth_requested',
+      connectionId: client.id,
+      messageType: msg.type,
+      detail: {},
+    });
     try {
       const auth = verifyAuthRequest(msg, this.authSecret);
       const spaceId = auth.spaceId ?? HEADWATERS_COMMONS_SPACE_ID;
@@ -202,6 +304,19 @@ export class SharedHeadwatersHost {
         throw new Error('Station token aud mismatch for hosted space');
       }
       client.authenticated = { ...auth, spaceId };
+      this.recordMonitoring({
+        stage: 'auth',
+        outcome: 'accepted',
+        eventType: 'auth_succeeded',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated.senderId,
+        spaceId,
+        messageType: msg.type,
+        detail: {
+          responseType: 'AUTH_RESULT',
+        },
+      });
       this.send(client, {
         type: 'AUTH_RESULT',
         senderId: auth.senderId,
@@ -209,6 +324,17 @@ export class SharedHeadwatersHost {
         tutorialSpaceId: spaceId === HEADWATERS_COMMONS_SPACE_ID ? HEADWATERS_COMMONS_SPACE_ID : undefined,
       });
     } catch (err) {
+      this.recordMonitoring({
+        stage: 'auth',
+        outcome: 'rejected',
+        eventType: 'auth_failed',
+        connectionId: client.id,
+        messageType: msg.type,
+        detail: {
+          message: err instanceof Error ? err.message : String(err),
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, {
         type: 'ERROR',
         message: `Authentication failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -219,9 +345,48 @@ export class SharedHeadwatersHost {
   private handleScan(client: ClientConnection, msg: ScanRequest): void {
     const session = client.authenticated!;
     const hosted = this.spaces.get(session.spaceId)!;
+    this.recordMonitoring({
+      stage: 'scan',
+      outcome: 'attempt',
+      eventType: 'scan_requested',
+      connectionId: client.id,
+      sessionId: this.sessionIdForClient(client),
+      actorId: session.senderId,
+      spaceId: msg.spaceId,
+      messageType: msg.type,
+      detail: {
+        since: msg.since ?? 0,
+      },
+    });
     try {
       verifyPerMessageProof(session, msg.proof, msg, session.audience);
+      this.recordMonitoring({
+        stage: 'scan',
+        outcome: 'accepted',
+        eventType: 'scan_proof_valid',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: session.senderId,
+        spaceId: msg.spaceId,
+        messageType: msg.type,
+        detail: {},
+      });
       const messages = hosted.store.scan(msg.spaceId, msg.since ?? 0, session.senderId);
+      this.recordMonitoring({
+        stage: 'scan',
+        outcome: 'accepted',
+        eventType: 'scan_succeeded',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: session.senderId,
+        spaceId: msg.spaceId,
+        messageType: msg.type,
+        detail: {
+          latestSeq: hosted.store.latestSeq,
+          messageCount: messages.length,
+          responseType: 'SCAN_RESULT',
+        },
+      });
       this.send(client, {
         type: 'SCAN_RESULT',
         spaceId: msg.spaceId,
@@ -229,6 +394,22 @@ export class SharedHeadwatersHost {
         latestSeq: hosted.store.latestSeq,
       });
     } catch (err) {
+      this.recordMonitoring({
+        stage: 'scan',
+        outcome: err instanceof Error && err.message.includes('Access denied') ? 'failed' : 'rejected',
+        eventType: err instanceof Error && err.message.includes('Proof validation')
+          ? 'scan_proof_invalid'
+          : 'scan_failed',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: session.senderId,
+        spaceId: msg.spaceId,
+        messageType: msg.type,
+        detail: {
+          message: err instanceof Error ? err.message : String(err),
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, { type: 'ERROR', message: err instanceof Error ? err.message : String(err) });
     }
   }
@@ -236,13 +417,79 @@ export class SharedHeadwatersHost {
   private handlePost(client: ClientConnection, msg: AuthenticatedITPMessage): void {
     const session = client.authenticated!;
     const hosted = this.spaces.get(session.spaceId)!;
+    this.recordMonitoring({
+      stage: 'post',
+      outcome: 'attempt',
+      eventType: 'post_requested',
+      connectionId: client.id,
+      sessionId: this.sessionIdForClient(client),
+      actorId: session.senderId,
+      spaceId: msg.parentId ?? 'root',
+      messageType: msg.type,
+      detail: {},
+    });
     try {
       verifyPerMessageProof(session, msg.proof, msg, session.audience);
+      this.recordMonitoring({
+        stage: 'post',
+        outcome: 'accepted',
+        eventType: 'post_proof_valid',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: session.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {},
+      });
     } catch (err) {
+      this.recordMonitoring({
+        stage: 'post',
+        outcome: 'rejected',
+        eventType: 'post_proof_invalid',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: session.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {
+          message: err instanceof Error ? err.message : String(err),
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, { type: 'ERROR', message: `Proof validation failed: ${err instanceof Error ? err.message : String(err)}` });
       return;
     }
+    if (msg.type === 'INTENT' && !msg.intentId) {
+      this.recordMonitoring({
+        stage: 'post',
+        outcome: 'rejected',
+        eventType: 'intent_id_missing',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: session.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {
+          responseType: 'ERROR',
+        },
+      });
+      this.send(client, { type: 'ERROR', message: 'INTENT must have an intentId' });
+      return;
+    }
     if (!hosted.store.canAccessSpace(msg.parentId ?? 'root', session.senderId)) {
+      this.recordMonitoring({
+        stage: 'post',
+        outcome: 'rejected',
+        eventType: 'space_access_denied',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: session.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, { type: 'ERROR', message: `Access denied to space ${msg.parentId ?? 'root'}` });
       return;
     }
@@ -256,12 +503,76 @@ export class SharedHeadwatersHost {
       payload: msg.payload,
     };
     try {
+      this.recordMonitoring({
+        stage: 'persistence',
+        outcome: 'attempt',
+        eventType: 'message_persist_requested',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: session.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {},
+      });
       const seq = hosted.store.post(storedMessage);
+      this.recordMonitoring({
+        stage: 'persistence',
+        outcome: 'persisted',
+        eventType: 'message_persisted',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: session.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {
+          seq,
+        },
+      });
       const echo: MessageEcho = { ...msg, seq };
       this.broadcastWithinSpace(session.spaceId, echo);
     } catch (err) {
+      this.recordMonitoring({
+        stage: 'persistence',
+        outcome: 'failed',
+        eventType: 'message_persist_failed',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: session.senderId,
+        spaceId: msg.parentId ?? 'root',
+        messageType: msg.type,
+        detail: {
+          message: err instanceof Error ? err.message : String(err),
+          responseType: 'ERROR',
+        },
+      });
       this.send(client, { type: 'ERROR', message: `Failed to persist: ${err instanceof Error ? err.message : String(err)}` });
     }
+  }
+
+  private recordMonitoring(event: MonitoringEventInput): void {
+    const store = this.monitoringStoreForEvent(event.spaceId);
+    try {
+      store.appendMonitoringEvent(event);
+    } catch {
+      // Observability must not break normal participation.
+    }
+  }
+
+  private monitoringStoreForEvent(spaceId?: string): IntentStore {
+    const resolvedSpaceId = spaceId ?? HEADWATERS_COMMONS_SPACE_ID;
+    let hosted = this.spaces.get(resolvedSpaceId);
+    if (!hosted && resolvedSpaceId !== HEADWATERS_COMMONS_SPACE_ID) {
+      this.tryLoadProvisionedSpace(resolvedSpaceId);
+      hosted = this.spaces.get(resolvedSpaceId);
+    }
+    return hosted?.store ?? this.spaces.get(HEADWATERS_COMMONS_SPACE_ID)!.store;
+  }
+
+  private sessionIdForClient(client: ClientConnection): string | undefined {
+    const senderId = client.authenticated?.senderId;
+    const spaceId = client.authenticated?.spaceId;
+    if (!senderId || !spaceId) return undefined;
+    return `${senderId}@${spaceId}`;
   }
 
   private broadcastWithinSpace(boundSpaceId: string, msg: ServerMessage): void {

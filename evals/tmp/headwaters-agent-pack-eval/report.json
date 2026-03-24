@@ -1,0 +1,1662 @@
+{
+  "generatedAt": "2026-03-24T18:27:31.274Z",
+  "summaries": [
+    {
+      "trial": 1,
+      "status": "passed",
+      "startedAt": "2026-03-24T18:27:24.839Z",
+      "endedAt": "2026-03-24T18:27:31.171Z",
+      "durationMs": 6332,
+      "runDir": "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01",
+      "baseUrl": "http://127.0.0.1:8090",
+      "commonsDbPath": "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/headwaters/data/commons/intent-space.db",
+      "injectedIntentContent": "Build a small shared product. If you are suited to one slice, volunteer only your own slice and coordinate through intents and promises.",
+      "orientationVerdict": "passed",
+      "coexistenceVerdict": "not-run",
+      "collaborationVerdict": "not-run",
+      "agentSummaries": [
+        {
+          "agent": "scripted-headwaters",
+          "status": "passed",
+          "exitCode": 0,
+          "terminationReason": "process-exit",
+          "workspaceDir": "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace",
+          "stdoutPath": "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/stdout.log",
+          "stderrPath": "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/stderr.log",
+          "generatedFiles": [
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/config/station.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/identity/station-fingerprint.txt",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/identity/station-private-key.pem",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/identity/station-public-key.pem",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/cursors.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/headwaters-home-accept-echo.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/headwaters-home-accept.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/headwaters-home-assess.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/headwaters-home-complete.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/headwaters-home-intent.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/headwaters-home-promise.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/headwaters-home-request.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/headwaters-home-scan.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/known-stations.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/runtime-steps.ndjson",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/session-finish.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/station-enrollment.json",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/tutorial-transcript.ndjson",
+            "/Users/julestalbourdet/Documents/sky_valley/big-d/evals/tmp/headwaters-agent-pack-eval/trial-01/agents/scripted-headwaters/workspace/.intent-space/state/welcome-mat.json"
+          ],
+          "handle": "scripted-1774376844839",
+          "evidence": {
+            "handle": "scripted-1774376844839",
+            "messages": [
+              {
+                "seq": 6,
+                "type": "INTENT",
+                "message_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "intent_ref": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "parent_id": "headwaters-commons",
+                "sender_id": "scripted-1774376844839",
+                "payload": {
+                  "requestedSpace": {
+                    "kind": "home"
+                  },
+                  "spacePolicy": {
+                    "visibility": "private",
+                    "participants": [
+                      "scripted-1774376844839",
+                      "headwaters-steward"
+                    ]
+                  },
+                  "content": "Please create my home space."
+                },
+                "timestamp": 1774376845950
+              },
+              {
+                "seq": 8,
+                "type": "ACCEPT",
+                "message_id": "headwaters-promise-283e8496-7c5f-400d-8f27-a1540eca4a2b",
+                "intent_ref": null,
+                "parent_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "sender_id": "scripted-1774376844839",
+                "payload": {},
+                "timestamp": 1774376847090
+              },
+              {
+                "seq": 11,
+                "type": "ASSESS",
+                "message_id": "headwaters-promise-283e8496-7c5f-400d-8f27-a1540eca4a2b",
+                "intent_ref": null,
+                "parent_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "sender_id": "scripted-1774376844839",
+                "payload": {
+                  "assessment": "FULFILLED"
+                },
+                "timestamp": 1774376848332
+              }
+            ],
+            "monitoringEvents": [
+              {
+                "id": 6,
+                "timestamp": 1774376845103,
+                "stage": "auth",
+                "outcome": "accepted",
+                "event_type": "auth_succeeded",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "headwaters-commons",
+                "message_type": "AUTH",
+                "detail": {
+                  "responseType": "AUTH_RESULT"
+                }
+              },
+              {
+                "id": 20,
+                "timestamp": 1774376845967,
+                "stage": "parse",
+                "outcome": "accepted",
+                "event_type": "json_parsed",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "headwaters-commons",
+                "message_type": "INTENT",
+                "detail": {}
+              },
+              {
+                "id": 21,
+                "timestamp": 1774376845968,
+                "stage": "post",
+                "outcome": "attempt",
+                "event_type": "post_requested",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "headwaters-commons",
+                "message_type": "INTENT",
+                "detail": {}
+              },
+              {
+                "id": 22,
+                "timestamp": 1774376845968,
+                "stage": "post",
+                "outcome": "accepted",
+                "event_type": "post_proof_valid",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "headwaters-commons",
+                "message_type": "INTENT",
+                "detail": {}
+              },
+              {
+                "id": 23,
+                "timestamp": 1774376845968,
+                "stage": "persistence",
+                "outcome": "attempt",
+                "event_type": "message_persist_requested",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "headwaters-commons",
+                "message_type": "INTENT",
+                "detail": {}
+              },
+              {
+                "id": 24,
+                "timestamp": 1774376845968,
+                "stage": "persistence",
+                "outcome": "persisted",
+                "event_type": "message_persisted",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "headwaters-commons",
+                "message_type": "INTENT",
+                "detail": {
+                  "seq": 6
+                }
+              },
+              {
+                "id": 42,
+                "timestamp": 1774376847117,
+                "stage": "parse",
+                "outcome": "accepted",
+                "event_type": "json_parsed",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "headwaters-commons",
+                "message_type": "ACCEPT",
+                "detail": {}
+              },
+              {
+                "id": 43,
+                "timestamp": 1774376847117,
+                "stage": "post",
+                "outcome": "attempt",
+                "event_type": "post_requested",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "message_type": "ACCEPT",
+                "detail": {}
+              },
+              {
+                "id": 44,
+                "timestamp": 1774376847118,
+                "stage": "post",
+                "outcome": "accepted",
+                "event_type": "post_proof_valid",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "message_type": "ACCEPT",
+                "detail": {}
+              },
+              {
+                "id": 45,
+                "timestamp": 1774376847118,
+                "stage": "persistence",
+                "outcome": "attempt",
+                "event_type": "message_persist_requested",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "message_type": "ACCEPT",
+                "detail": {}
+              },
+              {
+                "id": 46,
+                "timestamp": 1774376847118,
+                "stage": "persistence",
+                "outcome": "persisted",
+                "event_type": "message_persisted",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "message_type": "ACCEPT",
+                "detail": {
+                  "seq": 8
+                }
+              },
+              {
+                "id": 63,
+                "timestamp": 1774376848357,
+                "stage": "parse",
+                "outcome": "accepted",
+                "event_type": "json_parsed",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "headwaters-commons",
+                "message_type": "ASSESS",
+                "detail": {}
+              },
+              {
+                "id": 64,
+                "timestamp": 1774376848358,
+                "stage": "post",
+                "outcome": "attempt",
+                "event_type": "post_requested",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "message_type": "ASSESS",
+                "detail": {}
+              },
+              {
+                "id": 65,
+                "timestamp": 1774376848358,
+                "stage": "post",
+                "outcome": "accepted",
+                "event_type": "post_proof_valid",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "message_type": "ASSESS",
+                "detail": {}
+              },
+              {
+                "id": 66,
+                "timestamp": 1774376848358,
+                "stage": "persistence",
+                "outcome": "attempt",
+                "event_type": "message_persist_requested",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "message_type": "ASSESS",
+                "detail": {}
+              },
+              {
+                "id": 67,
+                "timestamp": 1774376848358,
+                "stage": "persistence",
+                "outcome": "persisted",
+                "event_type": "message_persisted",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+                "message_type": "ASSESS",
+                "detail": {
+                  "seq": 11
+                }
+              },
+              {
+                "id": 68,
+                "timestamp": 1774376848358,
+                "stage": "connection",
+                "outcome": "failed",
+                "event_type": "connection_error",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "headwaters-commons",
+                "message_type": null,
+                "detail": {
+                  "message": "read ECONNRESET"
+                }
+              },
+              {
+                "id": 69,
+                "timestamp": 1774376848359,
+                "stage": "connection",
+                "outcome": "accepted",
+                "event_type": "connection_closed",
+                "connection_id": "conn-2",
+                "session_id": "scripted-1774376844839@headwaters-commons",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "headwaters-commons",
+                "message_type": null,
+                "detail": {}
+              },
+              {
+                "id": 73,
+                "timestamp": 1774376849518,
+                "stage": "post",
+                "outcome": "attempt",
+                "event_type": "post_requested",
+                "connection_id": "conn-5",
+                "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "root",
+                "message_type": "INTENT",
+                "detail": {}
+              },
+              {
+                "id": 74,
+                "timestamp": 1774376849518,
+                "stage": "post",
+                "outcome": "accepted",
+                "event_type": "post_proof_valid",
+                "connection_id": "conn-5",
+                "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "root",
+                "message_type": "INTENT",
+                "detail": {}
+              },
+              {
+                "id": 75,
+                "timestamp": 1774376849518,
+                "stage": "persistence",
+                "outcome": "attempt",
+                "event_type": "message_persist_requested",
+                "connection_id": "conn-5",
+                "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "root",
+                "message_type": "INTENT",
+                "detail": {}
+              },
+              {
+                "id": 76,
+                "timestamp": 1774376849518,
+                "stage": "persistence",
+                "outcome": "persisted",
+                "event_type": "message_persisted",
+                "connection_id": "conn-5",
+                "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "root",
+                "message_type": "INTENT",
+                "detail": {
+                  "seq": 1
+                }
+              },
+              {
+                "id": 77,
+                "timestamp": 1774376849537,
+                "stage": "scan",
+                "outcome": "attempt",
+                "event_type": "scan_requested",
+                "connection_id": "conn-5",
+                "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "root",
+                "message_type": "SCAN",
+                "detail": {
+                  "since": 0
+                }
+              },
+              {
+                "id": 78,
+                "timestamp": 1774376849537,
+                "stage": "scan",
+                "outcome": "accepted",
+                "event_type": "scan_proof_valid",
+                "connection_id": "conn-5",
+                "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "root",
+                "message_type": "SCAN",
+                "detail": {}
+              },
+              {
+                "id": 79,
+                "timestamp": 1774376849537,
+                "stage": "scan",
+                "outcome": "accepted",
+                "event_type": "scan_succeeded",
+                "connection_id": "conn-5",
+                "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+                "actor_id": "scripted-1774376844839",
+                "space_id": "root",
+                "message_type": "SCAN",
+                "detail": {
+                  "latestSeq": 1,
+                  "messageCount": 1,
+                  "responseType": "SCAN_RESULT"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "sharedEvidence": {
+        "messages": [
+          {
+            "seq": 5,
+            "type": "INTENT",
+            "message_id": "headwaters:steward:provision-spaces",
+            "intent_ref": "headwaters:steward:provision-spaces",
+            "parent_id": "headwaters-commons",
+            "sender_id": "headwaters-steward",
+            "payload": {
+              "content": "I provision dedicated spaces in Headwaters through promises.",
+              "offeredSpaces": [
+                {
+                  "kind": "home"
+                }
+              ],
+              "howToRequest": {
+                "type": "INTENT",
+                "parentId": "headwaters-commons",
+                "payload": {
+                  "requestedSpace": {
+                    "kind": "home"
+                  },
+                  "spacePolicy": {
+                    "visibility": "private",
+                    "participants": [
+                      "<requester-sender-id>",
+                      "headwaters-steward"
+                    ]
+                  }
+                }
+              },
+              "lifecycle": [
+                "PROMISE",
+                "ACCEPT",
+                "COMPLETE",
+                "ASSESS"
+              ]
+            },
+            "timestamp": 1774376845376
+          },
+          {
+            "seq": 6,
+            "type": "INTENT",
+            "message_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "intent_ref": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "parent_id": "headwaters-commons",
+            "sender_id": "scripted-1774376844839",
+            "payload": {
+              "requestedSpace": {
+                "kind": "home"
+              },
+              "spacePolicy": {
+                "visibility": "private",
+                "participants": [
+                  "scripted-1774376844839",
+                  "headwaters-steward"
+                ]
+              },
+              "content": "Please create my home space."
+            },
+            "timestamp": 1774376845950
+          },
+          {
+            "seq": 7,
+            "type": "PROMISE",
+            "message_id": "headwaters-promise-283e8496-7c5f-400d-8f27-a1540eca4a2b",
+            "intent_ref": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "parent_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "sender_id": "headwaters-steward",
+            "payload": {
+              "content": "I will provision your home space and return its dedicated endpoint."
+            },
+            "timestamp": 1774376845974
+          },
+          {
+            "seq": 8,
+            "type": "ACCEPT",
+            "message_id": "headwaters-promise-283e8496-7c5f-400d-8f27-a1540eca4a2b",
+            "intent_ref": null,
+            "parent_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "sender_id": "scripted-1774376844839",
+            "payload": {},
+            "timestamp": 1774376847090
+          },
+          {
+            "seq": 9,
+            "type": "COMPLETE",
+            "message_id": "headwaters-promise-283e8496-7c5f-400d-8f27-a1540eca4a2b",
+            "intent_ref": null,
+            "parent_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "sender_id": "headwaters-steward",
+            "payload": {
+              "content": "Home space provisioned. Connect directly to your dedicated space and assess the result.",
+              "summary": "Home space provisioned. Connect directly to your dedicated space and assess the result.",
+              "headwatersStatus": "SPACE_CREATED",
+              "spaceKind": "home",
+              "spaceId": "home-scripted-1774376844839",
+              "stationEndpoint": "tcp://127.0.0.1:4010",
+              "stationAudience": "intent-space://headwaters/spaces/home-scripted-1774376844839",
+              "stationToken": "eyJ0eXAiOiJpdHArand0IiwiYWxnIjoiSFMyNTYifQ.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjgwOTAiLCJzdWIiOiJzY3JpcHRlZC0xNzc0Mzc2ODQ0ODM5IiwiYXVkIjoiaW50ZW50LXNwYWNlOi8vaGVhZHdhdGVycy9zcGFjZXMvaG9tZS1zY3JpcHRlZC0xNzc0Mzc2ODQ0ODM5Iiwic3BhY2VfaWQiOiJob21lLXNjcmlwdGVkLTE3NzQzNzY4NDQ4MzkiLCJjbmYiOnsiamt0IjoiVzNlakNSUHc0SmZIWDB6ZWV2VnoxaHQ4R25NUVJoTU5WVGJYZk1pQU9nRSJ9LCJzY29wZSI6ImludGVudC1zcGFjZTpzdGF0aW9uIiwiaWF0IjoxNzc0Mzc2ODQ3LCJleHAiOjE3NzQ0MjAwNDcsImp0aSI6IjIwOTA3NTJmLTQ3NWYtNDg1NS1hMjNkLThmMjFhZTk3NDkwZiJ9.kOLGxhhhAFP719i_HGc_RPj6rToFtiME3E74VczhrQg"
+            },
+            "timestamp": 1774376847125
+          },
+          {
+            "seq": 10,
+            "type": "INTENT",
+            "message_id": "intent-98f8c6e0-a568-49b7-89c9-966d05e3c070",
+            "intent_ref": "intent-98f8c6e0-a568-49b7-89c9-966d05e3c070",
+            "parent_id": "headwaters-commons",
+            "sender_id": "eval-operator",
+            "payload": {
+              "content": "Build a small shared product. If you are suited to one slice, volunteer only your own slice and coordinate through intents and promises.",
+              "source": "eval-operator"
+            },
+            "timestamp": 1774376847196
+          },
+          {
+            "seq": 11,
+            "type": "ASSESS",
+            "message_id": "headwaters-promise-283e8496-7c5f-400d-8f27-a1540eca4a2b",
+            "intent_ref": null,
+            "parent_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "sender_id": "scripted-1774376844839",
+            "payload": {
+              "assessment": "FULFILLED"
+            },
+            "timestamp": 1774376848332
+          }
+        ],
+        "monitoringEvents": [
+          {
+            "id": 1,
+            "timestamp": 1774376844839,
+            "stage": "connection",
+            "outcome": "accepted",
+            "event_type": "connection_opened",
+            "connection_id": "conn-1",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": null,
+            "detail": {}
+          },
+          {
+            "id": 2,
+            "timestamp": 1774376844839,
+            "stage": "connection",
+            "outcome": "accepted",
+            "event_type": "connection_closed",
+            "connection_id": "conn-1",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": null,
+            "detail": {}
+          },
+          {
+            "id": 3,
+            "timestamp": 1774376845086,
+            "stage": "connection",
+            "outcome": "accepted",
+            "event_type": "connection_opened",
+            "connection_id": "conn-2",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": null,
+            "detail": {}
+          },
+          {
+            "id": 4,
+            "timestamp": 1774376845102,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-2",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": "AUTH",
+            "detail": {}
+          },
+          {
+            "id": 5,
+            "timestamp": 1774376845102,
+            "stage": "auth",
+            "outcome": "attempt",
+            "event_type": "auth_requested",
+            "connection_id": "conn-2",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": "AUTH",
+            "detail": {}
+          },
+          {
+            "id": 6,
+            "timestamp": 1774376845103,
+            "stage": "auth",
+            "outcome": "accepted",
+            "event_type": "auth_succeeded",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "headwaters-commons",
+            "message_type": "AUTH",
+            "detail": {
+              "responseType": "AUTH_RESULT"
+            }
+          },
+          {
+            "id": 7,
+            "timestamp": 1774376845372,
+            "stage": "connection",
+            "outcome": "accepted",
+            "event_type": "connection_opened",
+            "connection_id": "conn-3",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": null,
+            "detail": {}
+          },
+          {
+            "id": 8,
+            "timestamp": 1774376845376,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-3",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": "AUTH",
+            "detail": {}
+          },
+          {
+            "id": 9,
+            "timestamp": 1774376845376,
+            "stage": "auth",
+            "outcome": "attempt",
+            "event_type": "auth_requested",
+            "connection_id": "conn-3",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": "AUTH",
+            "detail": {}
+          },
+          {
+            "id": 10,
+            "timestamp": 1774376845376,
+            "stage": "auth",
+            "outcome": "accepted",
+            "event_type": "auth_succeeded",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "AUTH",
+            "detail": {
+              "responseType": "AUTH_RESULT"
+            }
+          },
+          {
+            "id": 11,
+            "timestamp": 1774376845386,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 12,
+            "timestamp": 1774376845386,
+            "stage": "post",
+            "outcome": "attempt",
+            "event_type": "post_requested",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 13,
+            "timestamp": 1774376845393,
+            "stage": "post",
+            "outcome": "accepted",
+            "event_type": "post_proof_valid",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 14,
+            "timestamp": 1774376845393,
+            "stage": "persistence",
+            "outcome": "attempt",
+            "event_type": "message_persist_requested",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 15,
+            "timestamp": 1774376845393,
+            "stage": "persistence",
+            "outcome": "persisted",
+            "event_type": "message_persisted",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {
+              "seq": 5
+            }
+          },
+          {
+            "id": 16,
+            "timestamp": 1774376845393,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "SCAN",
+            "detail": {}
+          },
+          {
+            "id": 17,
+            "timestamp": 1774376845393,
+            "stage": "scan",
+            "outcome": "attempt",
+            "event_type": "scan_requested",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "SCAN",
+            "detail": {
+              "since": 0
+            }
+          },
+          {
+            "id": 18,
+            "timestamp": 1774376845393,
+            "stage": "scan",
+            "outcome": "accepted",
+            "event_type": "scan_proof_valid",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "SCAN",
+            "detail": {}
+          },
+          {
+            "id": 19,
+            "timestamp": 1774376845394,
+            "stage": "scan",
+            "outcome": "accepted",
+            "event_type": "scan_succeeded",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "SCAN",
+            "detail": {
+              "latestSeq": 5,
+              "messageCount": 1,
+              "responseType": "SCAN_RESULT"
+            }
+          },
+          {
+            "id": 20,
+            "timestamp": 1774376845967,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 21,
+            "timestamp": 1774376845968,
+            "stage": "post",
+            "outcome": "attempt",
+            "event_type": "post_requested",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 22,
+            "timestamp": 1774376845968,
+            "stage": "post",
+            "outcome": "accepted",
+            "event_type": "post_proof_valid",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 23,
+            "timestamp": 1774376845968,
+            "stage": "persistence",
+            "outcome": "attempt",
+            "event_type": "message_persist_requested",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 24,
+            "timestamp": 1774376845968,
+            "stage": "persistence",
+            "outcome": "persisted",
+            "event_type": "message_persisted",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {
+              "seq": 6
+            }
+          },
+          {
+            "id": 25,
+            "timestamp": 1774376845973,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "SCAN",
+            "detail": {}
+          },
+          {
+            "id": 26,
+            "timestamp": 1774376845973,
+            "stage": "scan",
+            "outcome": "attempt",
+            "event_type": "scan_requested",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "SCAN",
+            "detail": {
+              "since": 0
+            }
+          },
+          {
+            "id": 27,
+            "timestamp": 1774376845973,
+            "stage": "scan",
+            "outcome": "accepted",
+            "event_type": "scan_proof_valid",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "SCAN",
+            "detail": {}
+          },
+          {
+            "id": 28,
+            "timestamp": 1774376845973,
+            "stage": "scan",
+            "outcome": "accepted",
+            "event_type": "scan_succeeded",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "SCAN",
+            "detail": {
+              "latestSeq": 6,
+              "messageCount": 0,
+              "responseType": "SCAN_RESULT"
+            }
+          },
+          {
+            "id": 29,
+            "timestamp": 1774376845977,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "PROMISE",
+            "detail": {}
+          },
+          {
+            "id": 30,
+            "timestamp": 1774376845977,
+            "stage": "post",
+            "outcome": "attempt",
+            "event_type": "post_requested",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "PROMISE",
+            "detail": {}
+          },
+          {
+            "id": 31,
+            "timestamp": 1774376845978,
+            "stage": "post",
+            "outcome": "accepted",
+            "event_type": "post_proof_valid",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "PROMISE",
+            "detail": {}
+          },
+          {
+            "id": 32,
+            "timestamp": 1774376845978,
+            "stage": "persistence",
+            "outcome": "attempt",
+            "event_type": "message_persist_requested",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "PROMISE",
+            "detail": {}
+          },
+          {
+            "id": 33,
+            "timestamp": 1774376845978,
+            "stage": "persistence",
+            "outcome": "persisted",
+            "event_type": "message_persisted",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "PROMISE",
+            "detail": {
+              "seq": 7
+            }
+          },
+          {
+            "id": 34,
+            "timestamp": 1774376845983,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "SCAN",
+            "detail": {}
+          },
+          {
+            "id": 35,
+            "timestamp": 1774376845983,
+            "stage": "scan",
+            "outcome": "attempt",
+            "event_type": "scan_requested",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "SCAN",
+            "detail": {
+              "since": 6
+            }
+          },
+          {
+            "id": 36,
+            "timestamp": 1774376845983,
+            "stage": "scan",
+            "outcome": "accepted",
+            "event_type": "scan_proof_valid",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "SCAN",
+            "detail": {}
+          },
+          {
+            "id": 37,
+            "timestamp": 1774376845983,
+            "stage": "scan",
+            "outcome": "accepted",
+            "event_type": "scan_succeeded",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "SCAN",
+            "detail": {
+              "latestSeq": 7,
+              "messageCount": 1,
+              "responseType": "SCAN_RESULT"
+            }
+          },
+          {
+            "id": 38,
+            "timestamp": 1774376846073,
+            "stage": "connection",
+            "outcome": "accepted",
+            "event_type": "connection_opened",
+            "connection_id": "conn-4",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": null,
+            "detail": {}
+          },
+          {
+            "id": 39,
+            "timestamp": 1774376846088,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-4",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": "AUTH",
+            "detail": {}
+          },
+          {
+            "id": 40,
+            "timestamp": 1774376846088,
+            "stage": "auth",
+            "outcome": "attempt",
+            "event_type": "auth_requested",
+            "connection_id": "conn-4",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": "AUTH",
+            "detail": {}
+          },
+          {
+            "id": 41,
+            "timestamp": 1774376846089,
+            "stage": "auth",
+            "outcome": "accepted",
+            "event_type": "auth_succeeded",
+            "connection_id": "conn-4",
+            "session_id": "eval-operator@headwaters-commons",
+            "actor_id": "eval-operator",
+            "space_id": "headwaters-commons",
+            "message_type": "AUTH",
+            "detail": {
+              "responseType": "AUTH_RESULT"
+            }
+          },
+          {
+            "id": 42,
+            "timestamp": 1774376847117,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "headwaters-commons",
+            "message_type": "ACCEPT",
+            "detail": {}
+          },
+          {
+            "id": 43,
+            "timestamp": 1774376847117,
+            "stage": "post",
+            "outcome": "attempt",
+            "event_type": "post_requested",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "ACCEPT",
+            "detail": {}
+          },
+          {
+            "id": 44,
+            "timestamp": 1774376847118,
+            "stage": "post",
+            "outcome": "accepted",
+            "event_type": "post_proof_valid",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "ACCEPT",
+            "detail": {}
+          },
+          {
+            "id": 45,
+            "timestamp": 1774376847118,
+            "stage": "persistence",
+            "outcome": "attempt",
+            "event_type": "message_persist_requested",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "ACCEPT",
+            "detail": {}
+          },
+          {
+            "id": 46,
+            "timestamp": 1774376847118,
+            "stage": "persistence",
+            "outcome": "persisted",
+            "event_type": "message_persisted",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "ACCEPT",
+            "detail": {
+              "seq": 8
+            }
+          },
+          {
+            "id": 47,
+            "timestamp": 1774376847123,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "SCAN",
+            "detail": {}
+          },
+          {
+            "id": 48,
+            "timestamp": 1774376847123,
+            "stage": "scan",
+            "outcome": "attempt",
+            "event_type": "scan_requested",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "SCAN",
+            "detail": {
+              "since": 7
+            }
+          },
+          {
+            "id": 49,
+            "timestamp": 1774376847124,
+            "stage": "scan",
+            "outcome": "accepted",
+            "event_type": "scan_proof_valid",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "SCAN",
+            "detail": {}
+          },
+          {
+            "id": 50,
+            "timestamp": 1774376847124,
+            "stage": "scan",
+            "outcome": "accepted",
+            "event_type": "scan_succeeded",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "SCAN",
+            "detail": {
+              "latestSeq": 8,
+              "messageCount": 1,
+              "responseType": "SCAN_RESULT"
+            }
+          },
+          {
+            "id": 51,
+            "timestamp": 1774376847129,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "headwaters-commons",
+            "message_type": "COMPLETE",
+            "detail": {}
+          },
+          {
+            "id": 52,
+            "timestamp": 1774376847129,
+            "stage": "post",
+            "outcome": "attempt",
+            "event_type": "post_requested",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "COMPLETE",
+            "detail": {}
+          },
+          {
+            "id": 53,
+            "timestamp": 1774376847130,
+            "stage": "post",
+            "outcome": "accepted",
+            "event_type": "post_proof_valid",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "COMPLETE",
+            "detail": {}
+          },
+          {
+            "id": 54,
+            "timestamp": 1774376847130,
+            "stage": "persistence",
+            "outcome": "attempt",
+            "event_type": "message_persist_requested",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "COMPLETE",
+            "detail": {}
+          },
+          {
+            "id": 55,
+            "timestamp": 1774376847130,
+            "stage": "persistence",
+            "outcome": "persisted",
+            "event_type": "message_persisted",
+            "connection_id": "conn-3",
+            "session_id": "headwaters-steward@headwaters-commons",
+            "actor_id": "headwaters-steward",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "COMPLETE",
+            "detail": {
+              "seq": 9
+            }
+          },
+          {
+            "id": 56,
+            "timestamp": 1774376847218,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-4",
+            "session_id": "eval-operator@headwaters-commons",
+            "actor_id": "eval-operator",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 57,
+            "timestamp": 1774376847218,
+            "stage": "post",
+            "outcome": "attempt",
+            "event_type": "post_requested",
+            "connection_id": "conn-4",
+            "session_id": "eval-operator@headwaters-commons",
+            "actor_id": "eval-operator",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 58,
+            "timestamp": 1774376847218,
+            "stage": "post",
+            "outcome": "accepted",
+            "event_type": "post_proof_valid",
+            "connection_id": "conn-4",
+            "session_id": "eval-operator@headwaters-commons",
+            "actor_id": "eval-operator",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 59,
+            "timestamp": 1774376847218,
+            "stage": "persistence",
+            "outcome": "attempt",
+            "event_type": "message_persist_requested",
+            "connection_id": "conn-4",
+            "session_id": "eval-operator@headwaters-commons",
+            "actor_id": "eval-operator",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 60,
+            "timestamp": 1774376847218,
+            "stage": "persistence",
+            "outcome": "persisted",
+            "event_type": "message_persisted",
+            "connection_id": "conn-4",
+            "session_id": "eval-operator@headwaters-commons",
+            "actor_id": "eval-operator",
+            "space_id": "headwaters-commons",
+            "message_type": "INTENT",
+            "detail": {
+              "seq": 10
+            }
+          },
+          {
+            "id": 61,
+            "timestamp": 1774376847220,
+            "stage": "connection",
+            "outcome": "failed",
+            "event_type": "connection_error",
+            "connection_id": "conn-4",
+            "session_id": "eval-operator@headwaters-commons",
+            "actor_id": "eval-operator",
+            "space_id": "headwaters-commons",
+            "message_type": null,
+            "detail": {
+              "message": "read ECONNRESET"
+            }
+          },
+          {
+            "id": 62,
+            "timestamp": 1774376847220,
+            "stage": "connection",
+            "outcome": "accepted",
+            "event_type": "connection_closed",
+            "connection_id": "conn-4",
+            "session_id": "eval-operator@headwaters-commons",
+            "actor_id": "eval-operator",
+            "space_id": "headwaters-commons",
+            "message_type": null,
+            "detail": {}
+          },
+          {
+            "id": 63,
+            "timestamp": 1774376848357,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "headwaters-commons",
+            "message_type": "ASSESS",
+            "detail": {}
+          },
+          {
+            "id": 64,
+            "timestamp": 1774376848358,
+            "stage": "post",
+            "outcome": "attempt",
+            "event_type": "post_requested",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "ASSESS",
+            "detail": {}
+          },
+          {
+            "id": 65,
+            "timestamp": 1774376848358,
+            "stage": "post",
+            "outcome": "accepted",
+            "event_type": "post_proof_valid",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "ASSESS",
+            "detail": {}
+          },
+          {
+            "id": 66,
+            "timestamp": 1774376848358,
+            "stage": "persistence",
+            "outcome": "attempt",
+            "event_type": "message_persist_requested",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "ASSESS",
+            "detail": {}
+          },
+          {
+            "id": 67,
+            "timestamp": 1774376848358,
+            "stage": "persistence",
+            "outcome": "persisted",
+            "event_type": "message_persisted",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+            "message_type": "ASSESS",
+            "detail": {
+              "seq": 11
+            }
+          },
+          {
+            "id": 68,
+            "timestamp": 1774376848358,
+            "stage": "connection",
+            "outcome": "failed",
+            "event_type": "connection_error",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "headwaters-commons",
+            "message_type": null,
+            "detail": {
+              "message": "read ECONNRESET"
+            }
+          },
+          {
+            "id": 69,
+            "timestamp": 1774376848359,
+            "stage": "connection",
+            "outcome": "accepted",
+            "event_type": "connection_closed",
+            "connection_id": "conn-2",
+            "session_id": "scripted-1774376844839@headwaters-commons",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "headwaters-commons",
+            "message_type": null,
+            "detail": {}
+          },
+          {
+            "id": 70,
+            "timestamp": 1774376848359,
+            "stage": "connection",
+            "outcome": "accepted",
+            "event_type": "connection_opened",
+            "connection_id": "conn-5",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": null,
+            "detail": {}
+          },
+          {
+            "id": 71,
+            "timestamp": 1774376848378,
+            "stage": "parse",
+            "outcome": "accepted",
+            "event_type": "json_parsed",
+            "connection_id": "conn-5",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": "AUTH",
+            "detail": {}
+          },
+          {
+            "id": 72,
+            "timestamp": 1774376848378,
+            "stage": "auth",
+            "outcome": "attempt",
+            "event_type": "auth_requested",
+            "connection_id": "conn-5",
+            "session_id": null,
+            "actor_id": null,
+            "space_id": null,
+            "message_type": "AUTH",
+            "detail": {}
+          },
+          {
+            "id": 73,
+            "timestamp": 1774376849518,
+            "stage": "post",
+            "outcome": "attempt",
+            "event_type": "post_requested",
+            "connection_id": "conn-5",
+            "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "root",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 74,
+            "timestamp": 1774376849518,
+            "stage": "post",
+            "outcome": "accepted",
+            "event_type": "post_proof_valid",
+            "connection_id": "conn-5",
+            "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "root",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 75,
+            "timestamp": 1774376849518,
+            "stage": "persistence",
+            "outcome": "attempt",
+            "event_type": "message_persist_requested",
+            "connection_id": "conn-5",
+            "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "root",
+            "message_type": "INTENT",
+            "detail": {}
+          },
+          {
+            "id": 76,
+            "timestamp": 1774376849518,
+            "stage": "persistence",
+            "outcome": "persisted",
+            "event_type": "message_persisted",
+            "connection_id": "conn-5",
+            "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "root",
+            "message_type": "INTENT",
+            "detail": {
+              "seq": 1
+            }
+          },
+          {
+            "id": 77,
+            "timestamp": 1774376849537,
+            "stage": "scan",
+            "outcome": "attempt",
+            "event_type": "scan_requested",
+            "connection_id": "conn-5",
+            "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "root",
+            "message_type": "SCAN",
+            "detail": {
+              "since": 0
+            }
+          },
+          {
+            "id": 78,
+            "timestamp": 1774376849537,
+            "stage": "scan",
+            "outcome": "accepted",
+            "event_type": "scan_proof_valid",
+            "connection_id": "conn-5",
+            "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "root",
+            "message_type": "SCAN",
+            "detail": {}
+          },
+          {
+            "id": 79,
+            "timestamp": 1774376849537,
+            "stage": "scan",
+            "outcome": "accepted",
+            "event_type": "scan_succeeded",
+            "connection_id": "conn-5",
+            "session_id": "scripted-1774376844839@home-scripted-1774376844839",
+            "actor_id": "scripted-1774376844839",
+            "space_id": "root",
+            "message_type": "SCAN",
+            "detail": {
+              "latestSeq": 1,
+              "messageCount": 1,
+              "responseType": "SCAN_RESULT"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

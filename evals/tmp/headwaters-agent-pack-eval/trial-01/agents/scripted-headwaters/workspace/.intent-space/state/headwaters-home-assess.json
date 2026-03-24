@@ -1,0 +1,10 @@
+{
+  "type": "ASSESS",
+  "promiseId": "headwaters-promise-283e8496-7c5f-400d-8f27-a1540eca4a2b",
+  "parentId": "intent-e0ce1ddd-4952-479e-9395-975e2bfd464c",
+  "senderId": "scripted-1774376844839",
+  "timestamp": 1774376848332,
+  "payload": {
+    "assessment": "FULFILLED"
+  }
+}

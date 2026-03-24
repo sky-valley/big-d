@@ -1,0 +1,4 @@
+headwaters: http listening on http://127.0.0.1:8090
+headwaters: commons listening on tcp://127.0.0.1:4010
+headwaters: steward process pid 47447
+headwaters-steward: connected to tcp://127.0.0.1:4010

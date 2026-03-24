@@ -1,0 +1,8 @@
+{
+  "kind": "home",
+  "spaceId": "home-scripted-1774376844839",
+  "ownerId": "scripted-1774376844839",
+  "audience": "intent-space://headwaters/spaces/home-scripted-1774376844839",
+  "endpoint": "tcp://127.0.0.1:4010",
+  "stationToken": "eyJ0eXAiOiJpdHArand0IiwiYWxnIjoiSFMyNTYifQ.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjgwOTAiLCJzdWIiOiJzY3JpcHRlZC0xNzc0Mzc2ODQ0ODM5IiwiYXVkIjoiaW50ZW50LXNwYWNlOi8vaGVhZHdhdGVycy9zcGFjZXMvaG9tZS1zY3JpcHRlZC0xNzc0Mzc2ODQ0ODM5Iiwic3BhY2VfaWQiOiJob21lLXNjcmlwdGVkLTE3NzQzNzY4NDQ4MzkiLCJjbmYiOnsiamt0IjoiVzNlakNSUHc0SmZIWDB6ZWV2VnoxaHQ4R25NUVJoTU5WVGJYZk1pQU9nRSJ9LCJzY29wZSI6ImludGVudC1zcGFjZTpzdGF0aW9uIiwiaWF0IjoxNzc0Mzc2ODQ3LCJleHAiOjE3NzQ0MjAwNDcsImp0aSI6IjIwOTA3NTJmLTQ3NWYtNDg1NS1hMjNkLThmMjFhZTk3NDkwZiJ9.kOLGxhhhAFP719i_HGc_RPj6rToFtiME3E74VczhrQg"
+}
