@@ -4,6 +4,7 @@ import { IntentSpaceClient } from '../../intent-space/src/client.ts';
 import type { StoredMessage } from '../../intent-space/src/types.ts';
 import { HeadwatersProvisioner } from './provisioner.ts';
 import { HeadwatersEnrollmentRegistry } from './enrollment-registry.ts';
+import { HeadwatersStewardState, type PersistedStewardRequest } from './steward-state.ts';
 import {
   commonsStationEndpoint,
   commonsStationAudience,
@@ -11,6 +12,7 @@ import {
   HEADWATERS_STEWARD_ID,
   headwatersOrigin,
   isCreateHomeSpacePayload,
+  type HomeSpaceRequestPayload,
   type ProvisionedSpaceReply,
 } from './contract.ts';
 import { issueCommonsStationToken } from './welcome-mat.ts';
@@ -185,6 +187,7 @@ export class HeadwatersSteward {
   private readonly client: IntentSpaceClient;
   private readonly provisioner: HeadwatersProvisioner;
   private readonly registry: HeadwatersEnrollmentRegistry;
+  private readonly state: HeadwatersStewardState;
   private readonly identity: StewardIdentity;
   private running = false;
   private readonly inFlightRequests = new Set<string>();
@@ -204,6 +207,7 @@ export class HeadwatersSteward {
       authSecret: options.authSecret,
     });
     this.registry = new HeadwatersEnrollmentRegistry(join(options.dataDir, 'enrollment-registry.json'));
+    this.state = new HeadwatersStewardState(join(options.dataDir, 'steward-state.json'));
     this.identity = createStewardIdentity(options.authSecret);
   }
 
@@ -251,9 +255,13 @@ export class HeadwatersSteward {
 
   private async reconcile(): Promise<void> {
     if (!this.running) return;
-    const requests = await this.client.scan(HEADWATERS_COMMONS_SPACE_ID, 0);
+    const requests = await this.client.scan(HEADWATERS_COMMONS_SPACE_ID, this.state.commonsSince());
+    this.state.updateCommonsSince(this.client.latestSeq);
     for (const request of requests) {
       if (!this.isProvisioningRequest(request)) continue;
+      await this.handleProvisioningRequest(request);
+    }
+    for (const request of this.state.allRequests()) {
       await this.handleRequest(request);
     }
   }
@@ -262,14 +270,13 @@ export class HeadwatersSteward {
     if (!this.running) return;
 
     if (this.isProvisioningRequest(message)) {
-      await this.handleRequest(message);
+      await this.handleProvisioningRequest(message);
       return;
     }
 
     const requestId = this.requestIdFromMessage(message);
     if (!requestId) return;
-
-    const request = await this.lookupProvisioningRequest(requestId);
+    const request = this.state.request(requestId);
     if (!request) return;
     await this.handleRequest(request);
   }
@@ -292,12 +299,18 @@ export class HeadwatersSteward {
     return null;
   }
 
-  private async lookupProvisioningRequest(requestId: string): Promise<StoredMessage | null> {
-    const requests = await this.client.scan(HEADWATERS_COMMONS_SPACE_ID, 0);
-    return requests.find((message) => this.isProvisioningRequest(message) && message.intentId === requestId) ?? null;
+  private async handleProvisioningRequest(request: StoredMessage): Promise<void> {
+    const requestId = request.intentId;
+    if (!requestId) return;
+    this.state.rememberRequest({
+      intentId: requestId,
+      senderId: request.senderId,
+      payload: request.payload as HomeSpaceRequestPayload,
+    });
+    await this.handleRequest(this.state.request(requestId)!);
   }
 
-  private async handleRequest(request: StoredMessage): Promise<void> {
+  private async handleRequest(request: PersistedStewardRequest): Promise<void> {
     const requestId = request.intentId;
     if (!requestId || this.inFlightRequests.has(requestId)) return;
     this.inFlightRequests.add(requestId);
@@ -311,52 +324,63 @@ export class HeadwatersSteward {
         return;
       }
 
-      const subspace = await this.client.scan(request.intentId!, 0);
+      const subspace = await this.client.scan(requestId, request.since);
+      this.state.updateRequestSince(requestId, this.client.latestSeq);
       const terminal = subspace.find((message) =>
         (message.type === 'COMPLETE' || message.type === 'DECLINE')
         && message.senderId === HEADWATERS_STEWARD_ID,
       );
-      if (terminal) return;
+      if (terminal) {
+        this.state.forgetRequest(requestId);
+        return;
+      }
 
       const existingPromise = subspace.find((message) =>
         message.type === 'PROMISE'
         && message.senderId === HEADWATERS_STEWARD_ID
-        && message.intentId === request.intentId,
+        && message.intentId === requestId,
       );
+      const promiseId = existingPromise?.promiseId ?? request.promiseId;
 
-      if (!existingPromise) {
+      if (!promiseId) {
         const requestedSpace = (payload.requestedSpace ?? {}) as Record<string, unknown>;
         const requestedKind = String(requestedSpace.kind ?? 'space');
+        const nextPromiseId = `headwaters-promise-${randomUUID()}`;
         this.client.post(buildPromise(
           HEADWATERS_STEWARD_ID,
           {
-            promiseId: `headwaters-promise-${randomUUID()}`,
-            intentId: request.intentId!,
-            parentId: request.intentId!,
+            promiseId: nextPromiseId,
+            intentId: requestId,
+            parentId: requestId,
             content: `I will provision your ${requestedKind} space and return its dedicated endpoint.`,
           },
         ));
+        this.state.setRequestPromiseId(requestId, nextPromiseId);
         return;
       }
 
       const accepted = subspace.find((message) =>
         message.type === 'ACCEPT'
-        && message.promiseId === existingPromise.promiseId
+        && message.promiseId === promiseId
         && message.senderId === request.senderId,
       );
-      if (!accepted) return;
+      if (accepted) {
+        this.state.markAccepted(requestId);
+      }
+      if (!accepted && !request.accepted) return;
 
       const requesterJkt = await this.lookupParticipantThumbprint(request.senderId);
       if (!requesterJkt) {
         this.client.post(buildDecline(
           HEADWATERS_STEWARD_ID,
           {
-            intentId: request.intentId!,
-            parentId: request.intentId!,
+            intentId: requestId,
+            parentId: requestId,
             reason: `Could not determine station binding for ${request.senderId}.`,
             payload: { reasonCode: 'HEADWATERS_UNKNOWN_REQUESTER_BINDING' },
           },
         ));
+        this.state.forgetRequest(requestId);
         return;
       }
 
@@ -367,12 +391,13 @@ export class HeadwatersSteward {
         this.client.post(buildDecline(
           HEADWATERS_STEWARD_ID,
           {
-            intentId: request.intentId!,
-            parentId: request.intentId!,
+            intentId: requestId,
+            parentId: requestId,
             reason: error instanceof Error ? error.message : String(error),
             payload: { reasonCode: 'HEADWATERS_CAPACITY_OR_PROVISIONING_FAILURE' },
           },
         ));
+        this.state.forgetRequest(requestId);
         return;
       }
       const completePayload: ProvisionedSpaceReply = {
@@ -386,12 +411,13 @@ export class HeadwatersSteward {
       this.client.post(buildComplete(
         HEADWATERS_STEWARD_ID,
         {
-          promiseId: existingPromise.promiseId!,
-          parentId: request.intentId!,
+          promiseId,
+          parentId: requestId,
           summary: 'Home space provisioned. Connect directly to your dedicated space and assess the result.',
           payload: completePayload,
         },
       ));
+      this.state.forgetRequest(requestId);
     } finally {
       this.inFlightRequests.delete(requestId);
     }

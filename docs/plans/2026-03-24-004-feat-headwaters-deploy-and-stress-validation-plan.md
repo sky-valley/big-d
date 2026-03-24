@@ -308,6 +308,12 @@ Success criteria:
     - `fdCount: 460`
     - `tcpConnections: 2`
     - `cpuPct: ~15.6`
+  - after restoring promise-native incremental scans with durable commons and request cursors:
+    - `processCount: 7`
+    - `rssKb: ~397084`
+    - `fdCount: 453`
+    - `tcpConnections: 3`
+    - `cpuPct: ~9.7`
 - Hosted-space ramp results:
   - `10`, `25`, `50`, and `75` total hosted spaces all provisioned successfully
   - `100` hosted spaces were reached successfully
@@ -338,6 +344,7 @@ Success criteria:
 - The new probe shows that commons connection pressure only raised process-tree RSS by about `9 MB` and fd usage by about `201` descriptors over idle.
 - The original dominant runtime issue was high steady-state CPU in the steward-side Node process.
 - Replacing the steward’s `750ms` full-history polling sweep with one-time startup reconciliation plus event-driven handling reduced steady idle CPU from about `88.6%` to about `15.6%`.
+- Reintroducing honest incremental scans with durable markers preserved the performance win and reduced steady idle CPU further to about `9.7%`.
 - The next useful measurement is no longer “can the box basically work?” It is “how much memory, fd growth, and latency do we see once mixed traffic and non-commons participation are involved?”
 
 ## Execution Checklist
