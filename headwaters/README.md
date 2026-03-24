@@ -45,6 +45,10 @@ The intended first public shape is:
 - one public TCP station port on the same host
 - one `headwaters.service` systemd unit for HTTP + shared station + steward
 
+Current recommended default size:
+
+- DigitalOcean General Purpose `g-2vcpu-8gb`
+
 Start with:
 
 1. copy `headwaters/deploy/.env.do.example` to `headwaters/deploy/.env.do`
