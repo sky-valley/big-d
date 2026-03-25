@@ -10,6 +10,8 @@ function parseArgs(argv: string[]): {
   observationMs: number;
   staggerMs: number;
   injectContent?: string;
+  withObservatory: boolean;
+  observatoryPortBase: number;
 } {
   const result = {
     agents: ['scripted-headwaters'],
@@ -20,6 +22,8 @@ function parseArgs(argv: string[]): {
     observationMs: 120_000,
     staggerMs: 0,
     injectContent: undefined as string | undefined,
+    withObservatory: false,
+    observatoryPortBase: 4311,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -62,6 +66,15 @@ function parseArgs(argv: string[]): {
     if (arg === '--inject-content' && argv[index + 1]) {
       result.injectContent = argv[index + 1];
       index += 1;
+      continue;
+    }
+    if (arg === '--with-observatory') {
+      result.withObservatory = true;
+      continue;
+    }
+    if (arg === '--observatory-port-base' && argv[index + 1]) {
+      result.observatoryPortBase = parseInt(argv[index + 1], 10);
+      index += 1;
     }
   }
 
@@ -95,6 +108,8 @@ const { reportPath } = await runHeadwatersAgentPackEval({
   observationMs: args.observationMs,
   staggerMs: args.staggerMs,
   injectContent: args.injectContent,
+  withObservatory: args.withObservatory,
+  observatoryPortBase: args.observatoryPortBase,
 });
 
 console.log(reportPath);

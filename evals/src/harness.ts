@@ -18,6 +18,8 @@ interface EvalOptions {
   observationMs: number;
   staggerMs?: number;
   injectContent?: string;
+  withObservatory?: boolean;
+  observatoryPortBase?: number;
 }
 
 interface StageHandle {
@@ -104,6 +106,23 @@ interface TrialSummary {
   collaborationPassCount: number;
   agentSummaries: AgentRunSummary[];
   sharedEvidence: AgentEvidence;
+  observatory: ObservatorySummary;
+}
+
+interface ObservatorySummary {
+  enabled: boolean;
+  status: 'running' | 'failed' | 'disabled';
+  url?: string;
+  port?: number;
+  label?: string;
+  logPath?: string;
+  errLogPath?: string;
+  failureReason?: string;
+}
+
+interface ObservatoryHandle {
+  summary: ObservatorySummary;
+  child?: ChildProcessWithoutNullStreams;
 }
 
 function log(trial: number, message: string): void {
@@ -114,6 +133,7 @@ function log(trial: number, message: string): void {
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_HTTP_PORT = 8090;
 const DEFAULT_COMMONS_PORT = 4010;
+const DEFAULT_OBSERVATORY_PORT = 4311;
 const DEFAULT_INJECT_CONTENT =
   'Hey I need someone to build me a simple todo list app, it should have the possibility to add, edit, and delete tasks, it should be able to store the tasks in a file, and it should be able to read the tasks from the file.';
 
@@ -144,6 +164,19 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     commonsPort: DEFAULT_COMMONS_PORT + (trial - 1) * 20,
   });
   log(trial, `Headwaters ready at ${stage.baseUrl}`);
+  const observatory = await startObservatory({
+    repoRoot: resolve(options.repoRoot),
+    runDir,
+    trial,
+    stage,
+    enabled: options.withObservatory ?? false,
+    port: (options.observatoryPortBase ?? DEFAULT_OBSERVATORY_PORT) + (trial - 1) * 20,
+  });
+  if (observatory.summary.status === 'running' && observatory.summary.url) {
+    log(trial, `Observatory ready at ${observatory.summary.url}`);
+  } else if (observatory.summary.status === 'failed') {
+    log(trial, `Observatory unavailable: ${observatory.summary.failureReason ?? 'failed to start'}`);
+  }
   const startedAt = new Date();
   const injectedIntentContent = options.injectContent ?? DEFAULT_INJECT_CONTENT;
   const operatorWorkspace = join(runDir, 'operator');
@@ -214,6 +247,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     if (injectorExit) {
       await injectorExit.catch(() => null);
     }
+    await stopProcess(observatory.child);
     await stage.stop();
   }
 
@@ -311,6 +345,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     collaborationPassCount: agentSummaries.filter((s) => s.collaborationPassed).length,
     agentSummaries,
     sharedEvidence,
+    observatory: observatory.summary,
   };
 
   writeFileSync(join(runDir, 'summary.json'), JSON.stringify(summary, null, 2));
@@ -553,6 +588,81 @@ async function startLocalHeadwaters(input: {
       await stopProcess(server);
     },
   };
+}
+
+async function startObservatory(input: {
+  repoRoot: string;
+  runDir: string;
+  trial: number;
+  stage: StageHandle;
+  enabled: boolean;
+  port: number;
+}): Promise<ObservatoryHandle> {
+  const logDir = join(input.runDir, 'observatory');
+  const logPath = join(logDir, 'observatory.log');
+  const errLogPath = join(logDir, 'observatory.err.log');
+  const label = `Headwaters Eval Trial ${String(input.trial).padStart(2, '0')}`;
+
+  if (!input.enabled) {
+    return {
+      summary: {
+        enabled: false,
+        status: 'disabled',
+        label,
+      },
+    };
+  }
+
+  mkdirSync(logDir, { recursive: true });
+  writeFileSync(logPath, '');
+  writeFileSync(errLogPath, '');
+
+  const tsx = join(input.repoRoot, 'intent-space', 'node_modules', '.bin', 'tsx');
+  const child = spawn(tsx, ['src/server.ts'], {
+    cwd: join(input.repoRoot, 'observatory'),
+    env: {
+      ...process.env,
+      OBSERVATORY_HOST: DEFAULT_HOST,
+      OBSERVATORY_PORT: String(input.port),
+      OBSERVATORY_HEADWATERS_DATA_DIR: input.stage.dataDir,
+      OBSERVATORY_HEADWATERS_ORIGIN: input.stage.baseUrl,
+      OBSERVATORY_LABEL: label,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  pipeToFile(child.stdout, logPath);
+  pipeToFile(child.stderr, errLogPath);
+
+  const url = `http://${DEFAULT_HOST}:${input.port}`;
+  try {
+    await waitForHttp(`${url}/health`, 15_000);
+    return {
+      child,
+      summary: {
+        enabled: true,
+        status: 'running',
+        url,
+        port: input.port,
+        label,
+        logPath,
+        errLogPath,
+      },
+    };
+  } catch (error) {
+    await stopProcess(child);
+    const failureReason = error instanceof Error ? error.message : String(error);
+    return {
+      summary: {
+        enabled: true,
+        status: 'failed',
+        port: input.port,
+        label,
+        logPath,
+        errLogPath,
+        failureReason,
+      },
+    };
+  }
 }
 
 async function waitForHttp(url: string, timeoutMs: number): Promise<void> {
@@ -877,6 +987,11 @@ function renderMarkdownReport(summaries: TrialSummary[]): string {
     lines.push(`- coexistence: ${summary.coexistenceVerdict} (${summary.coexistencePassCount}/${total})`);
     lines.push(`- collaboration: ${summary.collaborationVerdict} (${summary.collaborationPassCount}/${total})`);
     lines.push(`- base URL: ${summary.baseUrl}`);
+    if (summary.observatory.status === 'running' && summary.observatory.url) {
+      lines.push(`- observatory: ${summary.observatory.url}`);
+    } else if (summary.observatory.enabled) {
+      lines.push(`- observatory: failed (${summary.observatory.failureReason ?? 'startup error'})`);
+    }
     lines.push(`- timeline: ${summary.runDir}/timeline.md`);
     lines.push('');
     lines.push('| Agent | Status | Handle | Orientation | Coexistence | Collaboration |');

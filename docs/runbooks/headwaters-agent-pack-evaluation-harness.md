@@ -25,6 +25,20 @@ cd evals
 npm run headwaters:agent-pack -- --agents codex,claude --trials 1 --observation-ms 8000
 ```
 
+Example with live observatory sidecar:
+
+```bash
+cd evals
+npm run headwaters:agent-pack -- --agents codex,claude --trials 1 --observation-ms 8000 --with-observatory
+```
+
+Optional observatory port base:
+
+```bash
+cd evals
+npm run headwaters:agent-pack -- --agents codex,claude --trials 2 --with-observatory --observatory-port-base 4411
+```
+
 ## Output
 
 Default output root:
@@ -39,6 +53,15 @@ Per trial:
 - `agents/<agent>/workspace/`
 - `headwaters/headwaters.log`
 - `headwaters/data/commons/intent-space.db`
+- `observatory/observatory.log`
+- `observatory/observatory.err.log` when `--with-observatory` is enabled
+
+When the observatory sidecar starts successfully, the harness prints its URL in
+the trial logs and records it in `summary.json`.
+
+The observatory is a live read-only visualization of the staged Headwaters run.
+It is not the source of truth for verdicts; scoring still comes from the eval
+harness reading `messages` and `monitoring_events` from the commons DB.
 
 ## Current First-Cut Verdicts
 

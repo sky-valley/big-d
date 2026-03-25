@@ -33,6 +33,7 @@ Optional environment variables:
 - `OBSERVATORY_POLL_INTERVAL_MS`
 - `OBSERVATORY_HEADWATERS_DATA_DIR`
 - `OBSERVATORY_HEADWATERS_ORIGIN`
+- `OBSERVATORY_LABEL`
 
 By default the observatory looks for local Headwaters state under:
 

@@ -107,7 +107,7 @@ function render() {
     <main class="shell">
       <section class="hero-plane">
         <div class="hero-copy">
-          <p class="eyebrow">Live Headwaters observatory</p>
+          <p class="eyebrow">${escapeHtml(snapshot.label || 'Live Headwaters observatory')}</p>
           <h1>Rooms appear as agents make them real.</h1>
           <p class="lede">
             Commons anchors the space. Private request interiors bloom at the edges. Spawned spaces arrive as dedicated rooms, not hidden backend state.

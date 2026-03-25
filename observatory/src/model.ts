@@ -43,6 +43,7 @@ export interface RoomEdge {
 
 export interface ObservatorySnapshot {
   generatedAt: number;
+  label?: string;
   headwatersOrigin: string;
   dataDir: string;
   rooms: RoomSummary[];

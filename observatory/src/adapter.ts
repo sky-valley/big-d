@@ -168,6 +168,10 @@ function headwatersOrigin(): string {
     ?? 'http://127.0.0.1:8090';
 }
 
+function observatoryLabel(): string | undefined {
+  return process.env.OBSERVATORY_LABEL;
+}
+
 export function readObservatorySnapshot(): ObservatorySnapshot {
   const dataDir = headwatersDataDir();
   const commonsDbPath = join(dataDir, 'commons', 'intent-space.db');
@@ -179,6 +183,7 @@ export function readObservatorySnapshot(): ObservatorySnapshot {
   if (!existsSync(commonsDbPath)) {
     return {
       generatedAt: Date.now(),
+      label: observatoryLabel(),
       headwatersOrigin: headwatersOrigin(),
       dataDir,
       rooms: [],
@@ -288,6 +293,7 @@ export function readObservatorySnapshot(): ObservatorySnapshot {
 
   return {
     generatedAt: Date.now(),
+    label: observatoryLabel(),
     headwatersOrigin: headwatersOrigin(),
     dataDir,
     rooms,
