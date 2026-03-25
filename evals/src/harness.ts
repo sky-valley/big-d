@@ -1,5 +1,5 @@
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { randomUUID } from 'crypto';
 
@@ -16,6 +16,7 @@ interface EvalOptions {
   timeoutMs: number;
   idleTimeoutMs: number;
   observationMs: number;
+  staggerMs?: number;
   injectContent?: string;
 }
 
@@ -44,12 +45,14 @@ interface RecipeContext {
   stage: StageHandle;
   prompt: string;
   agent: AgentTarget;
+  instanceLabel: string;
   packDir: string;
   sessionRef?: string;
 }
 
 interface RunningAgent {
   agent: AgentTarget;
+  instanceLabel: string;
   workspaceDir: string;
   stdoutPath: string;
   stderrPath: string;
@@ -67,6 +70,7 @@ interface AgentEvidence {
 
 interface AgentRunSummary {
   agent: AgentTarget;
+  instanceLabel: string;
   status: RunStatus;
   exitCode: number | null;
   terminationReason: TerminationReason;
@@ -77,6 +81,9 @@ interface AgentRunSummary {
   handle?: string;
   evidence: AgentEvidence;
   unavailableReason?: string;
+  orientationPassed: boolean;
+  coexistencePassed: boolean;
+  collaborationPassed: boolean;
 }
 
 interface TrialSummary {
@@ -92,6 +99,9 @@ interface TrialSummary {
   orientationVerdict: StageVerdict;
   coexistenceVerdict: StageVerdict;
   collaborationVerdict: StageVerdict;
+  orientationPassCount: number;
+  coexistencePassCount: number;
+  collaborationPassCount: number;
   agentSummaries: AgentRunSummary[];
   sharedEvidence: AgentEvidence;
 }
@@ -128,29 +138,46 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     commonsPort: DEFAULT_COMMONS_PORT + (trial - 1) * 20,
   });
   const startedAt = new Date();
-  const prompt = buildPrompt({
-    packDir: join(options.repoRoot, 'agent-pack'),
-    baseUrl: stage.baseUrl,
-  });
-  const runningAgents = launchAgents({
-    repoRoot: resolve(options.repoRoot),
-    runDir,
-    stage,
-    prompt,
-    agentNames: options.agents,
-  });
-
   const injectedIntentContent = options.injectContent ?? DEFAULT_INJECT_CONTENT;
   const operatorWorkspace = join(runDir, 'operator');
   let injectorExit: Promise<number | null> | null = null;
-  const injectorTimer = setTimeout(() => {
-    injectorExit = launchIntentInjector({
+
+  // When observationMs is 0, pre-seed the intent before agents connect
+  // so it's already visible in the commons on their first scan.
+  if (options.observationMs === 0) {
+    const exitCode = await launchIntentInjector({
       repoRoot: resolve(options.repoRoot),
       stage,
       workspaceDir: operatorWorkspace,
       content: injectedIntentContent,
     });
-  }, options.observationMs);
+    injectorExit = Promise.resolve(exitCode);
+  }
+
+  const prompt = buildPrompt({
+    packDir: join(options.repoRoot, 'agent-pack'),
+    baseUrl: stage.baseUrl,
+  });
+  const runningAgents = await launchAgents({
+    repoRoot: resolve(options.repoRoot),
+    runDir,
+    stage,
+    prompt,
+    agentNames: options.agents,
+    staggerMs: options.staggerMs ?? 0,
+  });
+
+  let injectorTimer: ReturnType<typeof setTimeout> | undefined;
+  if (options.observationMs > 0) {
+    injectorTimer = setTimeout(() => {
+      injectorExit = launchIntentInjector({
+        repoRoot: resolve(options.repoRoot),
+        stage,
+        workspaceDir: operatorWorkspace,
+        content: injectedIntentContent,
+      });
+    }, options.observationMs);
+  }
 
   let timedOut = false;
   let terminationReason: TerminationReason = 'process-exit';
@@ -163,7 +190,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     timedOut = outcome.timedOut;
     terminationReason = outcome.terminationReason;
   } finally {
-    clearTimeout(injectorTimer);
+    if (injectorTimer) clearTimeout(injectorTimer);
     await Promise.all(runningAgents.map(async (agent) => stopProcess(agent.child)));
     if (injectorExit) {
       await injectorExit.catch(() => null);
@@ -191,6 +218,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     });
     return {
       agent: agent.agent,
+      instanceLabel: agent.instanceLabel,
       status: agent.unavailableReason
         ? 'unavailable'
         : timedOut ? 'timeout' : classifyAgentStatus(evidence),
@@ -203,12 +231,37 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
       handle,
       evidence,
       unavailableReason: agent.unavailableReason,
+      orientationPassed: false,
+      coexistencePassed: false,
+      collaborationPassed: false,
     } satisfies AgentRunSummary;
   }));
 
   const orientationVerdict = scoreOrientation(agentSummaries);
   const coexistenceVerdict = scoreCoexistence(agentSummaries);
   const collaborationVerdict = scoreCollaboration(agentSummaries, injectedIntentContent);
+
+  // Annotate per-agent verdicts
+  for (const agentSummary of agentSummaries) {
+    agentSummary.orientationPassed = agentPassedOrientation(agentSummary);
+    agentSummary.coexistencePassed = agentPassedCoexistence(agentSummary);
+    agentSummary.collaborationPassed = agentPassedCollaboration(agentSummary, injectedIntentContent);
+  }
+
+  // Build handle-map: instance label → intent-space handle
+  const handleMap: Record<string, string | null> = {};
+  for (const agentSummary of agentSummaries) {
+    handleMap[agentSummary.instanceLabel] = agentSummary.handle ?? null;
+  }
+  writeFileSync(join(runDir, 'handle-map.json'), JSON.stringify(handleMap, null, 2));
+
+  generateTimeline({
+    agentSummaries,
+    sharedEvidence,
+    handleMap,
+    runDir,
+  });
+
   const status: RunStatus = timedOut
     ? 'timeout'
     : [orientationVerdict, coexistenceVerdict, collaborationVerdict].includes('failed')
@@ -228,6 +281,9 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     orientationVerdict,
     coexistenceVerdict,
     collaborationVerdict,
+    orientationPassCount: agentSummaries.filter((s) => s.orientationPassed).length,
+    coexistencePassCount: agentSummaries.filter((s) => s.coexistencePassed).length,
+    collaborationPassCount: agentSummaries.filter((s) => s.collaborationPassed).length,
     agentSummaries,
     sharedEvidence,
   };
@@ -249,18 +305,41 @@ function buildPrompt(input: { packDir: string; baseUrl: string }): string {
   ].join(' ');
 }
 
-function launchAgents(input: {
+async function launchAgents(input: {
   repoRoot: string;
   runDir: string;
   stage: StageHandle;
   prompt: string;
   agentNames: string[];
-}): RunningAgent[] {
+  staggerMs: number;
+}): Promise<RunningAgent[]> {
   const packDir = join(input.repoRoot, 'agent-pack');
-  return input.agentNames.map((agentName) => {
+  const results: RunningAgent[] = [];
+
+  // Count occurrences of each agent type
+  const typeCounts = new Map<string, number>();
+  for (const name of input.agentNames) {
+    typeCounts.set(name, (typeCounts.get(name) ?? 0) + 1);
+  }
+  // Track per-type index during iteration
+  const typeIndex = new Map<string, number>();
+
+  for (let i = 0; i < input.agentNames.length; i += 1) {
+    if (i > 0 && input.staggerMs > 0) {
+      await sleep(input.staggerMs);
+    }
+
+    const agentName = input.agentNames[i];
     const agent = agentName as AgentTarget;
+    const count = typeCounts.get(agentName) ?? 1;
+    const idx = (typeIndex.get(agentName) ?? 0) + 1;
+    typeIndex.set(agentName, idx);
+    const instanceLabel = count > 1
+      ? `${agent}-${String(idx).padStart(2, '0')}`
+      : agent;
+
     const recipe = getRecipe(agent);
-    const agentDir = join(input.runDir, 'agents', agent);
+    const agentDir = join(input.runDir, 'agents', instanceLabel);
     const workspaceDir = join(agentDir, 'workspace');
     mkdirSync(workspaceDir, { recursive: true });
     const stdoutPath = join(agentDir, 'stdout.log');
@@ -269,49 +348,66 @@ function launchAgents(input: {
     writeFileSync(stderrPath, '');
 
     if (!recipe) {
-      return {
+      results.push({
         agent,
+        instanceLabel,
         workspaceDir,
         stdoutPath,
         stderrPath,
         unavailableReason: `No recipe configured for ${agent}`,
+      });
+      continue;
+    }
+
+    try {
+      const sessionRef = recipe.prepareSessionRef?.();
+      const ctx: RecipeContext = {
+        repoRoot: input.repoRoot,
+        workspaceDir,
+        runDir: agentDir,
+        stage: input.stage,
+        prompt: input.prompt,
+        agent,
+        instanceLabel,
+        packDir,
+        sessionRef,
       };
+
+      const child = spawn(recipe.command, recipe.args(ctx), {
+        cwd: workspaceDir,
+        env: recipe.env?.(ctx) ?? process.env,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      if (recipe.inputMode === 'stdin') {
+        child.stdin.write(input.prompt);
+      }
+      child.stdin.end();
+      pipeToFile(child.stdout, stdoutPath);
+      pipeToFile(child.stderr, stderrPath);
+
+      results.push({
+        agent,
+        instanceLabel,
+        workspaceDir,
+        stdoutPath,
+        stderrPath,
+        child,
+        sessionRef,
+        waitForExit: new Promise((resolve) => child.on('exit', (code) => resolve(code))),
+      });
+    } catch (err) {
+      results.push({
+        agent,
+        instanceLabel,
+        workspaceDir,
+        stdoutPath,
+        stderrPath,
+        unavailableReason: `Failed to spawn ${agent}: ${err instanceof Error ? err.message : String(err)}`,
+      });
     }
+  }
 
-    const sessionRef = recipe.prepareSessionRef?.();
-    const ctx: RecipeContext = {
-      repoRoot: input.repoRoot,
-      workspaceDir,
-      runDir: agentDir,
-      stage: input.stage,
-      prompt: input.prompt,
-      agent,
-      packDir,
-      sessionRef,
-    };
-
-    const child = spawn(recipe.command, recipe.args(ctx), {
-      cwd: workspaceDir,
-      env: recipe.env?.(ctx) ?? process.env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    if (recipe.inputMode === 'stdin') {
-      child.stdin.write(input.prompt);
-    }
-    child.stdin.end();
-    pipeToFile(child.stdout, stdoutPath);
-    pipeToFile(child.stderr, stderrPath);
-
-    return {
-      agent,
-      workspaceDir,
-      stdoutPath,
-      stderrPath,
-      child,
-      sessionRef,
-      waitForExit: new Promise((resolve) => child.on('exit', (code) => resolve(code))),
-    };
-  });
+  return results;
 }
 
 function getRecipe(agent: AgentTarget): AgentRecipe | null {
@@ -358,7 +454,7 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
       '--port',
       String(ctx.stage.commonsPort),
       '--agent-id',
-      `scripted-${Date.now()}`,
+      `${ctx.instanceLabel}-${randomUUID().slice(0, 8)}`,
       '--workspace',
       ctx.workspaceDir,
     ],
@@ -558,7 +654,7 @@ async function readSpaceDb(input: {
   if (input.actorId) {
     args.push('--actor-id', input.actorId);
   }
-  const stdout = execFileSync('python3', args, { encoding: 'utf8' });
+  const stdout = execFileSync('python3', args, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
   const parsed = JSON.parse(stdout) as AgentEvidence;
   return {
     handle: input.actorId,
@@ -593,13 +689,32 @@ function classifyAgentStatus(evidence: AgentEvidence): RunStatus {
   return 'failed';
 }
 
+function agentPassedOrientation(summary: AgentRunSummary): boolean {
+  const eventTypes = new Set(summary.evidence.monitoringEvents.map((event) => String(event.event_type ?? event.eventType)));
+  if (eventTypes.has('auth_succeeded') && eventTypes.has('scan_succeeded')) return true;
+  return summary.evidence.messages.length > 0;
+}
+
+function agentPassedCoexistence(summary: AgentRunSummary): boolean {
+  if (!summary.handle) return false;
+  const eventTypes = new Set(summary.evidence.monitoringEvents.map((event) => String(event.event_type ?? event.eventType)));
+  return eventTypes.has('scan_succeeded') || summary.evidence.messages.length > 0;
+}
+
+function agentPassedCollaboration(summary: AgentRunSummary, injectedIntentContent: string): boolean {
+  if (!summary.handle) return false;
+  return summary.evidence.messages.some((message) => {
+    const payload = message.payload as Record<string, unknown> | undefined;
+    const content = typeof payload?.content === 'string' ? payload.content : '';
+    return message.parent_id === 'headwaters-commons'
+      && typeof message.sender_id === 'string'
+      && content !== injectedIntentContent;
+  });
+}
+
 function scoreOrientation(agentSummaries: AgentRunSummary[]): StageVerdict {
   if (agentSummaries.length === 0) return 'not-run';
-  const passed = agentSummaries.every((summary) => {
-    const eventTypes = new Set(summary.evidence.monitoringEvents.map((event) => String(event.event_type ?? event.eventType)));
-    if (eventTypes.has('auth_succeeded') && eventTypes.has('scan_succeeded')) return true;
-    return summary.evidence.messages.length > 0;
-  });
+  const passed = agentSummaries.every((summary) => agentPassedOrientation(summary));
   return passed ? 'passed' : 'failed';
 }
 
@@ -610,7 +725,8 @@ function scoreCoexistence(agentSummaries: AgentRunSummary[]): StageVerdict {
     const eventTypes = new Set(summary.evidence.monitoringEvents.map((event) => String(event.event_type ?? event.eventType)));
     return eventTypes.has('scan_succeeded') || summary.evidence.messages.length > 0;
   });
-  return observed.length >= 2 ? 'passed' : 'failed';
+  const threshold = Math.ceil(active.length / 2);
+  return observed.length >= threshold ? 'passed' : 'failed';
 }
 
 function scoreCollaboration(agentSummaries: AgentRunSummary[], injectedIntentContent: string): StageVerdict {
@@ -625,20 +741,100 @@ function scoreCollaboration(agentSummaries: AgentRunSummary[], injectedIntentCon
         && content !== injectedIntentContent;
     }),
   );
-  return collaborating.length >= 2 ? 'passed' : 'failed';
+  const threshold = Math.max(2, Math.ceil(active.length / 3));
+  return collaborating.length >= threshold ? 'passed' : 'failed';
+}
+
+function generateTimeline(input: {
+  agentSummaries: AgentRunSummary[];
+  sharedEvidence: AgentEvidence;
+  handleMap: Record<string, string | null>;
+  runDir: string;
+}): void {
+  // Reverse the handle map: handle → instanceLabel
+  const handleToLabel = new Map<string, string>();
+  for (const [label, handle] of Object.entries(input.handleMap)) {
+    if (handle) handleToLabel.set(handle, label);
+  }
+
+  interface TimelineEntry {
+    timestamp: number;
+    agentLabel: string;
+    eventType: string;
+    summary: string;
+  }
+
+  const entries: TimelineEntry[] = [];
+
+  // Add monitoring events
+  for (const event of input.sharedEvidence.monitoringEvents) {
+    const ts = typeof event.timestamp === 'number' ? event.timestamp : 0;
+    const actorId = String(event.actor_id ?? event.actorId ?? '');
+    const agentLabel = handleToLabel.get(actorId) ?? actorId || 'unknown';
+    const eventType = String(event.event_type ?? event.eventType ?? 'unknown');
+    const detail = typeof event.detail === 'string' ? event.detail : '';
+    let summary = eventType;
+    if (detail) {
+      try {
+        const parsed = JSON.parse(detail);
+        if (parsed.message) summary = `${eventType}: ${parsed.message}`;
+      } catch {
+        // use raw event type
+      }
+    }
+    entries.push({ timestamp: ts, agentLabel, eventType, summary });
+  }
+
+  // Add messages
+  for (const message of input.sharedEvidence.messages) {
+    const ts = typeof message.timestamp === 'number' ? message.timestamp : 0;
+    const senderId = String(message.sender_id ?? '');
+    const agentLabel = handleToLabel.get(senderId) ?? senderId || 'unknown';
+    const messageType = String(message.type ?? 'MESSAGE');
+    const payload = message.payload as Record<string, unknown> | undefined;
+    const content = typeof payload?.content === 'string'
+      ? payload.content.slice(0, 80).replace(/\n/g, ' ')
+      : '';
+    const summary = content ? `${messageType}: ${content}` : messageType;
+    entries.push({ timestamp: ts, agentLabel, eventType: messageType, summary });
+  }
+
+  // Sort by timestamp
+  entries.sort((a, b) => a.timestamp - b.timestamp);
+
+  // Build markdown
+  const lines = ['# Trial Timeline', ''];
+  lines.push('| Timestamp | Agent | Event | Summary |');
+  lines.push('|-----------|-------|-------|---------|');
+  for (const entry of entries) {
+    const isoTs = new Date(entry.timestamp).toISOString();
+    const escapedSummary = entry.summary.replace(/\|/g, '\\|');
+    lines.push(`| ${isoTs} | ${entry.agentLabel} | ${entry.eventType} | ${escapedSummary} |`);
+  }
+  lines.push('');
+
+  writeFileSync(join(input.runDir, 'timeline.md'), lines.join('\n'));
 }
 
 function renderMarkdownReport(summaries: TrialSummary[]): string {
   const lines = ['# Headwaters Agent-Pack Eval', ''];
   for (const summary of summaries) {
+    const total = summary.agentSummaries.length;
     lines.push(`## Trial ${summary.trial}`);
     lines.push(`- status: ${summary.status}`);
-    lines.push(`- orientation: ${summary.orientationVerdict}`);
-    lines.push(`- coexistence: ${summary.coexistenceVerdict}`);
-    lines.push(`- collaboration: ${summary.collaborationVerdict}`);
+    lines.push(`- orientation: ${summary.orientationVerdict} (${summary.orientationPassCount}/${total})`);
+    lines.push(`- coexistence: ${summary.coexistenceVerdict} (${summary.coexistencePassCount}/${total})`);
+    lines.push(`- collaboration: ${summary.collaborationVerdict} (${summary.collaborationPassCount}/${total})`);
     lines.push(`- base URL: ${summary.baseUrl}`);
+    lines.push(`- timeline: ${summary.runDir}/timeline.md`);
+    lines.push('');
+    lines.push('| Agent | Status | Handle | Orientation | Coexistence | Collaboration |');
+    lines.push('|-------|--------|--------|-------------|-------------|---------------|');
     for (const agent of summary.agentSummaries) {
-      lines.push(`- ${agent.agent}: ${agent.status}${agent.handle ? ` (${agent.handle})` : ''}`);
+      const o = agent.orientationPassed ? 'pass' : 'fail';
+      const cx = agent.coexistencePassed ? 'pass' : 'fail';
+      const cl = agent.collaborationPassed ? 'pass' : 'fail';
+      lines.push(`| ${agent.instanceLabel} | ${agent.status} | ${agent.handle ?? '-'} | ${o} | ${cx} | ${cl} |`);
     }
     lines.push('');
   }
@@ -646,9 +842,8 @@ function renderMarkdownReport(summaries: TrialSummary[]): string {
 }
 
 function pipeToFile(stream: NodeJS.ReadableStream, path: string): void {
-  stream.on('data', (chunk) => {
-    appendFileSync(path, chunk);
-  });
+  const fileStream = createWriteStream(path, { flags: 'a' });
+  stream.pipe(fileStream);
 }
 
 function listFiles(root: string): string[] {

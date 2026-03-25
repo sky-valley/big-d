@@ -8,6 +8,7 @@ function parseArgs(argv: string[]): {
   timeoutMs: number;
   idleTimeoutMs: number;
   observationMs: number;
+  staggerMs: number;
   injectContent?: string;
 } {
   const result = {
@@ -17,6 +18,7 @@ function parseArgs(argv: string[]): {
     timeoutMs: 10 * 60 * 1000,
     idleTimeoutMs: 5 * 60 * 1000,
     observationMs: 120_000,
+    staggerMs: 0,
     injectContent: undefined as string | undefined,
   };
 
@@ -52,6 +54,11 @@ function parseArgs(argv: string[]): {
       index += 1;
       continue;
     }
+    if (arg === '--stagger-ms' && argv[index + 1]) {
+      result.staggerMs = parseInt(argv[index + 1], 10);
+      index += 1;
+      continue;
+    }
     if (arg === '--inject-content' && argv[index + 1]) {
       result.injectContent = argv[index + 1];
       index += 1;
@@ -62,6 +69,20 @@ function parseArgs(argv: string[]): {
 }
 
 const args = parseArgs(process.argv.slice(2));
+
+const SUPPORTED_AGENTS = new Set(['codex', 'claude', 'pi', 'scripted-headwaters']);
+
+for (const agent of args.agents) {
+  if (!SUPPORTED_AGENTS.has(agent)) {
+    console.error(`Error: Unknown agent type '${agent}'. Supported: ${[...SUPPORTED_AGENTS].join(', ')}`);
+    process.exit(1);
+  }
+}
+
+if (args.agents.length > 10) {
+  console.warn(`Warning: ${args.agents.length} agents requested. This configuration has not been tested beyond 10 agents.`);
+}
+
 const repoRoot = resolve(process.cwd(), '..');
 
 const { reportPath } = await runHeadwatersAgentPackEval({
@@ -72,6 +93,7 @@ const { reportPath } = await runHeadwatersAgentPackEval({
   timeoutMs: args.timeoutMs,
   idleTimeoutMs: args.idleTimeoutMs,
   observationMs: args.observationMs,
+  staggerMs: args.staggerMs,
   injectContent: args.injectContent,
 });
 
