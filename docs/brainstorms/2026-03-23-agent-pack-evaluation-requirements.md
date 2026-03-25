@@ -1,5 +1,5 @@
 ---
-date: 2026-03-23
+date: 2026-03-24
 topic: agent-pack-evaluation
 ---
 
@@ -7,120 +7,152 @@ topic: agent-pack-evaluation
 
 ## Problem Frame
 
-We have a new root-level `agent-pack/` for intent space and want to know whether
-it is actually helpful to agents on its own terms.
+We want to know whether an agent that has only the root-level `agent-pack/` and
+an intent-space URL can use the intent space correctly without guided onboarding
+or repo-specific help.
 
-This evaluation should test the pack only, not broader repo behavior or unrelated
-agent capabilities. The goal is to learn whether the pack improves observable
-agent behavior in intent space, identify where it fails, and generate clear
-evidence for iterative improvements.
+This evaluation should use the real Headwaters-backed intent-space backend as the
+environment under test. It should not reuse the Headwaters guided walkthrough as
+the test flow, because the guided experience has already been validated
+separately.
 
-The evaluation should not reward eloquent explanation in the abstract. It should
-judge the pack by whether agents can behave competently in intent space after
-using it.
+The primary question is zero-shot orientation: can an agent arrive in a quiet
+live space, understand how to observe and navigate it from the pack alone, and
+behave correctly before any work appears?
+
+After that baseline is established, the evaluation should test whether multiple
+real agents can coexist in the same space and whether useful collaboration can
+emerge from intents and promises posted in the space itself.
+
+The evaluation should judge the pack by observable behavior in the space, not by
+abstract verbal explanation.
 
 ## Requirements
 
-- R1. The evaluation must test only the new `agent-pack/` as the unit under
-  test.
-- R2. The evaluation must focus on agent actions and behavior in intent space,
-  not on verbal comprehension checks.
-- R3. The evaluation must use several small independent scenarios before a final
-  combined sequence.
-- R4. The first iteration must start with three small scenarios.
-- R5. The first small scenario must test whether an agent can connect to an
-  existing intent space, observe it, and distinguish relevant from irrelevant
-  intents.
-- R6. The second small scenario must test whether an agent can post a valid
-  intent.
-- R7. The third small scenario must test selective participation: the agent
-  should engage only with tasks it is qualified for rather than trying to do
-  everything it sees.
-- R8. The selective-participation scenario must include two cases:
-  `3A` one qualified intent among irrelevant or unqualified intents, and `3B`
-  multiple qualified intents so we can observe whether the agent returns after
-  finishing one and optionally takes another.
-- R9. The final combined sequence must place a purpose-scoped agent into a mixed
-  environment containing relevant, irrelevant, and potentially misleading
-  intents.
-- R10. The final combined sequence must exercise, in combination, mechanics,
-  autonomy, promise-boundary correctness, and child-space navigation.
-- R11. Scenario scoring must be binary at the primary verdict level.
-- R12. The scoring model must be capability-first: a scenario passes when the
-  capability is demonstrated, even if the path is messy, while errors and
-  mistakes are still logged for diagnosis.
-- R13. The evaluation must capture full diagnostics for every test, including
-  what stage of the test the agent is in, what it appears to think, and what
-  errors or failures occur.
-- R14. Diagnostic capture must persist enough evidence to analyze why an agent
-  did not take a second qualified task in scenario `3B`, including whether that
-  was a deliberate choice, confusion, drift, or loss of context.
-- R15. The first iteration should emphasize mechanics and autonomy over richer
-  persona design or comparative baseline methodology.
-- R16. The mandatory artifact set for the first iteration must stay lean:
-  raw agent transcript, raw intent-space event log, condensed scenario timeline,
-  and condensed free-form error log.
-- R17. The condensed scenario timeline must place agent thoughts or reasoning
-  snippets at the relevant moment in the sequence when that evidence is
-  available from the agent runtime.
-- R18. The final combined sequence must record two separate binary outcomes:
-  whether the agent completed one qualified task and returned to the space, and
-  whether it then completed another qualified task after returning.
+- R1. The evaluation must test `agent-pack/` as the unit under test.
+- R2. The evaluation must use the real Headwaters-backed intent-space backend.
+- R3. The evaluation must not use the Headwaters guided walkthrough as the test
+  flow.
+- R4. The evaluation must begin with zero-shot orientation as the first gate.
+- R5. A zero-shot orientation run must start with only the pack and the
+  intent-space URL.
+- R6. The initial orientation space must begin quiet, with no seeded visible
+  work intent.
+- R7. The first hard failure gate must be navigation correctness: the agent must
+  demonstrate that it can enter, observe, and navigate the space correctly
+  before higher-level behavior is judged.
+- R8. The orientation phase must explicitly test for autonomy confusion after
+  navigation is established, including whether the agent overreads visible
+  content as obligation.
+- R9. After the quiet observation period, a root-level intent must be posted
+  into the space so the evaluation can observe how the agent reacts once work
+  appears.
+- R10. The first phase must determine whether the agent understands what to do
+  in the space right away from the pack alone, rather than only succeeding after
+  repeated trial-and-error or implicit outside help.
+- R11. The second phase must place multiple agents in the same shared intent
+  space.
+- R12. The multi-agent phase must use real pack-using agents for all
+  participants, not scripted placeholder participants.
+- R13. The main risk under test in the multi-agent phase is isolation: whether
+  agents behave as if they are alone even when other participants are present in
+  the shared space.
+- R14. The multi-agent phase must test whether agents notice and interpret other
+  agents only through observable space activity such as scanning, intents, and
+  promises.
+- R15. The collaboration phase must test whether useful handoffs emerge from
+  intents and promises posted in the space, not from hidden orchestration.
+- R16. The first collaboration scenario must use a pre-structured seed request
+  that suggests likely work slices or dependencies strongly enough to make
+  emergence observable.
+- R17. The first collaboration scenario should be easier and more structured,
+  with later iterations able to progress toward bounded product requests and then
+  more abstract build requests.
+- R18. The collaboration phase must be able to test a broad build request such
+  as "build X" handled by multiple specialized software-engineer agents.
+- R19. The collaboration phase must check whether agents specialize voluntarily
+  through their own competence boundaries, for example one agent taking backend
+  work and another taking frontend work that depends on it.
+- R20. The collaboration phase must check whether later promises and follow-on
+  intents reflect dependency-aware sequencing rather than isolated parallel
+  action.
+- R21. The evaluation must preserve the distinction between intent-space
+  visibility and promise authority; success must not depend on treating visible
+  intents as commands.
+- R22. The evaluation should progress in three stages: zero-shot orientation,
+  multi-agent coexistence, and collaboration emergence.
+- R23. Each stage must produce a clear binary verdict at the stage level.
+- R24. The scoring model must remain capability-first: a stage passes when the
+  capability is demonstrated even if the path is messy, while mistakes are still
+  logged for diagnosis.
+- R25. The evaluation must capture full diagnostics for every run, including raw
+  agent transcript, raw intent-space event log, and a condensed timeline that
+  correlates agent behavior with observed space activity.
+- R26. Diagnostics must preserve enough evidence to distinguish navigation
+  confusion, autonomy confusion, isolation, and failed collaboration handoff.
+- R27. The evaluation must record whether collaboration emerged from the posted
+  space artifacts themselves or required outside prompting not contained in the
+  pack or the space.
 
 ## Success Criteria
 
-- We can tell whether the pack enables an agent to connect, observe, and post in
-  intent space.
-- We can tell whether the pack helps an agent participate selectively rather than
-  acting on everything visible.
-- We can tell whether an agent can operate in a mixed environment without
-  collapsing into overreach, confusion, or false obligation.
-- Every scenario produces a clear binary verdict plus enough diagnostic evidence
-  to improve the pack.
-- Iterating on the pack produces comparable changes in scenario outcomes and
-  error patterns over time.
-- The final combined sequence yields two distinct comparable outcomes: `did one
-  task and return` and `did another qualified task after returning`.
+- We can tell whether an agent can enter a real Headwaters-backed intent space
+  from pack plus URL alone and correctly find its footing before work appears.
+- We can tell whether the agent understands that the space is observational and
+  navigable without treating visible activity as mandatory work.
+- We can tell whether multiple real agents share one space as co-present
+  participants rather than acting as isolated singletons.
+- We can tell whether a posted root-level intent produces useful promises,
+  follow-on intents, and handoffs between specialized agents.
+- We can tell whether collaboration emerges from what agents observe in the
+  space rather than from hidden orchestration.
+- Every stage produces a binary verdict plus enough diagnostic evidence to
+  improve the pack.
 
 ## Scope Boundaries
 
-- This evaluation does not include a separate verbal comprehension phase.
-- The first iteration does not require a formal baseline comparison against an
-  older pack or degraded variant.
-- The first iteration does not need a highly detailed persona model as long as
-  the final mixed environment creates a meaningful relevance boundary.
-- The first iteration does not optimize for elegant task execution; it optimizes
-  for demonstrated capability plus diagnostic visibility.
+- This evaluation does not reuse the Headwaters guided walkthrough.
+- This evaluation does not primarily judge agents by verbal comprehension or
+  interviews.
+- The first collaboration pass does not start with the most abstract build
+  request; it starts with a pre-structured request and can later move toward
+  less scaffolding.
+- The first iteration does not require scripted fake participants in the
+  multi-agent phase.
+- The evaluation should not collapse the distinction between visible intent and
+  authoritative promise state.
 
 ## Key Decisions
 
-- Behavioral-only evaluation: the pack is judged by what agents do in intent
-  space, not by how well they explain it.
-- Mixed structure: use small independent scenarios first, then a final combined
-  sequence.
-- Three-scenario first cut: keep the initial suite small enough to iterate
-  quickly.
-- Binary scoring: keep the primary outcome crisp and comparable.
-- Capability-first grading: allow messy success, but preserve all mistakes for
-  later analysis.
-- Lean diagnostic capture: keep raw transcript and space logs, then add only a
-  condensed scenario timeline and a condensed free-form error log.
-- Reasoning should be attached to the relevant step: when the agent runtime
-  exposes thoughts or self-report, place that evidence at the appropriate moment
-  in the condensed timeline rather than building a separate thought artifact.
-- Selective participation as the autonomy core: the main autonomy question is
-  whether the agent acts only where it is qualified.
-- Two final-sequence binaries: measure both return-after-one-task and
-  completion-of-another-task-after-return.
+- Headwaters backend only: use the real Headwaters-backed space as the live
+  environment.
+- No guided path: guided Headwaters onboarding is out of scope for this test.
+- Zero-shot first: orientation in a quiet space is the first gate.
+- Quiet-then-intent sequence: the agent first joins an empty-feeling space and
+  only later sees a root-level intent appear.
+- Navigation before autonomy: if the agent cannot correctly enter, read, and
+  navigate the space, the run fails before autonomy is judged.
+- Multi-agent evidence should be real: use real agents with the pack rather than
+  scripted stand-ins.
+- Isolation is the main multi-agent failure mode: the key question is whether
+  agents notice and respond to shared-space activity as co-present participants.
+- Collaboration is judged by emergent handoff: the strongest signal is that one
+  agent's promise or work creates the next sensible step for another agent
+  without explicit external assignment.
+- Structured-first collaboration ladder: start with a pre-structured request,
+  then later remove scaffolding toward more abstract requests.
+- Capability-first grading: preserve binary verdicts while still capturing all
+  mistakes and confusion patterns.
 
 ## Dependencies / Assumptions
 
-- A controlled intent-space environment can be prepared with specific relevant,
-  irrelevant, and nested intents.
-- We can capture enough agent transcript or trace data to infer stage and
-  reasoning during the tests.
-- We can observe intent-space state transitions well enough to correlate agent
-  behavior with scenario progress and failure points.
+- A controllable Headwaters-backed intent space can be prepared for repeated
+  runs.
+- We can launch multiple real agents against the same live space.
+- We can capture enough transcript and event-log evidence to correlate what
+  agents observed with the promises and intents they posted.
+- We can stage the delayed root-level intent injection in a repeatable way after
+  the initial quiet observation period.
 
 ## Outstanding Questions
 
@@ -130,30 +162,21 @@ using it.
 
 ### Deferred to Planning
 
-- [Affects R5][Technical] How should relevance be encoded in scenario 1 so the
-  evaluator can determine whether the agent distinguished relevant from
-  irrelevant intents correctly?
-- [Affects R8][Technical] How should scenario `3B` determine that the agent has
-  "finished one task" before observing whether it returns for another?
-- [Affects R13][Needs research] What is the best way to capture "what it thinks"
-  across different agent runtimes without overfitting to one CLI?
-- [Affects R9][Technical] How should the mixed final environment be seeded so it
-  tests autonomy, promise boundaries, and nested navigation without becoming too
-  ambiguous to score?
+- [Affects R7][Technical] What concrete signals prove navigation correctness in a
+  quiet shared space without drifting into overfitted mechanics checks?
+- [Affects R10][Needs research] How should the evaluator distinguish genuine
+  immediate understanding from eventual recovery after confusion?
+- [Affects R13][Technical] How should the multi-agent stage determine that
+  agents were effectively isolated rather than simply exercising appropriate
+  restraint?
+- [Affects R16][Product] What exact pre-structured build request best reveals
+  emergent specialization and dependency-aware handoff?
+- [Affects R20][Technical] What observable sequence should count as sufficient
+  collaboration emergence for binary pass/fail scoring?
+- [Affects R25][Needs research] What transcript and event-log normalization is
+  needed across different agent runtimes to compare collaboration quality
+  honestly?
 
 ## Next Steps
 
 → /prompts:ce-plan for structured implementation planning
-
-## Post-Run Agent Feedback
-
-After each run, ask the agent for brief feedback on the experience.
-
-This should focus on:
-
-- what in the `agent-pack/` was helpful
-- what was confusing, missing, or misleading
-- what should be improved first, if anything
-
-This feedback is secondary to the behavioral evidence and should be used as
-additional qualitative input for improving the pack.
