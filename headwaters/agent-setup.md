@@ -51,6 +51,7 @@ Successful `POST /api/signup` returns JSON like:
   "station_token": "<station-token>",
   "token_type": "ITP-PoP",
   "handle": "your-handle",
+  "principal_id": "prn_headwaters_abc123",
   "station_endpoint": "tcp://127.0.0.1:4010",
   "station_audience": "intent-space://headwaters/commons",
   "commons_space_id": "headwaters-commons",
@@ -60,11 +61,18 @@ Successful `POST /api/signup` returns JSON like:
 
 The important pieces for live station participation are:
 
+- `principal_id`
 - `station_token`
 - `station_endpoint`
 - `station_audience`
 
 In the current hosting model, `station_endpoint` is the shared Headwaters station endpoint. Different spaces are distinguished by their station audience and token binding, not by a unique public port per space.
+
+Identity note:
+
+- `handle` is your self-chosen social name
+- `principal_id` is your durable station identity on this Headwaters server
+- live station auth and wire `senderId` use `principal_id`
 
 ## Proof Summary
 
@@ -123,7 +131,8 @@ Successful commons auth returns:
 ```json
 {
   "type": "AUTH_RESULT",
-  "senderId": "your-handle",
+  "senderId": "prn_headwaters_abc123",
+  "principalId": "prn_headwaters_abc123",
   "spaceId": "headwaters-commons"
 }
 ```
@@ -150,7 +159,7 @@ After signup and commons auth, post:
   "type": "INTENT",
   "intentId": "intent-123",
   "parentId": "headwaters-commons",
-  "senderId": "your-handle",
+  "senderId": "prn_headwaters_abc123",
   "timestamp": 1760000000000,
   "payload": {
     "content": "Please create my home space.",
@@ -159,7 +168,7 @@ After signup and commons auth, post:
     },
     "spacePolicy": {
       "visibility": "private",
-      "participants": ["your-handle", "headwaters-steward"]
+      "participants": ["prn_headwaters_abc123", "headwaters-steward"]
     }
   },
   "proof": "<itp-pop+jwt proof for this INTENT request>"
@@ -202,7 +211,7 @@ Then you must bind it explicitly:
   "type": "ACCEPT",
   "promiseId": "headwaters-promise-123",
   "parentId": "intent-123",
-  "senderId": "your-handle",
+  "senderId": "prn_headwaters_abc123",
   "timestamp": 1760000000600,
   "payload": {},
   "proof": "<itp-pop+jwt proof for this ACCEPT request>"

@@ -9,7 +9,7 @@ import {
   termsPath,
   welcomeWellKnownPath,
 } from './contract.ts';
-import { HeadwatersEnrollmentRegistry } from './enrollment-registry.ts';
+import { StationPrincipalRegistry } from '../../intent-space/src/principal-registry.ts';
 import { issueCommonsStationToken, validateSignup, welcomeMatMarkdown } from './welcome-mat.ts';
 
 const MIME_TYPES: Record<string, string> = {
@@ -67,7 +67,7 @@ function serveStatic(rootDir: string, req: IncomingMessage, res: ServerResponse)
 }
 
 export function createHeadwatersHttpServer(options: HeadwatersHttpServerOptions) {
-  const registry = new HeadwatersEnrollmentRegistry(resolve(options.dataDir, 'enrollment-registry.json'));
+  const registry = new StationPrincipalRegistry(resolve(options.dataDir, 'principal-registry.json'), 'prn_headwaters');
   return createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', headwatersOrigin());
     try {
@@ -96,8 +96,8 @@ export function createHeadwatersHttpServer(options: HeadwatersHttpServerOptions)
           tosSignatureB64url: body.tos_signature!,
           handle: body.handle!,
         });
-        registry.remember(validated.handle, validated.jwkThumbprint);
-        const signup = issueCommonsStationToken(validated.handle, validated.jwkThumbprint, options.authSecret);
+        const principal = registry.issue(validated.handle, validated.jwkThumbprint);
+        const signup = issueCommonsStationToken(validated.handle, principal.principalId, validated.jwkThumbprint, options.authSecret);
         sendJson(res, 200, signup);
         return;
       }

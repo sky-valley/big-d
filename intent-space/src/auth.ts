@@ -14,6 +14,7 @@ interface JwtHeader extends Record<string, unknown> {
 
 interface JwtPayload extends Record<string, unknown> {
   sub?: string;
+  principal_id?: string;
   aud?: string;
   space_id?: string;
   cnf?: { jkt?: string };
@@ -35,6 +36,7 @@ interface ParsedJwt {
 
 export interface StationSessionAuth {
   senderId: string;
+  principalId: string;
   stationToken: string;
   jkt: string;
   audience: string;
@@ -195,8 +197,14 @@ export function verifyAuthRequest(
   if (typeof stationToken.payload.sub !== 'string') {
     throw new Error('Station token missing sub');
   }
+  if (typeof stationToken.payload.principal_id !== 'string') {
+    throw new Error('Station token missing principal_id');
+  }
   if (typeof stationToken.payload.cnf?.jkt !== 'string') {
     throw new Error('Station token missing cnf.jkt');
+  }
+  if (stationToken.payload.sub !== stationToken.payload.principal_id) {
+    throw new Error('Station token sub must match principal_id');
   }
 
   const proof = parseJwt(proofRaw, 'AUTH.proof');
@@ -223,6 +231,7 @@ export function verifyAuthRequest(
 
   return {
     senderId: stationToken.payload.sub,
+    principalId: stationToken.payload.principal_id,
     stationToken: stationTokenRaw,
     jkt: stationToken.payload.cnf.jkt,
     audience: resolvedAudience,

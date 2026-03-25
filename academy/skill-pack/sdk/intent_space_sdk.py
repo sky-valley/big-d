@@ -189,6 +189,7 @@ class LocalState:
         audience: Optional[str] = None,
         station_token: Optional[str] = None,
         handle: Optional[str] = None,
+        principal_id: Optional[str] = None,
         source: str,
         space_id: Optional[str] = None,
     ) -> JsonDict:
@@ -205,6 +206,8 @@ class LocalState:
             entry["stationToken"] = station_token
         if handle is not None:
             entry["handle"] = handle
+        if principal_id is not None:
+            entry["principalId"] = principal_id
         if space_id is not None:
             entry["spaceId"] = space_id
 
@@ -561,6 +564,7 @@ def signup_station(
         audience=signup_response.get("station_audience") if isinstance(signup_response.get("station_audience"), str) else None,
         station_token=signup_response.get("station_token") if isinstance(signup_response.get("station_token"), str) else None,
         handle=signup_response.get("handle") if isinstance(signup_response.get("handle"), str) else handle,
+        principal_id=signup_response.get("principal_id") if isinstance(signup_response.get("principal_id"), str) else None,
         source="signup",
         space_id=signup_response.get("commons_space_id") if isinstance(signup_response.get("commons_space_id"), str) else None,
     )

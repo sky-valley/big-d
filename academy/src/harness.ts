@@ -715,8 +715,11 @@ export function classifyRun(
   helperFiles: string[];
   helperLanguage?: string;
 } {
-  const ignored = new Set(['intent-space', 'differ-tutor']);
-  const agentMessages = transcript.filter((msg) => !ignored.has(msg.senderId));
+  const ignored = new Set(['intent-space']);
+  const greetingMessages = transcript.filter(
+    (msg) => !ignored.has(msg.senderId) && msg.type === 'INTENT' && msg.parentId === TUTORIAL_SPACE_ID,
+  );
+  const agentMessages = greetingMessages.length > 0 ? greetingMessages : transcript.filter((msg) => !ignored.has(msg.senderId));
   const agentIds = [...new Set(agentMessages.map((msg) => msg.senderId))].sort();
   const agentId = pickDominantAgent(agentMessages);
   const repairSignals = collectRepairSignals(transcript, generatedFiles, agentIds);
@@ -752,8 +755,14 @@ export function classifyRun(
     };
   }
 
+  const tutorId = transcript.find(
+    (msg) => msg.senderId !== agentId
+      && msg.parentId === greeting.intentId
+      && (msg.type === 'INTENT' || msg.type === 'DECLINE' || msg.type === 'PROMISE' || msg.type === 'COMPLETE'),
+  )?.senderId;
+
   const deliberateDecline = transcript.find(
-    (msg) => msg.senderId === 'differ-tutor' && msg.type === 'DECLINE' && msg.parentId === greeting.intentId,
+    (msg) => msg.senderId === tutorId && msg.type === 'DECLINE' && msg.parentId === greeting.intentId,
   );
   if (!deliberateDecline) {
     return {
@@ -769,7 +778,7 @@ export function classifyRun(
   }
 
   const promise = transcript.find(
-    (msg) => msg.senderId === 'differ-tutor' && msg.type === 'PROMISE' && msg.parentId === greeting.intentId,
+    (msg) => msg.senderId === tutorId && msg.type === 'PROMISE' && msg.parentId === greeting.intentId,
   );
   if (!promise?.promiseId) {
     return {
@@ -1072,7 +1081,7 @@ function collectRepairSignals(transcript: MessageEcho[], generatedFiles: string[
   const helperFiles = detectHelperFiles(generatedFiles);
   if (helperFiles.length > 1) signals.add('multiple-helper-files');
 
-  const ignored = new Set(['intent-space', 'differ-tutor']);
+  const ignored = new Set(['intent-space']);
   const counts = new Map<string, { greetings: number }>();
   for (const msg of transcript) {
     if (ignored.has(msg.senderId)) continue;

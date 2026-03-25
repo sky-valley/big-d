@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { existsSync, readFileSync, statSync } from 'fs';
 import { extname, join, normalize, resolve } from 'path';
+import { StationPrincipalRegistry } from '../../intent-space/src/principal-registry.ts';
 import {
   TERMS_OF_SERVICE,
   academyOrigin,
@@ -25,6 +26,7 @@ export interface AcademyServerOptions {
   host: string;
   port: number;
   rootDir: string;
+  dataDir: string;
   authSecret: string;
 }
 
@@ -67,6 +69,7 @@ function serveStatic(rootDir: string, req: IncomingMessage, res: ServerResponse)
 }
 
 export function createAcademyServer(options: AcademyServerOptions) {
+  const registry = new StationPrincipalRegistry(resolve(options.dataDir, 'principal-registry.json'), 'prn_academy');
   return createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', academyOrigin());
     try {
@@ -95,7 +98,8 @@ export function createAcademyServer(options: AcademyServerOptions) {
           tosSignatureB64url: body.tos_signature!,
           handle: body.handle!,
         });
-        const signup = issueStationToken(validated.handle, validated.jwkThumbprint, options.authSecret);
+        const principal = registry.issue(validated.handle, validated.jwkThumbprint);
+        const signup = issueStationToken(validated.handle, principal.principalId, validated.jwkThumbprint, options.authSecret);
         sendJson(res, 200, signup);
         return;
       }

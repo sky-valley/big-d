@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { issueSpaceToken } from './welcome-mat.ts';
@@ -5,7 +6,7 @@ import { issueSpaceToken } from './welcome-mat.ts';
 export interface ProvisionedSpace {
   kind: 'home';
   spaceId: string;
-  ownerId: string;
+  ownerPrincipalId: string;
   audience: string;
   endpoint: string;
   stationToken: string;
@@ -41,11 +42,11 @@ export class HeadwatersProvisioner {
     this.spaces.clear();
   }
 
-  async provisionHomeSpace(ownerId: string, jwkThumb: string): Promise<ProvisionedSpace & { created: boolean }> {
-    const existing = this.spaces.get(ownerId);
+  async provisionHomeSpace(ownerPrincipalId: string, jwkThumb: string): Promise<ProvisionedSpace & { created: boolean }> {
+    const existing = this.spaces.get(ownerPrincipalId);
     if (existing) {
       const normalized = this.refreshRecord(existing, jwkThumb);
-      this.spaces.set(ownerId, normalized);
+      this.spaces.set(ownerPrincipalId, normalized);
       this.persistRecord(normalized);
       return { ...normalized, created: false };
     }
@@ -54,14 +55,13 @@ export class HeadwatersProvisioner {
       throw new Error(`Headwaters capacity reached (${this.maxSpaces} hosted spaces)`);
     }
 
-    const safeOwner = ownerId.replace(/[^a-zA-Z0-9.-]/g, '-');
-    const spaceId = `home-${safeOwner}`;
+    const spaceId = `space-${randomUUID()}`;
     const audience = `intent-space://headwaters/spaces/${spaceId}`;
     const dir = join(this.baseDir, spaceId);
     mkdirSync(dir, { recursive: true });
     const stationToken = issueSpaceToken({
       issuer: this.issuer,
-      subject: ownerId,
+      principalId: ownerPrincipalId,
       audience,
       spaceId,
       jwkThumb,
@@ -71,14 +71,14 @@ export class HeadwatersProvisioner {
     const record: ProvisionedSpace = {
       kind: 'home',
       spaceId,
-      ownerId,
+      ownerPrincipalId,
       audience,
       endpoint: this.stationEndpoint,
       stationToken,
     };
 
     this.persistRecord(record);
-    this.spaces.set(ownerId, record);
+    this.spaces.set(ownerPrincipalId, record);
     return { ...record, created: true };
   }
 
@@ -97,8 +97,8 @@ export class HeadwatersProvisioner {
       if (!existsSync(path)) continue;
       try {
         const parsed = this.normalizeRecord(JSON.parse(readFileSync(path, 'utf8')) as ProvisionedSpace);
-        if (parsed.ownerId && parsed.spaceId) {
-          this.spaces.set(parsed.ownerId, parsed);
+        if (parsed.ownerPrincipalId && parsed.spaceId) {
+          this.spaces.set(parsed.ownerPrincipalId, parsed);
           this.persistRecord(parsed);
         }
       } catch {
@@ -120,7 +120,7 @@ export class HeadwatersProvisioner {
       ...normalized,
       stationToken: issueSpaceToken({
         issuer: this.issuer,
-        subject: normalized.ownerId,
+        principalId: normalized.ownerPrincipalId,
         audience: normalized.audience,
         spaceId: normalized.spaceId,
         jwkThumb,
