@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from 'fs';
 import { extname, join, resolve } from 'path';
 import { createHash } from 'crypto';
 import { readObservatorySnapshot } from './adapter.ts';
+import type { ObservatorySnapshot } from './model.ts';
 
 const HOST = process.env.OBSERVATORY_HOST ?? '127.0.0.1';
 const PORT = parseInt(process.env.OBSERVATORY_PORT ?? '4311', 10);
@@ -38,8 +39,10 @@ function currentSnapshot() {
   return readObservatorySnapshot();
 }
 
-function snapshotHash(snapshot: unknown): string {
-  return createHash('sha1').update(JSON.stringify(snapshot)).digest('hex');
+function snapshotHash(snapshot: ObservatorySnapshot): string {
+  // Exclude generatedAt so the hash only changes when rooms/events change
+  const { generatedAt: _, ...stable } = snapshot;
+  return createHash('sha1').update(JSON.stringify(stable)).digest('hex');
 }
 
 function broadcastIfChanged(): void {
@@ -62,7 +65,10 @@ function serveStatic(req: IncomingMessage, res: ServerResponse): void {
     return;
   }
   const ext = extname(path);
-  res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] ?? 'application/octet-stream' });
+  res.writeHead(200, {
+    'Content-Type': MIME_TYPES[ext] ?? 'application/octet-stream',
+    'Cache-Control': 'no-store',
+  });
   res.end(readFileSync(path));
 }
 
