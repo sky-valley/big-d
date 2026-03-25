@@ -258,6 +258,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     fromTs: startedAt.getTime(),
     toTs: endedAt.getTime(),
   });
+  const collaborationSpaceIds = discoverCollaborationSpaceIds(sharedEvidence, injectedIntentContent);
 
   const agentSummaries = await Promise.all(runningAgents.map(async (agent) => {
     const generatedFiles = listFiles(agent.workspaceDir);
@@ -292,19 +293,19 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
 
   const orientationVerdict = scoreOrientation(agentSummaries);
   const coexistenceVerdict = scoreCoexistence(agentSummaries);
-  const collaborationVerdict = scoreCollaboration(agentSummaries, injectedIntentContent);
+  const collaborationVerdict = scoreCollaboration(agentSummaries, collaborationSpaceIds);
 
   const total = agentSummaries.length;
   const orientationPassCount = agentSummaries.filter((s) => agentPassedOrientation(s)).length;
   const coexistencePassCount = agentSummaries.filter((s) => agentPassedCoexistence(s)).length;
-  const collaborationPassCount = agentSummaries.filter((s) => agentPassedCollaboration(s, injectedIntentContent)).length;
+  const collaborationPassCount = agentSummaries.filter((s) => agentPassedCollaboration(s, collaborationSpaceIds)).length;
   log(trial, `Orientation: ${orientationVerdict} (${orientationPassCount}/${total}), Coexistence: ${coexistenceVerdict} (${coexistencePassCount}/${total}), Collaboration: ${collaborationVerdict} (${collaborationPassCount}/${total})`);
 
   // Annotate per-agent verdicts
   for (const agentSummary of agentSummaries) {
     agentSummary.orientationPassed = agentPassedOrientation(agentSummary);
     agentSummary.coexistencePassed = agentPassedCoexistence(agentSummary);
-    agentSummary.collaborationPassed = agentPassedCollaboration(agentSummary, injectedIntentContent);
+    agentSummary.collaborationPassed = agentPassedCollaboration(agentSummary, collaborationSpaceIds);
   }
 
   // Build handle-map: instance label → intent-space handle
@@ -849,14 +850,31 @@ function agentPassedCoexistence(summary: AgentRunSummary): boolean {
   return eventTypes.has('scan_succeeded') || summary.evidence.messages.length > 0;
 }
 
-function agentPassedCollaboration(summary: AgentRunSummary, injectedIntentContent: string): boolean {
-  if (!summary.handle) return false;
-  return summary.evidence.messages.some((message) => {
+function discoverCollaborationSpaceIds(sharedEvidence: AgentEvidence, injectedIntentContent: string): Set<string> {
+  const ids = new Set<string>();
+  for (const message of sharedEvidence.messages) {
+    if (message.type !== 'INTENT') continue;
+    if (message.parent_id !== 'headwaters-commons') continue;
     const payload = message.payload as Record<string, unknown> | undefined;
     const content = typeof payload?.content === 'string' ? payload.content : '';
-    return message.parent_id === 'headwaters-commons'
-      && typeof message.sender_id === 'string'
-      && content !== injectedIntentContent;
+    if (content !== injectedIntentContent) continue;
+    if (typeof message.intent_ref === 'string' && message.intent_ref.length > 0) {
+      ids.add(message.intent_ref);
+    }
+    if (typeof message.message_id === 'string' && message.message_id.length > 0) {
+      ids.add(message.message_id);
+    }
+  }
+  return ids;
+}
+
+function agentPassedCollaboration(summary: AgentRunSummary, collaborationSpaceIds: Set<string>): boolean {
+  if (!summary.handle) return false;
+  if (collaborationSpaceIds.size === 0) return false;
+  return summary.evidence.messages.some((message) => {
+    return typeof message.parent_id === 'string'
+      && collaborationSpaceIds.has(message.parent_id)
+      && message.sender_id === summary.handle;
   });
 }
 
@@ -877,18 +895,11 @@ function scoreCoexistence(agentSummaries: AgentRunSummary[]): StageVerdict {
   return observed.length >= threshold ? 'passed' : 'failed';
 }
 
-function scoreCollaboration(agentSummaries: AgentRunSummary[], injectedIntentContent: string): StageVerdict {
+function scoreCollaboration(agentSummaries: AgentRunSummary[], collaborationSpaceIds: Set<string>): StageVerdict {
   const active = agentSummaries.filter((summary) => summary.handle);
   if (active.length < 2) return 'not-run';
-  const collaborating = active.filter((summary) =>
-    summary.evidence.messages.some((message) => {
-      const payload = message.payload as Record<string, unknown> | undefined;
-      const content = typeof payload?.content === 'string' ? payload.content : '';
-      return message.parent_id === 'headwaters-commons'
-        && typeof message.sender_id === 'string'
-        && content !== injectedIntentContent;
-    }),
-  );
+  if (collaborationSpaceIds.size === 0) return 'failed';
+  const collaborating = active.filter((summary) => agentPassedCollaboration(summary, collaborationSpaceIds));
   const threshold = Math.max(2, Math.ceil(active.length / 3));
   return collaborating.length >= threshold ? 'passed' : 'failed';
 }
