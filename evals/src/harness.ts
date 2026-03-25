@@ -106,6 +106,11 @@ interface TrialSummary {
   sharedEvidence: AgentEvidence;
 }
 
+function log(trial: number, message: string): void {
+  const prefix = `[trial ${String(trial).padStart(2, '0')}]`;
+  process.stderr.write(`${prefix} ${message}\n`);
+}
+
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_HTTP_PORT = 8090;
 const DEFAULT_COMMONS_PORT = 4010;
@@ -130,6 +135,7 @@ export async function runHeadwatersAgentPackEval(options: EvalOptions): Promise<
 async function runTrial(trial: number, options: EvalOptions): Promise<TrialSummary> {
   const runDir = join(resolve(options.outputDir), `trial-${String(trial).padStart(2, '0')}`);
   mkdirSync(runDir, { recursive: true });
+  log(trial, `Starting — ${options.agents.length} agents, stagger: ${options.staggerMs ?? 0}ms`);
   const stage = await startLocalHeadwaters({
     repoRoot: resolve(options.repoRoot),
     runDir,
@@ -137,6 +143,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     httpPort: DEFAULT_HTTP_PORT + (trial - 1) * 20,
     commonsPort: DEFAULT_COMMONS_PORT + (trial - 1) * 20,
   });
+  log(trial, `Headwaters ready at ${stage.baseUrl}`);
   const startedAt = new Date();
   const injectedIntentContent = options.injectContent ?? DEFAULT_INJECT_CONTENT;
   const operatorWorkspace = join(runDir, 'operator');
@@ -152,6 +159,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
       content: injectedIntentContent,
     });
     injectorExit = Promise.resolve(exitCode);
+    log(trial, 'Intent injected');
   }
 
   const prompt = buildPrompt({
@@ -159,6 +167,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     baseUrl: stage.baseUrl,
   });
   const runningAgents = await launchAgents({
+    trial,
     repoRoot: resolve(options.repoRoot),
     runDir,
     stage,
@@ -175,6 +184,9 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
         stage,
         workspaceDir: operatorWorkspace,
         content: injectedIntentContent,
+      }).then((code) => {
+        log(trial, 'Intent injected');
+        return code;
       });
     }, options.observationMs);
   }
@@ -189,6 +201,13 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     );
     timedOut = outcome.timedOut;
     terminationReason = outcome.terminationReason;
+    if (terminationReason === 'process-exit') {
+      log(trial, 'All agents exited');
+    } else if (terminationReason === 'wall-timeout') {
+      log(trial, 'Wall timeout reached');
+    } else if (terminationReason === 'idle-timeout') {
+      log(trial, 'Idle timeout reached');
+    }
   } finally {
     if (injectorTimer) clearTimeout(injectorTimer);
     await Promise.all(runningAgents.map(async (agent) => stopProcess(agent.child)));
@@ -241,6 +260,12 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
   const coexistenceVerdict = scoreCoexistence(agentSummaries);
   const collaborationVerdict = scoreCollaboration(agentSummaries, injectedIntentContent);
 
+  const total = agentSummaries.length;
+  const orientationPassCount = agentSummaries.filter((s) => agentPassedOrientation(s)).length;
+  const coexistencePassCount = agentSummaries.filter((s) => agentPassedCoexistence(s)).length;
+  const collaborationPassCount = agentSummaries.filter((s) => agentPassedCollaboration(s, injectedIntentContent)).length;
+  log(trial, `Orientation: ${orientationVerdict} (${orientationPassCount}/${total}), Coexistence: ${coexistenceVerdict} (${coexistencePassCount}/${total}), Collaboration: ${collaborationVerdict} (${collaborationPassCount}/${total})`);
+
   // Annotate per-agent verdicts
   for (const agentSummary of agentSummaries) {
     agentSummary.orientationPassed = agentPassedOrientation(agentSummary);
@@ -289,6 +314,8 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
   };
 
   writeFileSync(join(runDir, 'summary.json'), JSON.stringify(summary, null, 2));
+  const durationSec = (summary.durationMs / 1000).toFixed(1);
+  log(trial, `Done in ${durationSec}s — timeline at ${join(runDir, 'timeline.md')}`);
   return summary;
 }
 
@@ -306,6 +333,7 @@ function buildPrompt(input: { packDir: string; baseUrl: string }): string {
 }
 
 async function launchAgents(input: {
+  trial: number;
   repoRoot: string;
   runDir: string;
   stage: StageHandle;
@@ -348,6 +376,7 @@ async function launchAgents(input: {
     writeFileSync(stderrPath, '');
 
     if (!recipe) {
+      log(input.trial, `Failed to spawn ${instanceLabel}: No recipe configured for ${agent}`);
       results.push({
         agent,
         instanceLabel,
@@ -385,6 +414,13 @@ async function launchAgents(input: {
       pipeToFile(child.stdout, stdoutPath);
       pipeToFile(child.stderr, stderrPath);
 
+      const staggerInfo = input.staggerMs > 0 ? ` [${i + 1}/${input.agentNames.length}]` : '';
+      log(input.trial, `Launched ${instanceLabel} (${agent})${staggerInfo}`);
+
+      child.on('exit', (code) => {
+        log(input.trial, `${instanceLabel} exited (code ${code})`);
+      });
+
       results.push({
         agent,
         instanceLabel,
@@ -396,13 +432,15 @@ async function launchAgents(input: {
         waitForExit: new Promise((resolve) => child.on('exit', (code) => resolve(code))),
       });
     } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      log(input.trial, `Failed to spawn ${instanceLabel}: ${reason}`);
       results.push({
         agent,
         instanceLabel,
         workspaceDir,
         stdoutPath,
         stderrPath,
-        unavailableReason: `Failed to spawn ${agent}: ${err instanceof Error ? err.message : String(err)}`,
+        unavailableReason: `Failed to spawn ${agent}: ${reason}`,
       });
     }
   }
@@ -764,14 +802,27 @@ function generateTimeline(input: {
     summary: string;
   }
 
+  // Only surface semantically meaningful monitoring events.
+  // Failures are always interesting; routine plumbing (json_parsed,
+  // scan_requested, connection_opened, auth_succeeded, …) is not.
+  const SIGNAL_EVENTS = new Set([
+    'scan_failed',
+    'auth_failed',
+    'connection_error',
+    'post_proof_invalid',
+    'shutdown',
+  ]);
+
   const entries: TimelineEntry[] = [];
 
-  // Add monitoring events
+  // Add monitoring events (signal only)
   for (const event of input.sharedEvidence.monitoringEvents) {
+    const eventType = String(event.event_type ?? event.eventType ?? 'unknown');
+    if (!SIGNAL_EVENTS.has(eventType)) continue;
+
     const ts = typeof event.timestamp === 'number' ? event.timestamp : 0;
     const actorId = String(event.actor_id ?? event.actorId ?? '');
-    const agentLabel = handleToLabel.get(actorId) ?? actorId || 'unknown';
-    const eventType = String(event.event_type ?? event.eventType ?? 'unknown');
+    const agentLabel = handleToLabel.get(actorId) ?? (actorId || 'unknown');
     const detail = typeof event.detail === 'string' ? event.detail : '';
     let summary = eventType;
     if (detail) {
@@ -789,7 +840,7 @@ function generateTimeline(input: {
   for (const message of input.sharedEvidence.messages) {
     const ts = typeof message.timestamp === 'number' ? message.timestamp : 0;
     const senderId = String(message.sender_id ?? '');
-    const agentLabel = handleToLabel.get(senderId) ?? senderId || 'unknown';
+    const agentLabel = handleToLabel.get(senderId) ?? (senderId || 'unknown');
     const messageType = String(message.type ?? 'MESSAGE');
     const payload = message.payload as Record<string, unknown> | undefined;
     const content = typeof payload?.content === 'string'
