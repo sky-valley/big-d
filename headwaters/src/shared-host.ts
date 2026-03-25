@@ -49,6 +49,8 @@ export class SharedHeadwatersHost {
   private server: Server | null = null;
   private _port: number;
   private connectionCount = 0;
+  private droppedMonitoringEvents = 0;
+  private stopping = false;
 
   constructor(options: SharedHeadwatersHostOptions) {
     this.dataDir = options.dataDir;
@@ -81,6 +83,18 @@ export class SharedHeadwatersHost {
   }
 
   async stop(): Promise<void> {
+    this.stopping = true;
+    try {
+      const store = this.monitoringStoreForEvent(undefined);
+      store.appendMonitoringEvent({
+        stage: 'lifecycle',
+        outcome: 'accepted',
+        eventType: 'shutdown',
+        detail: {},
+      });
+    } catch {
+      this.droppedMonitoringEvents += 1;
+    }
     for (const client of this.clients) {
       client.socket.destroy();
     }
@@ -550,21 +564,19 @@ export class SharedHeadwatersHost {
   }
 
   private recordMonitoring(event: MonitoringEventInput): void {
+    if (this.stopping) return;
     const store = this.monitoringStoreForEvent(event.spaceId);
     try {
       store.appendMonitoringEvent(event);
     } catch {
+      this.droppedMonitoringEvents += 1;
       // Observability must not break normal participation.
     }
   }
 
   private monitoringStoreForEvent(spaceId?: string): IntentStore {
     const resolvedSpaceId = spaceId ?? HEADWATERS_COMMONS_SPACE_ID;
-    let hosted = this.spaces.get(resolvedSpaceId);
-    if (!hosted && resolvedSpaceId !== HEADWATERS_COMMONS_SPACE_ID) {
-      this.tryLoadProvisionedSpace(resolvedSpaceId);
-      hosted = this.spaces.get(resolvedSpaceId);
-    }
+    const hosted = this.spaces.get(resolvedSpaceId);
     return hosted?.store ?? this.spaces.get(HEADWATERS_COMMONS_SPACE_ID)!.store;
   }
 

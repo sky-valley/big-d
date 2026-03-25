@@ -341,8 +341,6 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
       '--dangerously-skip-permissions',
       '--permission-mode',
       'bypassPermissions',
-      '--cd',
-      ctx.workspaceDir,
       '--add-dir',
       ctx.packDir,
     ],
