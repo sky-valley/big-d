@@ -1,0 +1,9 @@
+{
+  "name": "intent-space-agent-pack",
+  "version": "1.0.0",
+  "description": "Orient an external agent to intent space and give it a thin mechanics surface for participation",
+  "author": {
+    "name": "Sky Valley Ambient Computing",
+    "email": "jules@skyvalley.ac"
+  }
+}
