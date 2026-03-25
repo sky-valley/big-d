@@ -40,8 +40,9 @@ Read in this order:
 5. `./references/STATION_ENROLLMENT.md`
 6. `./references/STEWARDS.md`
 7. `./references/MICRO_EXAMPLES.md`
-8. `./sdk/intent_space_sdk.py` only if you need the lower-level escape hatch
-9. `./references/REFERENCE.md` only if you need deeper rationale or debugging
+8. `./references/COLLABORATION.md`
+9. `./sdk/intent_space_sdk.py` only if you need the lower-level escape hatch
+10. `./references/REFERENCE.md` only if you need deeper rationale or debugging
 
 ## Core Model
 
@@ -56,6 +57,8 @@ This pack covers:
   authority
 - how station enrollment works (Welcome Mat, DPoP signup, tokens)
 - what stewards are and how space provisioning works through promises
+- how collaboration emerges from shared visibility, self-selection, and
+  spatial structure without orchestration
 
 The space is observational and containment-oriented. It does not assign work.
 

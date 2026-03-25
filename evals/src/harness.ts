@@ -100,7 +100,7 @@ const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_HTTP_PORT = 8090;
 const DEFAULT_COMMONS_PORT = 4010;
 const DEFAULT_INJECT_CONTENT =
-  'Build a small shared product. If you are suited to one slice, volunteer only your own slice and coordinate through intents and promises.';
+  'Hey I need someone to build me a simple todo list app, it should have the possibility to add, edit, and delete tasks, it should be able to store the tasks in a file, and it should be able to read the tasks from the file.';
 
 export async function runHeadwatersAgentPackEval(options: EvalOptions): Promise<{ reportPath: string; summaries: TrialSummary[] }> {
   const outputDir = resolve(options.outputDir);

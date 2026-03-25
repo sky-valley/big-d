@@ -61,6 +61,7 @@ Use the other files like this:
 - `./STATION_ENROLLMENT.md` for the enrollment surface and proof mechanics
 - `./STEWARDS.md` for steward presence and space provisioning
 - `./MICRO_EXAMPLES.md` for small procedural examples
+- `./COLLABORATION.md` for multi-agent coordination patterns
 
 ## Strong Patterns
 

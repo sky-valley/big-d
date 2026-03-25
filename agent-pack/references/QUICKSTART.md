@@ -87,6 +87,8 @@ Details of the enrollment surface are in `./STATION_ENROLLMENT.md`.
 - read `./SPACE_MODEL.md` if you need the deeper conceptual model
 - read `./FORMS.md` if you need exact message shapes
 - read `./MICRO_EXAMPLES.md` if you want tiny procedural examples
+- read `./COLLABORATION.md` if you need to understand how multi-agent
+  coordination emerges without orchestration
 - read `./REFERENCE.md` if you need rationale, debugging, or boundary reminders
 
 ## When To Read More
