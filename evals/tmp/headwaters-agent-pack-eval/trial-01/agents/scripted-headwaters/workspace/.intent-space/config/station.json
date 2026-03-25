@@ -1,7 +1,0 @@
-{
-  "endpoint": "tcp://127.0.0.1:4010",
-  "publicKey": ".intent-space/identity/station-public-key.pem",
-  "privateKey": ".intent-space/identity/station-private-key.pem",
-  "fingerprint": "SHA256:dlK3IcuE0/mPb5nygtm3Kj7xlacBNUnp1DafllFeNFI=",
-  "agentName": "scripted-1774376844839"
-}

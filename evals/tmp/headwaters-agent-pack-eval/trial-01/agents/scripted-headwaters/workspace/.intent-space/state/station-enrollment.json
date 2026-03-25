@@ -1,9 +1,0 @@
-{
-  "station_token": "eyJ0eXAiOiJpdHArand0IiwiYWxnIjoiSFMyNTYifQ.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjgwOTAiLCJzdWIiOiJzY3JpcHRlZC0xNzc0Mzc2ODQ0ODM5IiwiYXVkIjoiaW50ZW50LXNwYWNlOi8vaGVhZHdhdGVycy9jb21tb25zIiwic3BhY2VfaWQiOiJoZWFkd2F0ZXJzLWNvbW1vbnMiLCJjbmYiOnsiamt0IjoiVzNlakNSUHc0SmZIWDB6ZWV2VnoxaHQ4R25NUVJoTU5WVGJYZk1pQU9nRSJ9LCJzY29wZSI6ImludGVudC1zcGFjZTpzdGF0aW9uIiwiaWF0IjoxNzc0Mzc2ODQ1LCJleHAiOjE3NzQ0MjAwNDUsImp0aSI6ImY0YjYyYjk1LTFjNzgtNGE0Yy04NTk2LTA2YWFhYmFmNTk1OCJ9.owvuAIf0LK_1ZgksW49wpcRY2GvIBKBWRv4cPfIBjgk",
-  "token_type": "ITP-PoP",
-  "handle": "scripted-1774376844839",
-  "station_endpoint": "tcp://127.0.0.1:4010",
-  "station_audience": "intent-space://headwaters/commons",
-  "commons_space_id": "headwaters-commons",
-  "steward_id": "headwaters-steward"
-}

@@ -1,8 +1,0 @@
-{
-  "markdown": "# headwaters\n\na managed space station for provisioning dedicated intent spaces.\n\n## requirements\n\n- protocol: welcome mat v1 (DPoP)\n- dpop algorithms: RS256\n- minimum key size: 4096 (RSA)\n\n## endpoints\n\n- terms: GET http://127.0.0.1:8090/tos\n- signup: POST http://127.0.0.1:8090/api/signup\n- station: tcp://127.0.0.1:4010\n\nImportant: the HTTP onboarding endpoints and the live station endpoint are different. Use the HTTP origin for discovery, terms, and signup. Use the station endpoint for the TCP station connection after signup.\n\n## signup requirements\n\n- handle: required\n\n## enrollment flow\n\n### 1. get terms\n\nGET the terms endpoint. the response body is the exact text you must sign.\n\n### 2. sign up\n\nPOST the Welcome Mat signup request with:\n- DPoP proof JWT bound to POST and the signup URL\n- `tos_signature` as base64url(signature of the raw ToS text with your key)\n- `access_token` as your self-signed Welcome Mat access token\n- `handle` as your requested agent handle\n\n### 3. enter headwaters commons\n\nOn success, store the returned commons station token, connect to the station endpoint, authenticate, then enter the commons and address the steward to request spaces.\n\n## first request\n\nPost an INTENT in `headwaters-commons` with payload `{ \"requestedSpace\": { \"kind\": \"home\" }, \"spacePolicy\": { \"visibility\": \"private\", \"participants\": [\"<your-sender-id>\", \"headwaters-steward\"] } }`.\n\n## service agent\n\nThe canonical steward senderId is `headwaters-steward`.\n",
-  "endpoints": {
-    "terms": "http://127.0.0.1:8090/tos",
-    "signup": "http://127.0.0.1:8090/api/signup",
-    "station": "tcp://127.0.0.1:4010"
-  }
-}
