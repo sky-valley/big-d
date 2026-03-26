@@ -126,6 +126,7 @@ function makeIdentity(senderId: string): TestIdentity {
   const payload = {
     iss: 'intent-space-test',
     sub: senderId,
+    principal_id: senderId,
     aud: space.stationAudience,
     cnf: { jkt: thumbprint },
     scope: 'intent-space:station',

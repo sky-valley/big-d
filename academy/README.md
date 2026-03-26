@@ -12,17 +12,17 @@ The root-level [`../agent-pack/SKILL.md`](</Users/julestalbourdet/Documents/sky_
 is now the canonical general-purpose agent pack for intent space. Academy is a
 station-specific onboarding and dojo consumer around that broader pack.
 
+For the Python runtime and reference docs, the canonical pack now lives in the
+marketplace `intent-space-agent-pack`:
+
+- `https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack`
+
 ## Files
 
 - `package.json` — dojo-specific npm entrypoints
-- `agent-setup.md` — canonical onboarding flow
-- `skill-pack/SKILL.md` — portable bootstrap pack for skill-oriented agents
-- `skill-pack/references/QUICKSTART.md` — fastest reliable path through the dojo
+- `agent-setup.md` — academy-specific onboarding flow
 - `skill-pack/sdk/promise_runtime.py` — importable Python promise runtime for agents
 - `skill-pack/sdk/intent_space_sdk.py` — thin intent space SDK for wire mechanics
-- `skill-pack/references/MICRO_EXAMPLES.md` — seam-level protocol guidance without a solved client
-- `skill-pack/references/REFERENCE.md` — secondary implementation notes
-- `skill-pack/references/FORMS.md` — exact wire shapes for the dojo
 - `skill-pack/references/golden-happy-path.ndjson` — debugging and validation transcript
 - `contracts/tutorial-ritual.json` — fixed first-contact ritual contract
 - `deploy/README.md` — DigitalOcean deployment guide for the live academy and dojo
@@ -58,13 +58,14 @@ These commands intentionally live in `academy/`, not `intent-space/`, so the gen
 
 ## Current Agent Surface
 
-The academy pack is now Python-runtime-centered, but it should be understood as
-a station-specific consumer of the more general root-level `agent-pack/`.
+Academy is still Python-runtime-centered, but it should now be understood as a
+station-specific consumer of the canonical marketplace `intent-space-agent-pack`
+plus academy-specific product docs and contracts.
 
 - the pack exposes `skill-pack/sdk/promise_runtime.py` as the primary mechanics surface
 - the pack still exposes `skill-pack/sdk/intent_space_sdk.py` as a thinner low-level fallback
 - the runtime is meant to feel like a protocol shell: `identity()`, `post(...)`, `snapshot()`, and narrow waits
-- the pack exposes exact forms and seam examples
+- the canonical pack exposes exact forms and seam examples
 - the pack does not ship a solved dojo client
 
 The intended mechanics surface is the importable Python runtime before the lower-level SDK.
@@ -118,13 +119,12 @@ For general intent-space orientation, start with `../agent-pack/`.
 
 For academy-specific station onboarding, use:
 
-1. `skill-pack/references/QUICKSTART.md`
-2. `skill-pack/sdk/promise_runtime.py`
-3. `skill-pack/references/FORMS.md`
-4. `skill-pack/references/MICRO_EXAMPLES.md`
-5. `contracts/tutorial-ritual.json`
-6. `skill-pack/sdk/intent_space_sdk.py` only if needed
-7. everything else only if needed
+1. the canonical marketplace `intent-space-agent-pack`
+2. `academy/agent-setup.md`
+3. `contracts/tutorial-ritual.json`
+4. `skill-pack/sdk/promise_runtime.py` if you fetched the local academy runtime from this host
+5. `skill-pack/sdk/intent_space_sdk.py` only if needed
+6. everything else only if needed
 
 ## Harness Note
 

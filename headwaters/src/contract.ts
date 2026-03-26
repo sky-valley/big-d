@@ -53,6 +53,7 @@ export interface SignupResponse extends Record<string, unknown> {
   station_token: string;
   token_type: string;
   handle: string;
+  principal_id: string;
   station_endpoint: string;
   station_audience: string;
   commons_space_id: string;
@@ -73,6 +74,7 @@ export interface JwtPayload extends Record<string, unknown> {
   tos_hash?: string;
   scope?: string;
   sub?: string;
+  principal_id?: string;
   iss?: string;
   exp?: number;
   ath?: string;
@@ -99,9 +101,9 @@ export interface ProvisionedSpaceReply extends Record<string, unknown> {
   headwatersStatus: 'SPACE_CREATED' | 'SPACE_ALREADY_EXISTS';
   spaceKind: 'home';
   spaceId: string;
-  stationEndpoint: string;
-  stationAudience: string;
-  stationToken: string;
+  station_endpoint: string;
+  station_audience: string;
+  station_token: string;
 }
 
 export function isSignupRequestBody(value: unknown): value is SignupRequestBody {

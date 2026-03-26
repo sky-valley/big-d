@@ -334,6 +334,7 @@ export class SharedHeadwatersHost {
       this.send(client, {
         type: 'AUTH_RESULT',
         senderId: auth.senderId,
+        principalId: auth.principalId,
         spaceId,
         tutorialSpaceId: spaceId === HEADWATERS_COMMONS_SPACE_ID ? HEADWATERS_COMMONS_SPACE_ID : undefined,
       });

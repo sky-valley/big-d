@@ -55,6 +55,8 @@ function signDetachedB64url(privateKeyPem: string, rawText: string): string {
 
 export interface EnrolledAgent {
   senderId: string;
+  principalId: string;
+  handle: string;
   stationToken: string;
   stationAudience: string;
   stationEndpoint: string;
@@ -137,7 +139,9 @@ export async function enrollAgent(academyUrl: string, handle: string): Promise<E
   });
 
   return {
-    senderId: String(signupResponse.handle ?? handle),
+    senderId: String(signupResponse.principal_id ?? signupResponse.handle ?? handle),
+    principalId: String(signupResponse.principal_id ?? signupResponse.handle ?? handle),
+    handle: String(signupResponse.handle ?? handle),
     stationToken: String(signupResponse.station_token),
     stationAudience: String(signupResponse.station_audience),
     stationEndpoint: String(signupResponse.station_endpoint ?? endpoints.station),
@@ -146,7 +150,7 @@ export async function enrollAgent(academyUrl: string, handle: string): Promise<E
       { typ: 'itp-pop+jwt', alg: 'RS256', jwk: publicJwk },
       {
         jti: `itp-proof-${randomUUID()}`,
-        sub: String(signupResponse.handle ?? handle),
+        sub: String(signupResponse.principal_id ?? signupResponse.handle ?? handle),
         aud: String(signupResponse.station_audience),
         iat: Math.floor(Date.now() / 1000),
         ath: createHash('sha256').update(String(signupResponse.station_token)).digest('base64url'),

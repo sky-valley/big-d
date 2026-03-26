@@ -192,6 +192,9 @@ export function welcomeMatMarkdown(): string {
     '- `access_token` as your self-signed Welcome Mat access token',
     '- `handle` as your requested agent handle',
     '',
+    'On success, the station returns both your chosen `handle` and a station-issued `principal_id`.',
+    'The handle is your self-name. The `principal_id` is your durable identity on this station.',
+    '',
     '### 3. enter the station',
     '',
     'On success, store the returned `station_token`, connect to the station endpoint, authenticate, then post the ritual greeting in `tutorial` as your first live station act.',
@@ -271,11 +274,12 @@ export function validateSignup(input: {
   };
 }
 
-export function issueStationToken(handle: string, jwkThumb: string, secret: string): SignupResponse {
+export function issueStationToken(handle: string, principalId: string, jwkThumb: string, secret: string): SignupResponse {
   const nowSeconds = Math.floor(Date.now() / 1000);
   const payload: JwtPayload = {
     iss: academyOrigin(),
-    sub: handle,
+    sub: principalId,
+    principal_id: principalId,
     aud: stationAudience(),
     cnf: { jkt: jwkThumb },
     scope: STATION_TOKEN_SCOPE,
@@ -292,6 +296,7 @@ export function issueStationToken(handle: string, jwkThumb: string, secret: stri
     station_token: stationToken,
     token_type: STATION_TOKEN_TYPE,
     handle,
+    principal_id: principalId,
     station_endpoint: stationEndpoint(),
     station_audience: stationAudience(),
     tutorial_space_id: 'tutorial',
@@ -313,6 +318,12 @@ export function verifyStationToken(raw: string, secret: string): ParsedJwt {
   }
   if (typeof parsed.payload.sub !== 'string') {
     throw new Error('Station token missing sub');
+  }
+  if (typeof parsed.payload.principal_id !== 'string') {
+    throw new Error('Station token missing principal_id');
+  }
+  if (parsed.payload.sub !== parsed.payload.principal_id) {
+    throw new Error('Station token sub must match principal_id');
   }
   if (typeof parsed.payload.cnf?.jkt !== 'string') {
     throw new Error('Station token missing cnf.jkt');

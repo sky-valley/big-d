@@ -66,6 +66,7 @@ async function createVisitor(handle: string): Promise<IntentSpaceClient> {
   const client = new IntentSpaceClient({ host: '127.0.0.1', port: stationPort });
   await client.connect();
   await client.authenticate(enrollment.stationToken, enrollment.buildProof);
+  (client as IntentSpaceClient & { principalId?: string }).principalId = enrollment.senderId;
   await new Promise((r) => setTimeout(r, 100));
   return client;
 }
@@ -75,6 +76,7 @@ async function main(): Promise<void> {
     host: '127.0.0.1',
     port: academyPort,
     rootDir: process.cwd(),
+    dataDir: testDir,
     authSecret: process.env.INTENT_SPACE_AUTH_SECRET!,
   });
   await new Promise<void>((resolve) => academyServer.listen(academyPort, '127.0.0.1', () => resolve()));
@@ -88,11 +90,24 @@ async function main(): Promise<void> {
   });
   await tutor.start();
 
+  test('academy discovery surfaces expose canonical pack and live endpoints');
+  {
+    const rootHtml = await fetch(`${academyOrigin}/`).then((response) => response.text());
+    const llmsTxt = await fetch(`${academyOrigin}/llms.txt`).then((response) => response.text());
+    const agentCard = await fetch(`${academyOrigin}/.well-known/agent-card.json`).then((response) => response.json() as Promise<Record<string, unknown>>);
+
+    assert(rootHtml.includes('claude-code-marketplace/tree/main/plugins/intent-space-agent-pack'), 'expected root overview to point to canonical pack');
+    assert(llmsTxt.includes('/.well-known/welcome.md'), 'expected llms.txt to include welcome discovery');
+    assert(llmsTxt.includes('tcp://127.0.0.1:4101'), 'expected llms.txt to include live station endpoint');
+    assert(agentCard.canonicalSkillPackUrl === 'https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack', `unexpected canonical pack url ${String(agentCard.canonicalSkillPackUrl)}`);
+  }
+
   const visitor = await createVisitor('visitor-agent');
 
   test('Invalid tutorial greeting is declined with guidance');
   {
-    const bypassGreeting = createIntent('visitor-agent', 'wrong greeting');
+    const visitorId = (visitor as IntentSpaceClient & { principalId?: string }).principalId ?? 'visitor-agent';
+    const bypassGreeting = createIntent(visitorId, 'wrong greeting');
     bypassGreeting.intentId = 'tutorial-bypass-1';
     bypassGreeting.parentId = TUTORIAL_SPACE_ID;
     visitor.post(bypassGreeting);
@@ -111,7 +126,8 @@ async function main(): Promise<void> {
 
   test('Authenticated tutorial ritual flow works end to end');
   {
-    const greeting = createIntent('visitor-agent', RITUAL_GREETING_CONTENT);
+    const visitorId = (visitor as IntentSpaceClient & { principalId?: string }).principalId ?? 'visitor-agent';
+    const greeting = createIntent(visitorId, RITUAL_GREETING_CONTENT);
     greeting.intentId = 'tutorial-greeting-1';
     greeting.parentId = TUTORIAL_SPACE_ID;
     visitor.post(greeting);
@@ -119,11 +135,11 @@ async function main(): Promise<void> {
     const instruction = await waitForSpaceMatch(
       visitor,
       greeting.intentId!,
-      (msg) => msg.type === 'INTENT' && msg.senderId === 'differ-tutor',
+      (msg) => msg.type === 'INTENT' && msg.senderId !== visitorId,
     );
     assert(Boolean(instruction), 'Tutor should post subspace instructions after greeting');
 
-    const wrongIntent = createIntent('visitor-agent', 'bad tutorial ask');
+    const wrongIntent = createIntent(visitorId, 'bad tutorial ask');
     wrongIntent.intentId = 'tutorial-wrong-1';
     wrongIntent.parentId = greeting.intentId!;
     visitor.post(wrongIntent);
@@ -139,7 +155,7 @@ async function main(): Promise<void> {
       `expected DOJO_DELIBERATE_CORRECTION, got ${String(decline?.payload.reasonCode)}`,
     );
 
-    const correctedIntent = createIntent('visitor-agent', 'clear tutorial ask');
+    const correctedIntent = createIntent(visitorId, 'clear tutorial ask');
     correctedIntent.intentId = 'tutorial-correct-1';
     correctedIntent.parentId = greeting.intentId!;
     visitor.post(correctedIntent);
@@ -154,7 +170,7 @@ async function main(): Promise<void> {
       throw new Error('Tutor did not issue a promise');
     }
 
-    const badAccept = createAccept('visitor-agent', promise!.intentId!);
+    const badAccept = createAccept(visitorId, promise!.intentId!);
     badAccept.parentId = greeting.intentId!;
     visitor.post(badAccept);
 
@@ -165,7 +181,7 @@ async function main(): Promise<void> {
     );
     assert(Boolean(badAcceptDecline), 'Tutor should decline ACCEPT with a wrong promiseId');
 
-    const accept = createAccept('visitor-agent', promise!.promiseId!);
+    const accept = createAccept(visitorId, promise!.promiseId!);
     accept.parentId = greeting.intentId!;
     visitor.post(accept);
 
@@ -176,7 +192,7 @@ async function main(): Promise<void> {
     );
     assert(Boolean(complete), 'Tutor should complete after visitor ACCEPTs');
 
-    const badAssess = createAssess('visitor-agent', promise!.intentId!, 'FULFILLED');
+    const badAssess = createAssess(visitorId, promise!.intentId!, 'FULFILLED');
     badAssess.parentId = greeting.intentId!;
     visitor.post(badAssess);
 
@@ -187,7 +203,7 @@ async function main(): Promise<void> {
     );
     assert(Boolean(badAssessDecline), 'Tutor should decline ASSESS with a wrong promiseId');
 
-    const assess = createAssess('visitor-agent', promise!.promiseId!, 'FULFILLED');
+    const assess = createAssess(visitorId, promise!.promiseId!, 'FULFILLED');
     assess.parentId = greeting.intentId!;
     visitor.post(assess);
 

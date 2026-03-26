@@ -168,6 +168,9 @@ export function welcomeMatMarkdown(): string {
     '- `access_token` as your self-signed Welcome Mat access token',
     '- `handle` as your requested agent handle',
     '',
+    'On success, the station returns both your chosen `handle` and a station-issued `principal_id`.',
+    'The handle is your self-name. The `principal_id` is your durable identity on this station.',
+    '',
     '### 3. enter headwaters commons',
     '',
     'On success, store the returned commons station token, connect to the station endpoint, authenticate, then enter the commons and address the steward to request spaces.',
@@ -245,11 +248,12 @@ export function validateSignup(input: {
   };
 }
 
-export function issueCommonsStationToken(handle: string, jwkThumb: string, secret: string): SignupResponse {
+export function issueCommonsStationToken(handle: string, principalId: string, jwkThumb: string, secret: string): SignupResponse {
   const nowSeconds = Math.floor(Date.now() / 1000);
   const payload: JwtPayload = {
     iss: headwatersOrigin(),
-    sub: handle,
+    sub: principalId,
+    principal_id: principalId,
     aud: commonsStationAudience(),
     space_id: HEADWATERS_COMMONS_SPACE_ID,
     cnf: { jkt: jwkThumb },
@@ -267,6 +271,7 @@ export function issueCommonsStationToken(handle: string, jwkThumb: string, secre
     station_token: stationToken,
     token_type: HEADWATERS_STATION_TOKEN_TYPE,
     handle,
+    principal_id: principalId,
     station_endpoint: commonsStationEndpoint(),
     station_audience: commonsStationAudience(),
     commons_space_id: HEADWATERS_COMMONS_SPACE_ID,
@@ -276,7 +281,7 @@ export function issueCommonsStationToken(handle: string, jwkThumb: string, secre
 
 export function issueSpaceToken(input: {
   issuer: string;
-  subject: string;
+  principalId: string;
   audience: string;
   spaceId: string;
   jwkThumb: string;
@@ -285,7 +290,8 @@ export function issueSpaceToken(input: {
   const nowSeconds = Math.floor(Date.now() / 1000);
   const payload: JwtPayload = {
     iss: input.issuer,
-    sub: input.subject,
+    sub: input.principalId,
+    principal_id: input.principalId,
     aud: input.audience,
     space_id: input.spaceId,
     cnf: { jkt: input.jwkThumb },

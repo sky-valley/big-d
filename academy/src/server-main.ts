@@ -9,5 +9,6 @@ await startAcademyServer({
   host: process.env.ACADEMY_HOST ?? '127.0.0.1',
   port: parseInt(process.env.ACADEMY_PORT ?? '8080', 10),
   rootDir,
+  dataDir: process.env.ACADEMY_DATA_DIR ?? resolve(rootDir, '.academy'),
   authSecret: process.env.INTENT_SPACE_AUTH_SECRET ?? 'intent-space-dev-secret',
 });

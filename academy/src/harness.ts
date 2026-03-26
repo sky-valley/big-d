@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
-import { dirname, join, relative, resolve } from 'path';
+import { join, relative, resolve } from 'path';
 import { execFileSync, spawn } from 'child_process';
 import { randomUUID } from 'crypto';
 import type { ClientTarget, MessageEcho } from '../../intent-space/src/types.ts';
@@ -122,6 +122,8 @@ interface RecipeContext {
   sessionRef?: string;
 }
 
+const CANONICAL_PACK_URL = 'https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack';
+
 interface LaunchSpec {
   command: string;
   args: string[];
@@ -191,7 +193,6 @@ async function runSingleTrial(
   const stderrPath = join(runDir, 'stderr.log');
   const transcriptPath = join(runDir, 'station-transcript.jsonl');
   const prompt = buildPrompt({
-    skillPackPath: join(ctx.repoRoot, 'academy/skill-pack/SKILL.md'),
     academyDocPath: join(ctx.repoRoot, 'academy/agent-setup.md'),
     academyUrl: `http://localhost:${ctx.stage.academyPort}/agent-setup.md`,
     stationEndpoint: `tcp://${ctx.stage.host}:${ctx.stage.port}`,
@@ -372,15 +373,13 @@ async function runSingleTrial(
 }
 
 function buildPrompt(input: {
-  skillPackPath: string;
   academyDocPath: string;
   academyUrl: string;
   stationEndpoint: string;
   workspaceDir: string;
 }): string {
-  const microExamplesPath = join(dirname(input.skillPackPath), 'references', 'MICRO_EXAMPLES.md');
   const lines = [
-    `Use the skill pack at ${input.skillPackPath} and complete the dojo.`,
+    `Use the canonical intent-space-agent-pack at ${CANONICAL_PACK_URL} and complete the dojo.`,
     `The academy reference is at ${input.academyDocPath} and also served at ${input.academyUrl}.`,
     `The local station endpoint is ${input.stationEndpoint}.`,
     `Store any local state you need inside ${input.workspaceDir}.`,
@@ -394,7 +393,7 @@ function buildPrompt(input: {
     'Only scan spaces that are part of your own live run: root for initial observation, tutorial for your own greeting, and your greeting intent subspace for the ritual.',
     'Treat since as a sequence cursor. Advance it from each SCAN_RESULT.latestSeq, not from timestamps.',
     'Read scan results from SCAN_RESULT.messages.',
-    `If you hit a tricky seam around async challenges, subspace placement, or promise binding, consult ${microExamplesPath}.`,
+    'If you hit a tricky seam around async challenges, subspace placement, or promise binding, consult the canonical pack docs before dropping to raw wire work.',
     'Use the ritual greeting string exactly as specified in the live contract files.',
     'After posting the ritual greeting in tutorial, continue the ritual in that greeting intent subspace by using the greeting intentId as parentId.',
     'Do not invent a separate ENTER message type.',
@@ -577,7 +576,7 @@ function getPiRecipe(): AgentRecipe {
   return {
     command: 'npx',
     args: (ctx) => {
-      const args = ['-y', packageName, '-p', '--tools', 'read,bash,edit,write,grep,find,ls', '--skill', join(ctx.repoRoot, 'academy/skill-pack/SKILL.md')];
+      const args = ['-y', packageName, '-p', '--tools', 'read,bash,edit,write,grep,find,ls'];
       args.push('--session', ctx.sessionRef!);
       if (process.env.PI_PROVIDER) {
         args.push('--provider', process.env.PI_PROVIDER);
@@ -591,7 +590,7 @@ function getPiRecipe(): AgentRecipe {
     env: () => buildPiEnv(),
     prepareSessionRef: (ctx) => join(ctx.runDir, 'pi-session.jsonl'),
     resume: (ctx, sessionRef, prompt) => {
-      const args = ['-y', packageName, '-p', '--continue', '--session', sessionRef, '--tools', 'read,bash,edit,write,grep,find,ls', '--skill', join(ctx.repoRoot, 'academy/skill-pack/SKILL.md')];
+      const args = ['-y', packageName, '-p', '--continue', '--session', sessionRef, '--tools', 'read,bash,edit,write,grep,find,ls'];
       if (process.env.PI_PROVIDER) args.push('--provider', process.env.PI_PROVIDER);
       if (process.env.PI_MODEL) args.push('--model', process.env.PI_MODEL);
       args.push(prompt);
@@ -715,8 +714,11 @@ export function classifyRun(
   helperFiles: string[];
   helperLanguage?: string;
 } {
-  const ignored = new Set(['intent-space', 'differ-tutor']);
-  const agentMessages = transcript.filter((msg) => !ignored.has(msg.senderId));
+  const ignored = new Set(['intent-space']);
+  const greetingMessages = transcript.filter(
+    (msg) => !ignored.has(msg.senderId) && msg.type === 'INTENT' && msg.parentId === TUTORIAL_SPACE_ID,
+  );
+  const agentMessages = greetingMessages.length > 0 ? greetingMessages : transcript.filter((msg) => !ignored.has(msg.senderId));
   const agentIds = [...new Set(agentMessages.map((msg) => msg.senderId))].sort();
   const agentId = pickDominantAgent(agentMessages);
   const repairSignals = collectRepairSignals(transcript, generatedFiles, agentIds);
@@ -752,8 +754,14 @@ export function classifyRun(
     };
   }
 
+  const tutorId = transcript.find(
+    (msg) => msg.senderId !== agentId
+      && msg.parentId === greeting.intentId
+      && (msg.type === 'INTENT' || msg.type === 'DECLINE' || msg.type === 'PROMISE' || msg.type === 'COMPLETE'),
+  )?.senderId;
+
   const deliberateDecline = transcript.find(
-    (msg) => msg.senderId === 'differ-tutor' && msg.type === 'DECLINE' && msg.parentId === greeting.intentId,
+    (msg) => msg.senderId === tutorId && msg.type === 'DECLINE' && msg.parentId === greeting.intentId,
   );
   if (!deliberateDecline) {
     return {
@@ -769,7 +777,7 @@ export function classifyRun(
   }
 
   const promise = transcript.find(
-    (msg) => msg.senderId === 'differ-tutor' && msg.type === 'PROMISE' && msg.parentId === greeting.intentId,
+    (msg) => msg.senderId === tutorId && msg.type === 'PROMISE' && msg.parentId === greeting.intentId,
   );
   if (!promise?.promiseId) {
     return {
@@ -1072,7 +1080,7 @@ function collectRepairSignals(transcript: MessageEcho[], generatedFiles: string[
   const helperFiles = detectHelperFiles(generatedFiles);
   if (helperFiles.length > 1) signals.add('multiple-helper-files');
 
-  const ignored = new Set(['intent-space', 'differ-tutor']);
+  const ignored = new Set(['intent-space']);
   const counts = new Map<string, { greetings: number }>();
   for (const msg of transcript) {
     if (ignored.has(msg.senderId)) continue;

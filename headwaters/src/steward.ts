@@ -1,9 +1,9 @@
 import { createHash, generateKeyPairSync, randomUUID, sign } from 'crypto';
 import { join } from 'path';
 import { IntentSpaceClient } from '../../intent-space/src/client.ts';
+import { StationPrincipalRegistry } from '../../intent-space/src/principal-registry.ts';
 import type { StoredMessage } from '../../intent-space/src/types.ts';
 import { HeadwatersProvisioner } from './provisioner.ts';
-import { HeadwatersEnrollmentRegistry } from './enrollment-registry.ts';
 import { HeadwatersStewardState, type PersistedStewardRequest } from './steward-state.ts';
 import {
   commonsStationEndpoint,
@@ -151,7 +151,7 @@ function createStewardIdentity(authSecret: string): StewardIdentity {
   const thumbprint = createHash('sha256').update(
     JSON.stringify({ e: publicJwk.e, kty: 'RSA', n: publicJwk.n }),
   ).digest('base64url');
-  const signup = issueCommonsStationToken(HEADWATERS_STEWARD_ID, thumbprint, authSecret);
+  const signup = issueCommonsStationToken(HEADWATERS_STEWARD_ID, HEADWATERS_STEWARD_ID, thumbprint, authSecret);
 
   return {
     stationToken: signup.station_token,
@@ -186,7 +186,7 @@ export class HeadwatersSteward {
   private readonly options: HeadwatersStewardOptions;
   private readonly client: IntentSpaceClient;
   private readonly provisioner: HeadwatersProvisioner;
-  private readonly registry: HeadwatersEnrollmentRegistry;
+  private readonly registry: StationPrincipalRegistry;
   private readonly state: HeadwatersStewardState;
   private readonly identity: StewardIdentity;
   private running = false;
@@ -206,7 +206,7 @@ export class HeadwatersSteward {
       issuer: headwatersOrigin(),
       authSecret: options.authSecret,
     });
-    this.registry = new HeadwatersEnrollmentRegistry(join(options.dataDir, 'enrollment-registry.json'));
+    this.registry = new StationPrincipalRegistry(join(options.dataDir, 'principal-registry.json'), 'prn_headwaters');
     this.state = new HeadwatersStewardState(join(options.dataDir, 'steward-state.json'));
     this.identity = createStewardIdentity(options.authSecret);
   }
@@ -404,9 +404,9 @@ export class HeadwatersSteward {
         headwatersStatus: provisioned.created ? 'SPACE_CREATED' : 'SPACE_ALREADY_EXISTS',
         spaceKind: 'home',
         spaceId: provisioned.spaceId,
-        stationEndpoint: provisioned.endpoint,
-        stationAudience: provisioned.audience,
-        stationToken: provisioned.stationToken,
+        station_endpoint: provisioned.endpoint,
+        station_audience: provisioned.audience,
+        station_token: provisioned.stationToken,
       };
       this.client.post(buildComplete(
         HEADWATERS_STEWARD_ID,
@@ -424,6 +424,6 @@ export class HeadwatersSteward {
   }
 
   private async lookupParticipantThumbprint(senderId: string): Promise<string | null> {
-    return this.registry.get(senderId)?.jwkThumbprint ?? null;
+    return this.registry.getByPrincipalId(senderId)?.jwkThumbprint ?? null;
   }
 }

@@ -96,7 +96,7 @@ def ensure_bindings(
             "commons": {
                 "endpoint": commons_enrollment.get("station_endpoint"),
                 "audience": commons_enrollment.get("station_audience"),
-                "stationToken": commons_enrollment.get("station_token"),
+                "station_token": commons_enrollment.get("station_token"),
                 "spaceId": commons_enrollment.get("commons_space_id"),
                 "scanSpaceId": COMMONS_SPACE_ID,
             },
@@ -137,9 +137,9 @@ def ensure_bindings(
             wait_seconds=wait_seconds,
         )
         payload = complete.get("payload", {})
-        endpoint = payload.get("stationEndpoint")
-        audience = payload.get("stationAudience")
-        station_token = payload.get("stationToken")
+        endpoint = payload.get("station_endpoint")
+        audience = payload.get("station_audience")
+        station_token = payload.get("station_token")
         if not isinstance(endpoint, str) or not isinstance(audience, str) or not isinstance(station_token, str):
             raise RuntimeError(f"invalid completion payload: {payload}")
         session.post(
@@ -153,7 +153,7 @@ def ensure_bindings(
         bindings["home"] = {
             "endpoint": endpoint,
             "audience": audience,
-            "stationToken": station_token,
+            "station_token": station_token,
             "spaceId": payload.get("spaceId"),
             "scanSpaceId": "root",
         }
@@ -256,7 +256,7 @@ def main(argv: list[str]) -> int:
                 workspace=workspace,
                 endpoint=str(target["endpoint"]),
                 audience=str(target["audience"]),
-                station_token=str(target["stationToken"]),
+                station_token=str(target["station_token"]),
                 agent_id=args.agent_id,
                 scan_space_id=str(target["scanSpaceId"]),
                 scans_per_connection=args.scans_per_connection,
