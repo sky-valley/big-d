@@ -47,6 +47,7 @@ interface AgentRecipe {
   inputMode?: 'stdin';
   env?: (ctx: RecipeContext) => NodeJS.ProcessEnv;
   prepareSessionRef?: () => string | undefined;
+  launchMode?: 'one-shot' | 'claude-stream-json';
 }
 
 interface RecipeContext {
@@ -72,6 +73,13 @@ interface RunningAgent {
   waitForExit?: Promise<number | null>;
   sessionRef?: string;
   unavailableReason?: string;
+  launchMode: 'one-shot' | 'claude-stream-json';
+  handle?: string;
+  interviewStatus: 'pending' | 'completed' | 'failed' | 'unavailable';
+  interviewFile?: string;
+  interviewTriggeredAt?: number;
+  interviewSent: boolean;
+  stdinClosed?: boolean;
 }
 
 interface AgentEvidence {
@@ -97,6 +105,14 @@ interface AgentRunSummary {
   orientationPassed: boolean;
   coexistencePassed: boolean;
   collaborationPassed: boolean;
+  interviewStatus: 'completed' | 'failed' | 'unavailable';
+  interviewFile?: string;
+}
+
+interface InterviewObservation {
+  reachedSpace: boolean;
+  latestCloseAt?: number;
+  latestActivityAt?: number;
 }
 
 interface TrialSummary {
@@ -147,6 +163,8 @@ const DEFAULT_COMMONS_PORT = 4010;
 const DEFAULT_OBSERVATORY_PORT = 4311;
 const DEFAULT_INJECT_CONTENT =
   'Hey I need someone to build me a simple todo list app, it should have the possibility to add, edit, and delete tasks, it should be able to store the tasks in a file, and it should be able to read the tasks from the file.';
+const INTERVIEW_DISCONNECT_GRACE_MS = 3_000;
+const INTERVIEW_TIMEOUT_MS = 2 * 60 * 1000;
 
 export async function runHeadwatersAgentPackEval(options: EvalOptions): Promise<{ reportPath: string; summaries: TrialSummary[] }> {
   const outputDir = resolve(options.outputDir);
@@ -243,6 +261,11 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
       runningAgents,
       options.timeoutMs,
       options.idleTimeoutMs,
+      {
+        repoRoot: options.repoRoot,
+        dbPath: stage.commonsDbPath,
+        startedAtMs: startedAt.getTime(),
+      },
     );
     timedOut = outcome.timedOut;
     terminationReason = outcome.terminationReason;
@@ -274,7 +297,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
 
   const agentSummaries = await Promise.all(runningAgents.map(async (agent) => {
     const generatedFiles = listFiles(agent.workspaceDir);
-    const handle = discoverHandle(agent.workspaceDir);
+    const handle = agent.handle ?? discoverHandle(agent.workspaceDir);
     const evidence = await readSpaceDb({
       repoRoot: options.repoRoot,
       dbPath: stage.commonsDbPath,
@@ -282,6 +305,12 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
       toTs: endedAt.getTime(),
       actorId: handle,
     });
+    const interviewObservation = observeInterviewState(evidence);
+    const interviewStatus = agent.interviewStatus === 'completed'
+      ? 'completed'
+      : agent.launchMode === 'claude-stream-json' && interviewObservation.reachedSpace
+        ? 'failed'
+        : 'unavailable';
     return {
       agent: agent.agent,
       instanceLabel: agent.instanceLabel,
@@ -301,6 +330,8 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
       orientationPassed: false,
       coexistencePassed: false,
       collaborationPassed: false,
+      interviewStatus,
+      interviewFile: agent.interviewFile,
     } satisfies AgentRunSummary;
   }));
 
@@ -426,6 +457,9 @@ async function launchAgents(input: {
         stdoutPath,
         stderrPath,
         unavailableReason: `No recipe configured for ${agent}`,
+        launchMode: 'one-shot',
+        interviewStatus: 'unavailable',
+        interviewSent: false,
       });
       continue;
     }
@@ -449,10 +483,12 @@ async function launchAgents(input: {
         env: recipe.env?.(ctx) ?? process.env,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
-      if (recipe.inputMode === 'stdin') {
+      if (recipe.launchMode === 'claude-stream-json') {
+        sendClaudeUserMessage(child.stdin, prompt);
+      } else if (recipe.inputMode === 'stdin') {
         child.stdin.write(prompt);
+        child.stdin.end();
       }
-      child.stdin.end();
       pipeToFile(child.stdout, stdoutPath);
       pipeToFile(child.stderr, stderrPath);
 
@@ -472,7 +508,10 @@ async function launchAgents(input: {
         stderrPath,
         child,
         sessionRef,
+        launchMode: recipe.launchMode ?? 'one-shot',
         waitForExit: new Promise((resolve) => child.on('exit', (code) => resolve(code))),
+        interviewStatus: recipe.launchMode === 'claude-stream-json' ? 'pending' : 'unavailable',
+        interviewSent: false,
       });
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -485,6 +524,9 @@ async function launchAgents(input: {
         stdoutPath,
         stderrPath,
         unavailableReason: `Failed to spawn ${agent}: ${reason}`,
+        launchMode: 'one-shot',
+        interviewStatus: 'unavailable',
+        interviewSent: false,
       });
     }
   }
@@ -514,6 +556,11 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
     command: 'claude',
     args: (ctx) => [
       '--print',
+      '--verbose',
+      '--output-format',
+      'stream-json',
+      '--input-format',
+      'stream-json',
       '--session-id',
       ctx.sessionRef!,
       '--dangerously-skip-permissions',
@@ -524,6 +571,7 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
     ],
     inputMode: 'stdin',
     prepareSessionRef: () => randomUUID(),
+    launchMode: 'claude-stream-json',
   };
   const scriptedRecipe: AgentRecipe = {
     command: 'python3',
@@ -708,6 +756,11 @@ async function awaitAgentsCompletion(
   agents: RunningAgent[],
   timeoutMs: number,
   idleTimeoutMs: number,
+  input: {
+    repoRoot: string;
+    dbPath: string;
+    startedAtMs: number;
+  },
 ): Promise<{ timedOut: boolean; terminationReason: TerminationReason }> {
   const running = agents.filter((agent) => agent.child);
   const started = Date.now();
@@ -715,6 +768,10 @@ async function awaitAgentsCompletion(
   let lastProgressAt = started;
 
   while (Date.now() - started < timeoutMs) {
+    for (const agent of running) {
+      await maybeRunExitInterview(agent, input);
+    }
+
     const allExited = await Promise.all(running.map(async (agent) => {
       const child = agent.child!;
       return child.exitCode !== null || child.killed;
@@ -759,6 +816,57 @@ async function stopProcess(child?: ChildProcessWithoutNullStreams): Promise<void
   if (child.exitCode === null && !child.killed) {
     child.kill('SIGKILL');
   }
+}
+
+async function maybeRunExitInterview(
+  agent: RunningAgent,
+  input: {
+    repoRoot: string;
+    dbPath: string;
+    startedAtMs: number;
+  },
+): Promise<void> {
+  if (!agent.child || agent.child.exitCode !== null || agent.child.killed) return;
+  if (agent.launchMode !== 'claude-stream-json') return;
+  if (agent.interviewStatus !== 'pending') return;
+
+  agent.handle ??= discoverHandle(agent.workspaceDir);
+  if (!agent.handle) return;
+
+  const evidence = await readSpaceDb({
+    repoRoot: input.repoRoot,
+    dbPath: input.dbPath,
+    fromTs: input.startedAtMs,
+    toTs: Date.now(),
+    actorId: agent.handle,
+  });
+  const observation = observeInterviewState(evidence);
+  if (!agent.interviewSent) {
+    if (!shouldTriggerInterview(observation, Date.now(), INTERVIEW_DISCONNECT_GRACE_MS)) return;
+    const interviewFile = join(agent.workspaceDir, '.intent-space', 'state', 'post-headwaters-interview.md');
+    agent.interviewFile = interviewFile;
+    agent.interviewTriggeredAt = Date.now();
+    agent.interviewSent = true;
+    sendClaudeUserMessage(agent.child.stdin, buildInterviewPrompt(interviewFile));
+    return;
+  }
+
+  const saved = agent.interviewFile && existsSync(agent.interviewFile);
+  const timedOut = agent.interviewTriggeredAt !== undefined
+    && Date.now() - agent.interviewTriggeredAt > INTERVIEW_TIMEOUT_MS;
+  if (saved) {
+    agent.interviewStatus = 'completed';
+    closeAgentInput(agent);
+  } else if (timedOut) {
+    agent.interviewStatus = 'failed';
+    closeAgentInput(agent);
+  }
+}
+
+function closeAgentInput(agent: RunningAgent): void {
+  if (agent.stdinClosed || !agent.child) return;
+  agent.stdinClosed = true;
+  agent.child.stdin.end();
 }
 
 function launchIntentInjector(input: {
@@ -818,6 +926,75 @@ async function readSpaceDb(input: {
     messages: parsed.messages ?? [],
     monitoringEvents: parsed.monitoringEvents ?? [],
   };
+}
+
+function sendClaudeUserMessage(stdin: NodeJS.WritableStream, content: string): void {
+  stdin.write(`${JSON.stringify({
+    type: 'user',
+    message: {
+      role: 'user',
+      content,
+    },
+  })}\n`);
+}
+
+export function buildInterviewPrompt(interviewFile: string): string {
+  return [
+    'Do not reconnect to Headwaters and do not rerun the task.',
+    'Your interaction with the space has ended.',
+    `Write a concise markdown interview to ${interviewFile}.`,
+    'Use these headings exactly:',
+    '# Post-Headwaters Interview',
+    '## What Happened At The End',
+    '## What Was Clear',
+    '## What Was Confusing',
+    '## Did You Mean To Leave',
+    '## Smallest Fix',
+    'Base the answers only on the run that just ended. Be brief and concrete.',
+    'After writing the file, print exactly INTERVIEW_SAVED.',
+  ].join(' ');
+}
+
+function observeInterviewState(evidence: AgentEvidence): InterviewObservation {
+  let latestCloseAt: number | undefined;
+  let latestActivityAt: number | undefined;
+  let reachedSpace = evidence.messages.length > 0;
+
+  for (const message of evidence.messages) {
+    if (typeof message.timestamp === 'number') {
+      latestActivityAt = Math.max(latestActivityAt ?? 0, message.timestamp);
+    }
+  }
+
+  for (const event of evidence.monitoringEvents) {
+    const eventType = String(event.event_type ?? event.eventType ?? '');
+    const timestamp = typeof event.timestamp === 'number' ? event.timestamp : undefined;
+    if (eventType === 'connection_closed' && timestamp !== undefined) {
+      latestCloseAt = Math.max(latestCloseAt ?? 0, timestamp);
+      continue;
+    }
+    if ((eventType === 'auth_succeeded' || eventType === 'scan_succeeded') && timestamp !== undefined) {
+      reachedSpace = true;
+      latestActivityAt = Math.max(latestActivityAt ?? 0, timestamp);
+    }
+  }
+
+  return {
+    reachedSpace,
+    latestCloseAt,
+    latestActivityAt,
+  };
+}
+
+export function shouldTriggerInterview(
+  observation: InterviewObservation,
+  now: number,
+  graceMs: number,
+): boolean {
+  if (!observation.reachedSpace) return false;
+  if (observation.latestCloseAt === undefined) return false;
+  if ((observation.latestActivityAt ?? 0) > observation.latestCloseAt) return false;
+  return now - observation.latestCloseAt >= graceMs;
 }
 
 function discoverHandle(workspaceDir: string): string | undefined {
@@ -1016,13 +1193,13 @@ function renderMarkdownReport(summaries: TrialSummary[]): string {
     }
     lines.push(`- timeline: ${summary.runDir}/timeline.md`);
     lines.push('');
-    lines.push('| Agent | Profile | Status | Handle | Orientation | Coexistence | Collaboration |');
-    lines.push('|-------|---------|--------|--------|-------------|-------------|---------------|');
+    lines.push('| Agent | Profile | Status | Handle | Orientation | Coexistence | Collaboration | Interview |');
+    lines.push('|-------|---------|--------|--------|-------------|-------------|---------------|-----------|');
     for (const agent of summary.agentSummaries) {
       const o = agent.orientationPassed ? 'pass' : 'fail';
       const cx = agent.coexistencePassed ? 'pass' : 'fail';
       const cl = agent.collaborationPassed ? 'pass' : 'fail';
-      lines.push(`| ${agent.instanceLabel} | ${agent.profile?.name ?? '-'} | ${agent.status} | ${agent.handle ?? '-'} | ${o} | ${cx} | ${cl} |`);
+      lines.push(`| ${agent.instanceLabel} | ${agent.profile?.name ?? '-'} | ${agent.status} | ${agent.handle ?? '-'} | ${o} | ${cx} | ${cl} | ${agent.interviewStatus} |`);
     }
     lines.push('');
   }
