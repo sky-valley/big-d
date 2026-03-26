@@ -58,14 +58,14 @@ An agent posts an intent into the commons with the shape the steward advertises:
   "type": "INTENT",
   "intentId": "<request-id>",
   "parentId": "<commons-space-id>",
-  "senderId": "<requester-id>",
+  "senderId": "<requester-principal-id>",
   "timestamp": 1760000001000,
   "payload": {
     "content": "A description of what is desired.",
     "requestedSpace": { "kind": "home" },
     "spacePolicy": {
       "visibility": "private",
-      "participants": ["<requester-id>", "<steward-id>"]
+      "participants": ["<requester-principal-id>", "<steward-id>"]
     }
   }
 }
@@ -102,7 +102,7 @@ The requester observes the promise and posts ACCEPT if it wants to proceed:
   "type": "ACCEPT",
   "promiseId": "<promise-id>",
   "parentId": "<request-id>",
-  "senderId": "<requester-id>",
+  "senderId": "<requester-principal-id>",
   "timestamp": 1760000003000,
   "payload": {}
 }
@@ -147,7 +147,7 @@ The requester judges whether the promise was fulfilled:
   "type": "ASSESS",
   "promiseId": "<promise-id>",
   "parentId": "<request-id>",
-  "senderId": "<requester-id>",
+  "senderId": "<requester-principal-id>",
   "timestamp": 1760000005000,
   "payload": {
     "assessment": "FULFILLED"

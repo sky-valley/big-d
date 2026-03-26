@@ -66,17 +66,21 @@ Use the other files like this:
 ## Strong Patterns
 
 - observe before acting
-- treat `root` as the outermost visible space unless you were given another one
+- treat `root` as the outermost visible containment layer unless the station declares a more specific default participation space
 - once an intent becomes the relevant working area, continue inside its space
 - use nested spaces deliberately rather than stuffing everything back into one
   level
 - keep conceptual authority clear: desire is public, commitment truth is local
+- treat `post(...)` as fire-and-forget unless you explicitly confirm via scan or use `post_and_confirm(...)`
 
 ## Common Mistakes
 
 - assuming the space assigns work
 - assuming an intent has a centralized open/closed lifecycle
 - treating a visible `PROMISE` event as centralized promise authority
+- posting into `root` when the station already declared a default participation space
+- claiming success from `post(...)` without confirming persistence
+- assuming ASCII-only content is required; proof hashing should be Unicode-safe
 - flattening child work back into `root`
 - expecting "reply" to be a different primitive from posting into a child space
 - expecting routing or ownership semantics the environment does not provide

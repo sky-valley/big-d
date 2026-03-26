@@ -1,7 +1,8 @@
 import { resolve } from 'path';
-import { runHeadwatersAgentPackEval } from '../src/harness.ts';
+import { pathToFileURL } from 'url';
+import { runHeadwatersAgentPackEval, type ProfileMode } from '../src/harness.ts';
 
-function parseArgs(argv: string[]): {
+export function parseArgs(argv: string[]): {
   agents: string[];
   outputDir: string;
   trials: number;
@@ -12,6 +13,7 @@ function parseArgs(argv: string[]): {
   injectContent?: string;
   withObservatory: boolean;
   observatoryPortBase: number;
+  profileMode: ProfileMode;
 } {
   const result = {
     agents: ['scripted-headwaters'],
@@ -24,6 +26,7 @@ function parseArgs(argv: string[]): {
     injectContent: undefined as string | undefined,
     withObservatory: false,
     observatoryPortBase: 4311,
+    profileMode: 'none' as ProfileMode,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -75,41 +78,58 @@ function parseArgs(argv: string[]): {
     if (arg === '--observatory-port-base' && argv[index + 1]) {
       result.observatoryPortBase = parseInt(argv[index + 1], 10);
       index += 1;
+      continue;
+    }
+    if (arg === '--profile-mode' && argv[index + 1]) {
+      const value = argv[index + 1];
+      if (value !== 'none' && value !== 'builtin') {
+        console.error(`Error: Invalid --profile-mode '${value}'. Supported: none, builtin`);
+        process.exit(1);
+      }
+      result.profileMode = value;
+      index += 1;
     }
   }
 
   return result;
 }
 
-const args = parseArgs(process.argv.slice(2));
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
 
-const SUPPORTED_AGENTS = new Set(['codex', 'claude', 'pi', 'scripted-headwaters']);
+  const SUPPORTED_AGENTS = new Set(['codex', 'claude', 'pi', 'scripted-headwaters']);
 
-for (const agent of args.agents) {
-  if (!SUPPORTED_AGENTS.has(agent)) {
-    console.error(`Error: Unknown agent type '${agent}'. Supported: ${[...SUPPORTED_AGENTS].join(', ')}`);
-    process.exit(1);
+  for (const agent of args.agents) {
+    if (!SUPPORTED_AGENTS.has(agent)) {
+      console.error(`Error: Unknown agent type '${agent}'. Supported: ${[...SUPPORTED_AGENTS].join(', ')}`);
+      process.exit(1);
+    }
   }
+
+  if (args.agents.length > 10) {
+    console.warn(`Warning: ${args.agents.length} agents requested. This configuration has not been tested beyond 10 agents.`);
+  }
+
+  const repoRoot = resolve(process.cwd(), '..');
+
+  const { reportPath } = await runHeadwatersAgentPackEval({
+    repoRoot,
+    agents: args.agents,
+    outputDir: args.outputDir,
+    trials: args.trials,
+    timeoutMs: args.timeoutMs,
+    idleTimeoutMs: args.idleTimeoutMs,
+    observationMs: args.observationMs,
+    staggerMs: args.staggerMs,
+    injectContent: args.injectContent,
+    withObservatory: args.withObservatory,
+    observatoryPortBase: args.observatoryPortBase,
+    profileMode: args.profileMode,
+  });
+
+  console.log(reportPath);
 }
 
-if (args.agents.length > 10) {
-  console.warn(`Warning: ${args.agents.length} agents requested. This configuration has not been tested beyond 10 agents.`);
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  await main();
 }
-
-const repoRoot = resolve(process.cwd(), '..');
-
-const { reportPath } = await runHeadwatersAgentPackEval({
-  repoRoot,
-  agents: args.agents,
-  outputDir: args.outputDir,
-  trials: args.trials,
-  timeoutMs: args.timeoutMs,
-  idleTimeoutMs: args.idleTimeoutMs,
-  observationMs: args.observationMs,
-  staggerMs: args.staggerMs,
-  injectContent: args.injectContent,
-  withObservatory: args.withObservatory,
-  observatoryPortBase: args.observatoryPortBase,
-});
-
-console.log(reportPath);

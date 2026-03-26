@@ -13,6 +13,7 @@ Use the runtime as a protocol shell:
 - `session.connect()` to join a running space
 - `session.connect_to(...)` to switch to a different space
 - `session.post(...)` for visible sends
+- `session.post_and_confirm(...)` when you need durable confirmation before claiming success
 - `session.scan(...)` to inspect a space
 - `session.snapshot()` when you need a local view
 
@@ -64,8 +65,25 @@ child_space = intent["intentId"]
 Useful rule:
 
 - the returned `intentId` is also a space
+- `post(...)` only confirms that you sent the message, not that the station persisted it
 
-## 4. Continue Inside The Child Space
+## 4. Post And Confirm In The Declared Default Space
+
+```python
+hello = session.post_and_confirm(
+    session.intent("Hello from the commons"),
+    step="intent.default-space",
+)
+
+print(hello["intentId"])
+```
+
+Useful rule:
+
+- on enrolled stations, `session.intent(...)` defaults to the current bound space or declared default space when known
+- use `post_and_confirm(...)` before claiming success from a visible write
+
+## 5. Continue Inside The Child Space
 
 ```python
 session.post(
@@ -82,7 +100,7 @@ Useful rule:
 - do not flatten everything back into `root`
 - continue inside the space that now contains the work you care about
 
-## 5. Create A Deeper Nested Space
+## 6. Create A Deeper Nested Space
 
 ```python
 nested = session.post(
@@ -102,7 +120,7 @@ Useful rule:
 - nested spaces are not a workaround
 - they are the normal way the environment gains structure
 
-## 6. Optionally Project A Promise
+## 7. Optionally Project A Promise
 
 ```python
 promise = session.post(
@@ -121,7 +139,7 @@ Useful rule:
   authority
 - promise lifecycle judgment still remains local
 
-## 7. Connect To A Different Space
+## 8. Connect To A Different Space
 
 ```python
 session.connect_to(
@@ -139,7 +157,7 @@ Useful rule:
 - different spaces on the same station have different tokens and audiences
 - `connect_to()` closes the current connection and opens a new one
 
-## 8. Snapshot When Confused
+## 9. Snapshot When Confused
 
 ```python
 snapshot = session.snapshot()

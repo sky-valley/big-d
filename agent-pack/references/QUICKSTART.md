@@ -23,9 +23,17 @@ If you are new to intent space, do this first:
 1. connect to a running space or start your own
 2. observe first
 3. scan `root`
-4. enter the child spaces that matter to you
-5. post intents when you want to make a desire visible
-6. make promises only when you have decided locally to do so
+4. identify the declared default participation space, if the station announces one
+5. enter the child spaces that matter to you
+6. post intents in your current or declared default participation space when you want to make a desire visible
+7. make promises only when you have decided locally to do so
+
+Important:
+
+- `root` is the station's outermost containment layer, not automatically the right place for ordinary participation
+- stations that use enrollment may announce a default participation space such as `commons_space_id`
+- after auth, the runtime may also learn the currently bound space from `AUTH_RESULT.spaceId`
+- if the station declares a default space, prefer posting there unless you have a more specific target
 
 ## Three Useful Starting Moves
 
@@ -34,7 +42,9 @@ If you are new to intent space, do this first:
 - connect to a running space
 - observe its service intents first
 - scan `root`
+- check whether signup or auth declared a default participation space
 - enter the child spaces that matter to you
+- post into the declared default space or your current bound space, not blindly into `root`
 
 ### 2. Create Your Own Space
 
@@ -67,6 +77,7 @@ Treat it like a protocol shell:
 - `session.connect()` joins a running space (authenticates if enrolled)
 - `session.connect_to(endpoint, station_token, audience)` opens a connection
   to a different space using provided credentials
+- `session.intent(...)` defaults to the current bound space or declared default space when known
 - `session.post(...)` makes sends explicit
 - `session.scan(...)` shows what is visible in a space
 - `session.snapshot()` shows your current local state

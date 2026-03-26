@@ -2,10 +2,18 @@ import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'child_
 import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { randomUUID } from 'crypto';
+import {
+  assignBuiltinProfile,
+  buildAgentPrompt,
+  buildBasePrompt,
+  type AgentProfileName,
+  type AssignedAgentProfile,
+} from './prompts/headwaters-agent-pack.ts';
 
 export type AgentTarget = 'codex' | 'claude' | 'pi' | 'scripted-headwaters';
 export type RunStatus = 'passed' | 'failed' | 'timeout' | 'unavailable';
 export type StageVerdict = 'passed' | 'failed' | 'not-run';
+export type ProfileMode = 'none' | 'builtin';
 type TerminationReason = 'process-exit' | 'idle-timeout' | 'wall-timeout' | 'unavailable';
 
 interface EvalOptions {
@@ -20,6 +28,7 @@ interface EvalOptions {
   injectContent?: string;
   withObservatory?: boolean;
   observatoryPortBase?: number;
+  profileMode: ProfileMode;
 }
 
 interface StageHandle {
@@ -55,6 +64,7 @@ interface RecipeContext {
 interface RunningAgent {
   agent: AgentTarget;
   instanceLabel: string;
+  profile?: AssignedAgentProfile;
   workspaceDir: string;
   stdoutPath: string;
   stderrPath: string;
@@ -73,6 +83,7 @@ interface AgentEvidence {
 interface AgentRunSummary {
   agent: AgentTarget;
   instanceLabel: string;
+  profile?: AssignedAgentProfile;
   status: RunStatus;
   exitCode: number | null;
   terminationReason: TerminationReason;
@@ -195,7 +206,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     log(trial, 'Intent injected');
   }
 
-  const prompt = buildPrompt({
+  const basePrompt = buildBasePrompt({
     packDir: join(options.repoRoot, 'agent-pack'),
     baseUrl: stage.baseUrl,
   });
@@ -204,7 +215,8 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     repoRoot: resolve(options.repoRoot),
     runDir,
     stage,
-    prompt,
+    basePrompt,
+    profileMode: options.profileMode,
     agentNames: options.agents,
     staggerMs: options.staggerMs ?? 0,
   });
@@ -273,6 +285,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     return {
       agent: agent.agent,
       instanceLabel: agent.instanceLabel,
+      profile: agent.profile,
       status: agent.unavailableReason
         ? 'unavailable'
         : timedOut ? 'timeout' : classifyAgentStatus(evidence),
@@ -308,17 +321,20 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     agentSummary.collaborationPassed = agentPassedCollaboration(agentSummary, collaborationSpaceIds);
   }
 
-  // Build handle-map: instance label → intent-space handle
-  const handleMap: Record<string, string | null> = {};
+  // Build agent-map: instance label → intent-space handle + profile
+  const agentMap: Record<string, { handle: string | null; profile: AgentProfileName | null }> = {};
   for (const agentSummary of agentSummaries) {
-    handleMap[agentSummary.instanceLabel] = agentSummary.handle ?? null;
+    agentMap[agentSummary.instanceLabel] = {
+      handle: agentSummary.handle ?? null,
+      profile: agentSummary.profile?.name ?? null,
+    };
   }
-  writeFileSync(join(runDir, 'handle-map.json'), JSON.stringify(handleMap, null, 2));
+  writeFileSync(join(runDir, 'agent-map.json'), JSON.stringify(agentMap, null, 2));
 
   generateTimeline({
     agentSummaries,
     sharedEvidence,
-    handleMap,
+    agentMap,
     runDir,
   });
 
@@ -355,25 +371,13 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
   return summary;
 }
 
-function buildPrompt(input: { packDir: string; baseUrl: string }): string {
-  return [
-    `Use the skill pack at ${input.packDir}.`,
-    `The Headwaters base URL is ${input.baseUrl}.`,
-    'Use only the pack and the live service as your source of truth.',
-    'Do not inspect historical runs, transcripts, or previous artifacts.',
-    'Store any local state you need inside the current working directory.',
-    'Do not ask for additional guidance.',
-    'Observe before acting.',
-    'You are in a real shared intent-space environment. Participate correctly on your own terms.',
-  ].join(' ');
-}
-
 async function launchAgents(input: {
   trial: number;
   repoRoot: string;
   runDir: string;
   stage: StageHandle;
-  prompt: string;
+  basePrompt: string;
+  profileMode: ProfileMode;
   agentNames: string[];
   staggerMs: number;
 }): Promise<RunningAgent[]> {
@@ -403,6 +407,8 @@ async function launchAgents(input: {
       : agent;
 
     const recipe = getRecipe(agent);
+    const profile = input.profileMode === 'builtin' ? assignBuiltinProfile(i) : undefined;
+    const prompt = buildAgentPrompt(input.basePrompt, profile);
     const agentDir = join(input.runDir, 'agents', instanceLabel);
     const workspaceDir = join(agentDir, 'workspace');
     mkdirSync(workspaceDir, { recursive: true });
@@ -431,7 +437,7 @@ async function launchAgents(input: {
         workspaceDir,
         runDir: agentDir,
         stage: input.stage,
-        prompt: input.prompt,
+        prompt,
         agent,
         instanceLabel,
         packDir,
@@ -444,14 +450,14 @@ async function launchAgents(input: {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       if (recipe.inputMode === 'stdin') {
-        child.stdin.write(input.prompt);
+        child.stdin.write(prompt);
       }
       child.stdin.end();
       pipeToFile(child.stdout, stdoutPath);
       pipeToFile(child.stderr, stderrPath);
 
       const staggerInfo = input.staggerMs > 0 ? ` [${i + 1}/${input.agentNames.length}]` : '';
-      log(input.trial, `Launched ${instanceLabel} (${agent})${staggerInfo}`);
+      log(input.trial, `Launched ${instanceLabel} (${agent}, ${profile?.name ?? 'no-profile'})${staggerInfo}`);
 
       child.on('exit', (code) => {
         log(input.trial, `${instanceLabel} exited (code ${code})`);
@@ -460,6 +466,7 @@ async function launchAgents(input: {
       results.push({
         agent,
         instanceLabel,
+        profile,
         workspaceDir,
         stdoutPath,
         stderrPath,
@@ -473,6 +480,7 @@ async function launchAgents(input: {
       results.push({
         agent,
         instanceLabel,
+        profile,
         workspaceDir,
         stdoutPath,
         stderrPath,
@@ -907,13 +915,16 @@ function scoreCollaboration(agentSummaries: AgentRunSummary[], collaborationSpac
 function generateTimeline(input: {
   agentSummaries: AgentRunSummary[];
   sharedEvidence: AgentEvidence;
-  handleMap: Record<string, string | null>;
+  agentMap: Record<string, { handle: string | null; profile: AgentProfileName | null }>;
   runDir: string;
 }): void {
-  // Reverse the handle map: handle → instanceLabel
+  // Reverse the agent map: handle → display label
   const handleToLabel = new Map<string, string>();
-  for (const [label, handle] of Object.entries(input.handleMap)) {
-    if (handle) handleToLabel.set(handle, label);
+  for (const [label, metadata] of Object.entries(input.agentMap)) {
+    if (metadata.handle) {
+      const displayLabel = metadata.profile ? `${label} (${metadata.profile})` : label;
+      handleToLabel.set(metadata.handle, displayLabel);
+    }
   }
 
   interface TimelineEntry {
@@ -1005,13 +1016,13 @@ function renderMarkdownReport(summaries: TrialSummary[]): string {
     }
     lines.push(`- timeline: ${summary.runDir}/timeline.md`);
     lines.push('');
-    lines.push('| Agent | Status | Handle | Orientation | Coexistence | Collaboration |');
-    lines.push('|-------|--------|--------|-------------|-------------|---------------|');
+    lines.push('| Agent | Profile | Status | Handle | Orientation | Coexistence | Collaboration |');
+    lines.push('|-------|---------|--------|--------|-------------|-------------|---------------|');
     for (const agent of summary.agentSummaries) {
       const o = agent.orientationPassed ? 'pass' : 'fail';
       const cx = agent.coexistencePassed ? 'pass' : 'fail';
       const cl = agent.collaborationPassed ? 'pass' : 'fail';
-      lines.push(`| ${agent.instanceLabel} | ${agent.status} | ${agent.handle ?? '-'} | ${o} | ${cx} | ${cl} |`);
+      lines.push(`| ${agent.instanceLabel} | ${agent.profile?.name ?? '-'} | ${agent.status} | ${agent.handle ?? '-'} | ${o} | ${cx} | ${cl} |`);
     }
     lines.push('');
   }

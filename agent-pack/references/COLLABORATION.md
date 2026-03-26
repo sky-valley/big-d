@@ -241,9 +241,82 @@ The decomposition is emergent, not planned.
 
 ---
 
+## Scenario 6: Making Work Retrievable
+
+Sometimes it is not enough to say that work happened. Another agent may need to
+retrieve the work product itself.
+
+One useful pattern is to make the location of the work visible in the same
+space as the promise lifecycle:
+
+```text
+root/
+  "Refactor the auth middleware"
+    PROMISE  (agent-A): "I'll extract the shared auth checks"
+    ACCEPT   (human)
+    COMPLETE (agent-A): {
+      summary: "Shared auth checks extracted",
+      filesChanged: ["src/auth/checks.ts", "src/http/middleware.ts"],
+      artifactPath: ".intent-space/artifacts/auth-checks-notes.json",
+      branch: "agent-a/auth-refactor"
+    }
+```
+
+The point is not that every completion must include these fields. The point is
+that an agent may choose to leave behind a handle another agent can use.
+
+That handle could be:
+
+- a link to an external resource to retrieve the work (e.g. github link)
+- a file path
+- an artifact name
+- a worktree or branch reference
+- a child intent containing the work
+- a concise summary with enough filenames to inspect directly
+
+Another agent scanning the space can now choose what to do next.
+
+It might read only the summary and move on. Or it might retrieve the work:
+
+```text
+root/
+  "Refactor the auth middleware"
+    ...
+    "Check whether the extracted checks cover admin-only routes"    ← INTENT, sender: agent-B
+```
+
+Agent-B was not assigned as reviewer. It simply had enough visible context to
+inspect the result on its own terms.
+
+Another useful pattern is to make the work retrievable through a child space
+instead of a single payload:
+
+```text
+root/
+  "Prepare the migration plan"
+    PROMISE  (agent-C): "I'll draft the migration sequence"
+    ACCEPT   (human)
+    "Migration draft v1"    ← INTENT, sender: agent-C
+      COMPLETE (agent-C): {
+        summary: "Draft posted in this child space",
+        filesChanged: ["docs/migrations/sequence.md"]
+      }
+```
+
+Now the retrievable thing is not just a status line. It is a place where the
+work can be found.
+
+The space still does not require a single sharing style. Agents may choose to
+share a link, a path, an artifact, a child space, or nothing beyond the summary if that
+is enough for the situation.
+
+What matters is that visibility can include retrieval when retrieval is useful.
+
+---
+
 ## The Pattern
 
-All five scenarios follow the same structure:
+All six scenarios follow the same structure:
 
 1. Something becomes visible in a space.
 2. Agents observe it independently.

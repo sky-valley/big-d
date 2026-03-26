@@ -162,6 +162,20 @@ def find_first(messages: List[JsonDict], predicate: Callable[[JsonDict], bool]) 
     return None
 
 
+def enrollment_handle(local_state: LocalState) -> Optional[str]:
+    enrollment = local_state.load_enrollment()
+    if isinstance(enrollment, dict) and isinstance(enrollment.get("handle"), str):
+        return str(enrollment.get("handle"))
+    return None
+
+
+def enrollment_principal_id(local_state: LocalState, fallback: Optional[str]) -> Optional[str]:
+    enrollment = local_state.load_enrollment()
+    if isinstance(enrollment, dict) and isinstance(enrollment.get("principal_id"), str):
+        return str(enrollment.get("principal_id"))
+    return fallback
+
+
 @dataclass
 class PromiseRuntimeSession:
     endpoint: str
@@ -171,9 +185,19 @@ class PromiseRuntimeSession:
 
     def __post_init__(self) -> None:
         self.agent_id = self.agent_id or self.agent_name
+        self.declared_default_space_id: Optional[str] = None
+        self.current_space_id: Optional[str] = None
         self.local_state = LocalState(self.workspace)
         self.client = StationClient(self.endpoint, self.local_state)
         self.step_log = self.local_state.state_dir / "runtime-steps.ndjson"
+
+    def _remember_declared_default_space(self, space_id: Optional[str]) -> None:
+        if isinstance(space_id, str) and space_id:
+            self.declared_default_space_id = space_id
+
+    def _bind_current_space(self, space_id: Optional[str]) -> None:
+        if isinstance(space_id, str) and space_id:
+            self.current_space_id = space_id
 
     def ensure_identity(self) -> tuple[str, str]:
         return self.local_state.ensure_identity(self.endpoint, self.agent_name)
@@ -185,21 +209,26 @@ class PromiseRuntimeSession:
             station_token = enrollment.get("station_token")
             audience = enrollment.get("station_audience")
             handle = enrollment.get("handle", self.agent_id)
+            principal_id = enrollment.get("principal_id", self.agent_id)
+            commons_space_id = enrollment.get("commons_space_id") if isinstance(enrollment.get("commons_space_id"), str) else None
+            self._remember_declared_default_space(commons_space_id)
             if isinstance(station_token, str) and isinstance(audience, str):
                 self.local_state.remember_station(
                     endpoint=self.endpoint,
                     audience=audience,
                     station_token=station_token,
                     handle=str(handle),
+                    principal_id=str(principal_id) if isinstance(principal_id, str) else None,
                     source="connect",
-                    space_id=enrollment.get("commons_space_id") if isinstance(enrollment.get("commons_space_id"), str) else None,
+                    space_id=commons_space_id,
                 )
-                self.client.authenticate(
-                    sender_id=str(handle),
+                auth_result = self.client.authenticate(
+                    sender_id=str(principal_id if isinstance(principal_id, str) else handle),
                     station_token=station_token,
                     audience=audience,
                     local_state=self.local_state,
                 )
+                self._bind_current_space(auth_result.get("spaceId") if isinstance(auth_result, dict) else None)
 
     def connect_to(
         self,
@@ -215,28 +244,32 @@ class PromiseRuntimeSession:
             endpoint=endpoint,
             audience=audience,
             station_token=station_token,
-            handle=sender_id or self.agent_id,
+            handle=self.agent_name,
+            principal_id=sender_id or self.agent_id,
             source="connect_to",
         )
         self.client = StationClient(self.endpoint, self.local_state)
         self.client.connect()
-        self.client.authenticate(
+        auth_result = self.client.authenticate(
             sender_id=sender_id or self.agent_id,
             station_token=station_token,
             audience=audience,
             local_state=self.local_state,
         )
+        self._bind_current_space(auth_result.get("spaceId") if isinstance(auth_result, dict) else None)
         self.record_step(
             "session.connect_to",
             {
                 "endpoint": endpoint,
                 "audience": audience,
                 "senderId": sender_id or self.agent_id,
+                "spaceId": self.current_space_id,
             },
         )
 
     def close(self) -> None:
         self.client.close()
+        self.current_space_id = None
 
     def send(self, message: JsonDict) -> None:
         self.client.post(message)
@@ -262,6 +295,43 @@ class PromiseRuntimeSession:
         if artifact_filename is not None:
             self.save_json_artifact(artifact_filename, message)
         return message
+
+    def post_and_confirm(
+        self,
+        message: JsonDict,
+        *,
+        step: Optional[str] = None,
+        artifact_filename: Optional[str] = None,
+        confirm_space_id: Optional[str] = None,
+        timeout: float = 5.0,
+        poll_interval: float = 0.25,
+    ) -> JsonDict:
+        posted = self.post(message, step=step, artifact_filename=artifact_filename)
+        message_id = posted.get("intentId") or posted.get("promiseId")
+        if not isinstance(message_id, str) or not message_id:
+            raise ValueError("post_and_confirm requires an intentId or promiseId on the message")
+        space_id = confirm_space_id or posted.get("parentId")
+        if not isinstance(space_id, str) or not space_id:
+            raise ValueError("post_and_confirm requires a confirmable space id")
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            scan_result = self.scan(space_id)
+            for candidate in scan_result.get("messages", []):
+                if (
+                    candidate.get("intentId") == message_id
+                    or candidate.get("promiseId") == message_id
+                ):
+                    self.record_step(
+                        "post_and_confirm.confirmed",
+                        {
+                            "spaceId": space_id,
+                            "messageId": message_id,
+                            "messageType": candidate.get("type"),
+                        },
+                    )
+                    return candidate
+            time.sleep(poll_interval)
+        raise TimeoutError(f"{message_id} not found in {space_id} after {timeout} seconds")
 
     def scan(self, space_id: str) -> JsonDict:
         scan_result = self.client.scan(space_id)
@@ -289,13 +359,16 @@ class PromiseRuntimeSession:
         result = signup_station(
             self.local_state,
             academy_url=academy_url,
-            handle=handle or self.agent_id,
+            handle=handle or self.agent_name,
         )
-        if isinstance(result.get("handle"), str):
+        if isinstance(result.get("principal_id"), str):
+            self.agent_id = result["principal_id"]
+        elif isinstance(result.get("handle"), str):
             self.agent_id = result["handle"]
         if isinstance(result.get("station_endpoint"), str):
             self.endpoint = result["station_endpoint"]
             self.client = StationClient(self.endpoint, self.local_state)
+        self._remember_declared_default_space(result.get("commons_space_id") if isinstance(result, dict) else None)
         return result
 
     def identity(self) -> JsonDict:
@@ -303,6 +376,8 @@ class PromiseRuntimeSession:
         return {
             "agentName": self.agent_name,
             "agentId": self.agent_id,
+            "handle": enrollment_handle(self.local_state),
+            "principalId": enrollment_principal_id(self.local_state, self.agent_id),
             "endpoint": self.endpoint,
             "publicKeyPem": public_key_pem,
             "fingerprint": fingerprint,
@@ -336,7 +411,11 @@ class PromiseRuntimeSession:
         info: JsonDict = {
             "agentName": self.agent_name,
             "agentId": self.agent_id,
+            "handle": enrollment_handle(self.local_state),
+            "principalId": enrollment_principal_id(self.local_state, self.agent_id),
             "endpoint": self.endpoint,
+            "declaredDefaultSpaceId": self.declared_default_space_id,
+            "currentSpaceId": self.current_space_id,
         }
         if self.local_state.config.exists():
             info["config"] = json.loads(self.local_state.config.read_text(encoding="utf-8"))
@@ -380,8 +459,11 @@ class PromiseRuntimeSession:
                 "endpoint": self.endpoint,
                 "authenticated": self.client.auth is not None,
                 "senderId": self.client.auth.get("senderId") if self.client.auth else None,
+                "principalId": self.client.auth.get("senderId") if self.client.auth else None,
                 "audience": self.client.auth.get("audience") if self.client.auth else None,
+                "spaceId": self.current_space_id,
             },
+            "declaredDefaultSpaceId": self.declared_default_space_id,
             "knownStations": self.known_stations(),
             "cursorState": self.cursor_state()["cursors"],
             "artifacts": self.list_artifacts(),
@@ -396,14 +478,14 @@ class PromiseRuntimeSession:
         self,
         content: str,
         *,
-        parent_id: str = "root",
+        parent_id: Optional[str] = None,
         payload: Optional[JsonDict] = None,
         intent_id: Optional[str] = None,
     ) -> JsonDict:
         return create_intent(
             self.agent_id,
             content,
-            parent_id=parent_id,
+            parent_id=parent_id or self.current_space_id or self.declared_default_space_id or "root",
             payload=payload,
             intent_id=intent_id,
         )

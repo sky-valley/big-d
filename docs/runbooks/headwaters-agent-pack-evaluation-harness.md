@@ -13,19 +13,116 @@ This harness:
 
 ## Run
 
+Preferred entrypoints are the preset wrapper scripts from the repo root:
+
+```bash
+./evals/scripts/headwaters-agent-pack-smoke.sh
+./evals/scripts/headwaters-agent-pack-baseline.sh
+./evals/scripts/headwaters-agent-pack-profiled.sh
+./evals/scripts/headwaters-agent-pack-observatory.sh
+./evals/scripts/headwaters-agent-pack-compare.sh
+```
+
+Each wrapper accepts extra flags at the end if you want to override a default
+such as `--output-dir`, `--timeout-ms`, or `--observation-ms`.
+
+Use the raw harness entrypoint for uncommon experiments:
+
 ```bash
 cd evals
 npm run headwaters:agent-pack -- --agents scripted-headwaters --trials 1
 ```
 
-Example with real agents:
+## Presets
+
+### Smoke
+
+Fast scripted smoke run to confirm the harness boots and produces artifacts.
+
+```bash
+./evals/scripts/headwaters-agent-pack-smoke.sh
+```
+
+Defaults:
+
+- agents: `scripted-headwaters`
+- profile mode: `none`
+- output dir: `evals/tmp/headwaters-agent-pack-smoke/`
+
+### Baseline
+
+Single-trial run with real agents and no built-in profiles.
+
+```bash
+./evals/scripts/headwaters-agent-pack-baseline.sh
+```
+
+Defaults:
+
+- agents: `codex,claude`
+- profile mode: `none`
+- output dir: `evals/tmp/headwaters-agent-pack-baseline/`
+
+### Profiled
+
+Single-trial run with deterministic built-in profiles enabled.
+
+```bash
+./evals/scripts/headwaters-agent-pack-profiled.sh
+```
+
+Defaults:
+
+- agents: `codex,claude,claude,pi`
+- profile mode: `builtin`
+- output dir: `evals/tmp/headwaters-agent-pack-profiled/`
+
+### Observatory
+
+Baseline run with the live observatory sidecar enabled.
+
+```bash
+./evals/scripts/headwaters-agent-pack-observatory.sh
+```
+
+Defaults:
+
+- agents: `codex,claude`
+- profile mode: `none`
+- observatory: enabled
+- output dir: `evals/tmp/headwaters-agent-pack-observatory/`
+
+### Compare
+
+Runs baseline and profiled presets sequentially into separate output roots for
+direct comparison.
+
+```bash
+./evals/scripts/headwaters-agent-pack-compare.sh
+```
+
+Outputs:
+
+- `evals/tmp/headwaters-agent-pack-compare-baseline/`
+- `evals/tmp/headwaters-agent-pack-compare-profiled/`
+
+## Raw CLI Examples
+
+Baseline real-agent run:
 
 ```bash
 cd evals
 npm run headwaters:agent-pack -- --agents codex,claude --trials 1 --observation-ms 8000
 ```
 
-Example with live observatory sidecar:
+Deterministic profiled run:
+
+```bash
+cd evals
+npm run headwaters:agent-pack -- --agents codex,claude,claude,pi --trials 1 --observation-ms 8000 --profile-mode builtin
+```
+
+Live observatory sidecar:
 
 ```bash
 cd evals
@@ -48,6 +145,8 @@ Default output root:
 Per trial:
 
 - `summary.json`
+- `agent-map.json`
+- `timeline.md`
 - `agents/<agent>/stdout.log`
 - `agents/<agent>/stderr.log`
 - `agents/<agent>/workspace/`
@@ -62,6 +161,32 @@ the trial logs and records it in `summary.json`.
 The observatory is a live read-only visualization of the staged Headwaters run.
 It is not the source of truth for verdicts; scoring still comes from the eval
 harness reading `messages` and `monitoring_events` from the commons DB.
+
+## Profile Mode
+
+Use `--profile-mode builtin` to assign each launched agent a deterministic
+built-in profile. Omitting the flag, or passing `--profile-mode none`, preserves
+the current baseline harness behavior.
+
+Built-in roster, by launch order:
+
+1. `frontend-builder`
+2. `backend-builder`
+3. `creative-product`
+4. `systems-investigator`
+5. `generalist-builder`
+6. any additional agents also receive `generalist-builder`
+
+Profile assignment follows launch order, not agent type. Duplicate agent types
+still receive different profiles when they occupy different launch slots.
+
+Profile data appears in:
+
+- `summary.json`
+- `agent-map.json`
+- `timeline.md`
+- `report.md`
+- launch logs emitted by the harness
 
 ## Current First-Cut Verdicts
 
