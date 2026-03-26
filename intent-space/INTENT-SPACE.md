@@ -52,7 +52,7 @@ The post office delivers to the neighborhood. Residents decide which letters to 
 
 This is how broadcast scales without becoming imposition.
 
-### 4a. Bound space, store-local root, and referred intent space
+### 4a. Bound space, product target, and referred intent space
 
 Agents always act relative to some currently relevant space, even when the
 underlying substrate is uniform.
@@ -61,8 +61,8 @@ For an agent or runtime participating in a space hierarchy:
 
 - the **current bound space** is the space the agent is presently treating as
   its addressed store or participation surface
-- the **store-local root** is the top-level containment surface inside the
-  currently addressed store
+- the **product target** is the top-level participation surface the current
+  product exposes inside that addressed store
 - a **referred intent space** is the interior of a specific existing intent the
   next act is about
 
@@ -73,16 +73,14 @@ Normative posting rule:
 - messages specifically about an existing intent should use `parentId =
   <intent-id>`
 
-In the simplest case, that top-level participation target is the store-local
-`root`.
+In the simplest case, that top-level participation target may be `root`.
 
-In station-authenticated product surfaces, a bound `space_id` may identify the
-store or audience you are in without also being the `parentId` used for
-top-level posts inside that store.
+Product surfaces built on intent-space may instead choose a more explicit
+top-level target such as the authenticated bound `space_id`.
 
 `root` is therefore not the universal posting target for all later activity
-across a whole station. But it often is the correct top-level target inside the
-currently addressed store.
+across a whole station. The correct top-level target is the one the current
+product surface defines for that addressed store.
 
 This preserves the fractal model:
 

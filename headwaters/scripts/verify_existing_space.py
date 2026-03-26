@@ -49,8 +49,9 @@ def main(argv: list[str]) -> int:
     endpoint = target.get("endpoint")
     audience = target.get("audience")
     station_token = target.get("stationToken")
+    space_id = target.get("spaceId")
     sender_id = enrollment.get("handle")
-    if not all(isinstance(value, str) and value for value in [endpoint, audience, station_token, sender_id]):
+    if not all(isinstance(value, str) and value for value in [endpoint, audience, station_token, sender_id, space_id]):
         raise RuntimeError(f"incomplete station binding in {state_dir}")
 
     session = PromiseRuntimeSession(
@@ -68,16 +69,17 @@ def main(argv: list[str]) -> int:
         )
         if args.post_message:
             session.post(
-                session.intent(args.post_message, parent_id="root"),
+                session.intent(args.post_message, parent_id=str(space_id)),
                 step="verify_existing_space.post",
                 artifact_filename="verify-existing-space-intent.json",
             )
-        scan = session.scan("root")
+        scan = session.scan(str(space_id))
         report = {
             "workspace": str(workspace),
             "senderId": sender_id,
             "endpoint": endpoint,
             "audience": audience,
+            "spaceId": space_id,
             "latestSeq": scan.get("latestSeq"),
             "messageCount": len(scan.get("messages", [])),
             "snapshot": session.snapshot(),

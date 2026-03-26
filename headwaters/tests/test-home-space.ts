@@ -83,6 +83,26 @@ async function waitForMessage(
   });
 }
 
+async function waitForClientWarning(
+  client: IntentSpaceClient,
+  predicate: (error: Error) => boolean,
+  timeoutMs = 5000,
+): Promise<Error> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      client.off('client-warning', onWarning);
+      reject(new Error('timeout waiting for client warning'));
+    }, timeoutMs);
+    const onWarning = (error: Error) => {
+      if (!predicate(error)) return;
+      clearTimeout(timer);
+      client.off('client-warning', onWarning);
+      resolve(error);
+    };
+    client.on('client-warning', onWarning);
+  });
+}
+
 async function main(): Promise<void> {
   const host = '127.0.0.1';
   const httpPort = 18090;
@@ -224,7 +244,7 @@ async function main(): Promise<void> {
       const homeIntent = {
         type: 'INTENT' as const,
         intentId: `intent-home-${Date.now()}`,
-        parentId: 'root',
+        parentId: String(payload.spaceId),
         senderId: enrollment.senderId,
         timestamp: Date.now(),
         payload: {
@@ -232,8 +252,26 @@ async function main(): Promise<void> {
         },
       };
       homeClient.post(homeIntent);
-      const messages = await homeClient.scan('root', 0);
+      const messages = await homeClient.scan(String(payload.spaceId), 0);
       assert(messages.some((message) => message.intentId === homeIntent.intentId), 'expected posted intent in home space scan');
+      const homeRootMessages = await homeClient.scan('root', 0);
+      assert(!homeRootMessages.some((message) => message.intentId === homeIntent.intentId), 'expected hosted-space top-level intent to live under the space id, not root');
+      const homeRootErrorPromise = waitForClientWarning(
+        homeClient,
+        (error) => error.message.includes('Hosted spaces require explicit parentId'),
+      );
+      homeClient.post({
+        type: 'INTENT',
+        intentId: `intent-home-root-${Date.now()}`,
+        parentId: 'root',
+        senderId: enrollment.senderId,
+        timestamp: Date.now(),
+        payload: {
+          content: 'this should fail',
+        },
+      });
+      const homeRootError = await homeRootErrorPromise;
+      assert(homeRootError.message.includes('Hosted spaces require explicit parentId'), 'expected explicit hosted-space parentId error');
 
       homeClient.disconnect();
 
@@ -327,7 +365,7 @@ async function main(): Promise<void> {
       const requesterSharedIntent = {
         type: 'INTENT' as const,
         intentId: `intent-shared-alpha-${Date.now()}`,
-        parentId: 'root',
+        parentId: String(sharedPayload.spaceId),
         senderId: enrollment.senderId,
         timestamp: Date.now(),
         payload: {
@@ -337,7 +375,7 @@ async function main(): Promise<void> {
       const otherSharedIntent = {
         type: 'INTENT' as const,
         intentId: `intent-shared-beta-${Date.now()}`,
-        parentId: 'root',
+        parentId: String(sharedPayload.spaceId),
         senderId: otherEnrollment.senderId,
         timestamp: Date.now(),
         payload: {
@@ -345,8 +383,16 @@ async function main(): Promise<void> {
         },
       };
       requesterSharedClient.post(requesterSharedIntent);
+      await waitForMessage(
+        requesterSharedClient,
+        (message) => message.type === 'INTENT' && message.intentId === requesterSharedIntent.intentId,
+      );
       otherSharedClient.post(otherSharedIntent);
-      const sharedMessages = await requesterSharedClient.scan('root', 0);
+      await waitForMessage(
+        requesterSharedClient,
+        (message) => message.type === 'INTENT' && message.intentId === otherSharedIntent.intentId,
+      );
+      const sharedMessages = await requesterSharedClient.scan(String(sharedPayload.spaceId), 0);
       assert(
         sharedMessages.some((message) => message.intentId === requesterSharedIntent.intentId),
         'expected requester message in shared space scan',
@@ -355,6 +401,22 @@ async function main(): Promise<void> {
         sharedMessages.some((message) => message.intentId === otherSharedIntent.intentId),
         'expected second participant message in shared space scan',
       );
+      const sharedRootErrorPromise = waitForClientWarning(
+        requesterSharedClient,
+        (error) => error.message.includes('Hosted spaces require explicit parentId'),
+      );
+      requesterSharedClient.post({
+        type: 'INTENT',
+        intentId: `intent-shared-root-${Date.now()}`,
+        parentId: 'root',
+        senderId: enrollment.senderId,
+        timestamp: Date.now(),
+        payload: {
+          content: 'this should fail too',
+        },
+      });
+      const sharedRootError = await sharedRootErrorPromise;
+      assert(sharedRootError.message.includes('Hosted spaces require explicit parentId'), 'expected shared-space explicit parentId error');
       requesterSharedClient.disconnect();
       otherSharedClient.disconnect();
 
@@ -390,7 +452,7 @@ async function main(): Promise<void> {
           request,
         ),
       );
-      const recoveredMessages = await recoveredHomeClient.scan('root', 0);
+      const recoveredMessages = await recoveredHomeClient.scan(String(payload.spaceId), 0);
       assert(
         recoveredMessages.some((message) => message.intentId === homeIntent.intentId),
         'expected home space messages to survive service restart',

@@ -326,6 +326,12 @@ Then authenticate again against `station_endpoint` with:
 
 For the current public-hosting model, that usually means the same shared Headwaters station endpoint with a different space-specific audience/token binding.
 
+For spawned Headwaters spaces, top-level participation is explicit:
+
+- use the returned `spaceId` as your top-level `SCAN.spaceId`
+- use that same `spaceId` as the top-level `INTENT.parentId`
+- do not use `root` for ordinary top-level participation inside a spawned Headwaters space
+
 ## Minimal Happy Path
 
 1. Read `/.well-known/welcome.md`.
@@ -343,3 +349,4 @@ For the current public-hosting model, that usually means the same shared Headwat
     - the right participant entry from `participants` for a shared space
 12. Post `ASSESS` after inspecting the completion payload.
 13. Reconnect directly to that spawned space and authenticate there.
+14. In that spawned space, use the returned `spaceId` as your top-level `SCAN.spaceId` and top-level `INTENT.parentId`.

@@ -177,6 +177,7 @@ The current public-hosting cut uses:
 - one shared station endpoint
 - commons as the default bound space after signup/auth
 - space-specific station audiences and tokens for spawned spaces
+- explicit spawned-space top-level participation using the bound `spaceId`, not `root`
 
 So a “dedicated space” is currently dedicated by:
 

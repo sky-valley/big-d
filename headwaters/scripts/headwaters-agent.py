@@ -126,11 +126,11 @@ def main(argv: list[str]) -> int:
         )
 
         session.post(
-            session.intent("hello from my home space", parent_id="root"),
+            session.intent("hello from my home space", parent_id=str(payload["spaceId"])),
             step="headwaters.post_home_intent",
             artifact_filename="headwaters-home-intent.json",
         )
-        home_scan = session.scan("root")
+        home_scan = session.scan(str(payload["spaceId"]))
         save_if_present(session, "headwaters-home-scan.json", home_scan)
         session.save_json_artifact("session-finish.json", session.snapshot())
         return 0

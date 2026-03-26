@@ -48,7 +48,7 @@ def stable_json(value: Any) -> str:
         return "{" + ",".join(items) + "}"
     if isinstance(value, list):
         return "[" + ",".join(stable_json(item) for item in value) + "]"
-    return json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
 def canonical_request(value: Any) -> str:
@@ -369,7 +369,7 @@ class StationClient:
         self.sock.sendall((compact_json(message) + "\n").encode("utf-8"))
         self.local_state.append_transcript("out", message)
 
-    def read_available(self, total_timeout: float = 0.5) -> List[JsonDict]:
+    def read_available(self, total_timeout: float = 0.5, *, update_cursors: bool = True) -> List[JsonDict]:
         if self.sock is None:
             raise RuntimeError("client is not connected")
         deadline = time.time() + total_timeout
@@ -390,7 +390,7 @@ class StationClient:
                     continue
                 message = json.loads(raw.decode("utf-8"))
                 self.local_state.append_transcript("in", message)
-                if message.get("type") == "SCAN_RESULT":
+                if update_cursors and message.get("type") == "SCAN_RESULT":
                     latest_seq = message.get("latestSeq")
                     space_id = message.get("spaceId")
                     if isinstance(space_id, str) and isinstance(latest_seq, int):
@@ -447,10 +447,13 @@ class StationClient:
 
     def scan(self, space_id: str) -> JsonDict:
         since = self.cursors.get(space_id, 0)
+        return self.scan_from(space_id, since=since, persist_cursor=True)
+
+    def scan_from(self, space_id: str, *, since: int, persist_cursor: bool = True) -> JsonDict:
         self.send_station({"type": "SCAN", "spaceId": space_id, "since": since})
         deadline = time.time() + 4.0
         while time.time() < deadline:
-            for message in self.read_available(0.8):
+            for message in self.read_available(0.8, update_cursors=persist_cursor):
                 if message.get("type") == "SCAN_RESULT" and message.get("spaceId") == space_id:
                     return message
                 if message.get("type") == "ERROR":

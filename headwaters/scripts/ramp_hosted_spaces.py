@@ -175,10 +175,10 @@ def run_agent(
 
         if post_home_intent:
             session.post(
-                session.intent("hello from ramp", parent_id="root"),
+                session.intent("hello from ramp", parent_id=str(payload["spaceId"])),
                 step="ramp.post_home_intent",
             )
-            session.scan("root")
+            session.scan(str(payload["spaceId"]))
 
         finished_at = time.time()
         return {

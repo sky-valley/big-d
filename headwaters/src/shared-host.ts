@@ -432,6 +432,28 @@ export class SharedHeadwatersHost {
   private handlePost(client: ClientConnection, msg: AuthenticatedITPMessage): void {
     const session = client.authenticated!;
     const hosted = this.spaces.get(session.spaceId)!;
+    let resolvedParentId: string;
+    try {
+      resolvedParentId = this.requireParentId(session.spaceId, msg.parentId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.recordMonitoring({
+        stage: 'post',
+        outcome: 'rejected',
+        eventType: 'space_access_denied',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: session.senderId,
+        spaceId: session.spaceId,
+        messageType: msg.type,
+        detail: {
+          message,
+          responseType: 'ERROR',
+        },
+      });
+      this.send(client, { type: 'ERROR', message });
+      return;
+    }
     this.recordMonitoring({
       stage: 'post',
       outcome: 'attempt',
@@ -439,12 +461,12 @@ export class SharedHeadwatersHost {
       connectionId: client.id,
       sessionId: this.sessionIdForClient(client),
       actorId: session.senderId,
-      spaceId: msg.parentId ?? 'root',
+      spaceId: resolvedParentId,
       messageType: msg.type,
       detail: {},
     });
     try {
-      verifyPerMessageProof(session, msg.proof, msg, session.audience);
+      verifyPerMessageProof(session, msg.proof, { ...msg, parentId: resolvedParentId }, session.audience);
       this.recordMonitoring({
         stage: 'post',
         outcome: 'accepted',
@@ -452,7 +474,7 @@ export class SharedHeadwatersHost {
         connectionId: client.id,
         sessionId: this.sessionIdForClient(client),
         actorId: session.senderId,
-        spaceId: msg.parentId ?? 'root',
+        spaceId: resolvedParentId,
         messageType: msg.type,
         detail: {},
       });
@@ -464,7 +486,7 @@ export class SharedHeadwatersHost {
         connectionId: client.id,
         sessionId: this.sessionIdForClient(client),
         actorId: session.senderId,
-        spaceId: msg.parentId ?? 'root',
+        spaceId: resolvedParentId,
         messageType: msg.type,
         detail: {
           message: err instanceof Error ? err.message : String(err),
@@ -482,7 +504,7 @@ export class SharedHeadwatersHost {
         connectionId: client.id,
         sessionId: this.sessionIdForClient(client),
         actorId: session.senderId,
-        spaceId: msg.parentId ?? 'root',
+        spaceId: resolvedParentId,
         messageType: msg.type,
         detail: {
           responseType: 'ERROR',
@@ -491,7 +513,7 @@ export class SharedHeadwatersHost {
       this.send(client, { type: 'ERROR', message: 'INTENT must have an intentId' });
       return;
     }
-    if (!hosted.store.canAccessSpace(msg.parentId ?? 'root', session.senderId)) {
+    if (!hosted.store.canAccessSpace(resolvedParentId, session.senderId)) {
       this.recordMonitoring({
         stage: 'post',
         outcome: 'rejected',
@@ -499,20 +521,20 @@ export class SharedHeadwatersHost {
         connectionId: client.id,
         sessionId: this.sessionIdForClient(client),
         actorId: session.senderId,
-        spaceId: msg.parentId ?? 'root',
+        spaceId: resolvedParentId,
         messageType: msg.type,
         detail: {
           responseType: 'ERROR',
         },
       });
-      this.send(client, { type: 'ERROR', message: `Access denied to space ${msg.parentId ?? 'root'}` });
+      this.send(client, { type: 'ERROR', message: `Access denied to space ${resolvedParentId}` });
       return;
     }
     const storedMessage: ITPMessage = {
       type: msg.type,
       promiseId: msg.promiseId,
       intentId: msg.intentId,
-      parentId: msg.parentId,
+      parentId: resolvedParentId,
       timestamp: msg.timestamp,
       senderId: msg.senderId,
       payload: msg.payload,
@@ -525,7 +547,7 @@ export class SharedHeadwatersHost {
         connectionId: client.id,
         sessionId: this.sessionIdForClient(client),
         actorId: session.senderId,
-        spaceId: msg.parentId ?? 'root',
+        spaceId: resolvedParentId,
         messageType: msg.type,
         detail: {},
       });
@@ -537,13 +559,13 @@ export class SharedHeadwatersHost {
         connectionId: client.id,
         sessionId: this.sessionIdForClient(client),
         actorId: session.senderId,
-        spaceId: msg.parentId ?? 'root',
+        spaceId: resolvedParentId,
         messageType: msg.type,
         detail: {
           seq,
         },
       });
-      const echo: MessageEcho = { ...msg, seq };
+      const echo: MessageEcho = { ...msg, parentId: resolvedParentId, seq };
       this.broadcastWithinSpace(session.spaceId, echo);
     } catch (err) {
       this.recordMonitoring({
@@ -553,7 +575,7 @@ export class SharedHeadwatersHost {
         connectionId: client.id,
         sessionId: this.sessionIdForClient(client),
         actorId: session.senderId,
-        spaceId: msg.parentId ?? 'root',
+        spaceId: resolvedParentId,
         messageType: msg.type,
         detail: {
           message: err instanceof Error ? err.message : String(err),
@@ -586,6 +608,13 @@ export class SharedHeadwatersHost {
     const spaceId = client.authenticated?.spaceId;
     if (!senderId || !spaceId) return undefined;
     return `${senderId}@${spaceId}`;
+  }
+
+  private requireParentId(boundSpaceId: string, parentId: string | undefined): string {
+    if (boundSpaceId !== HEADWATERS_COMMONS_SPACE_ID && (!parentId || parentId === 'root')) {
+      throw new Error(`Hosted spaces require explicit parentId. Use ${boundSpaceId} for top-level participation or an intentId for a contained interior.`);
+    }
+    return parentId ?? 'root';
   }
 
   private broadcastWithinSpace(boundSpaceId: string, msg: ServerMessage): void {
