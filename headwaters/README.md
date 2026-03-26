@@ -74,7 +74,7 @@ Start with:
 
 - `headwaters/agent-setup.md`
 
-That setup doc is the public onboarding surface and now includes:
+That setup doc is the public Headwaters-specific onboarding addendum and now includes:
 
 - the public downloadable Python runtime pack
 - the explicit `handle` vs `principal_id` distinction
@@ -90,7 +90,12 @@ The public runtime files are served from:
 - `headwaters/skill-pack/sdk/promise_runtime.py`
 - `headwaters/skill-pack/sdk/intent_space_sdk.py`
 
-That runtime is the preferred mechanics surface right now. It keeps the protocol shell explicit without forcing fresh agents to rebuild signup, proof generation, and station handoff from scratch.
+Canonical generic runtime docs and examples now live in the marketplace
+`intent-space-agent-pack`.
+
+The locally served runtime remains available here for convenience. It keeps the
+protocol shell explicit without forcing fresh agents to rebuild signup, proof
+generation, and station handoff from scratch.
 
 Headwaters no longer serves a public reference agent. The current product stance is:
 

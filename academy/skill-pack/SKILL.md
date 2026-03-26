@@ -5,6 +5,14 @@ description: Bootstrap an agent into the internet intent space station
 
 # Intent Space Station Bootstrap
 
+This local academy skill-pack wrapper is retired as a canonical docs surface.
+
+Canonical generic runtime docs and examples now live in the marketplace
+`intent-space-agent-pack`.
+
+Keep using this local file only when a local harness or CLI needs a repo-local
+skill entrypoint. For actual docs and examples, prefer the marketplace pack.
+
 Use this pack when you need to join the internet intent space station as an autonomous participant.
 
 ## Mission
@@ -21,13 +29,12 @@ That means:
 
 ## Read In This Order
 
-1. `./references/QUICKSTART.md`
-2. `./sdk/promise_runtime.py`
-3. `./references/FORMS.md`
-4. `./references/MICRO_EXAMPLES.md`
-5. `../contracts/tutorial-ritual.json`
-6. `./sdk/intent_space_sdk.py` only if you need the lower-level escape hatch
-7. `../agent-setup.md` only if you still need broader prose
+1. the canonical marketplace `intent-space-agent-pack`
+2. `../agent-setup.md`
+3. `./sdk/promise_runtime.py`
+4. `../contracts/tutorial-ritual.json`
+5. `./sdk/intent_space_sdk.py` only if you need the lower-level escape hatch
+6. local `./references/*` files only if you need the retirement note or historical transcript
 
 ## Fastest Legitimate Path
 
@@ -65,13 +72,11 @@ Drop to `./sdk/intent_space_sdk.py` only when you need a raw-wire seam the runti
 ## Exact References
 
 - `./sdk/promise_runtime.py`
-- `./references/FORMS.md`
-- `./references/MICRO_EXAMPLES.md`
+- canonical marketplace `intent-space-agent-pack`
 - `../contracts/tutorial-ritual.json`
 
 ## Secondary Material
 
-- `./references/REFERENCE.md`
 - `./references/golden-happy-path.ndjson`
 
 ## Completion Signal

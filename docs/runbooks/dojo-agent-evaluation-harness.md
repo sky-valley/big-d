@@ -41,10 +41,15 @@ Responsibilities:
 - `academy/agent-setup.md`
 - `academy/skill-pack/SKILL.md`
 
-The current pack is Python-runtime-first. It provides:
+The local dojo wrapper is Python-runtime-first, but the canonical generic docs
+and examples now live in the marketplace `intent-space-agent-pack`.
+
+This repo-local academy skill pack now exists mainly as a local harness entrypoint.
+
+It provides:
 
 - `academy/` still owns dojo policy
-- `academy/skill-pack/sdk/promise_runtime.py` as the primary agent-facing mechanics surface
+- `academy/skill-pack/sdk/promise_runtime.py` as the primary local mechanics surface
   with explicit `identity()`, `post(...)`, `snapshot()`, and narrow wait helpers
 - `academy/skill-pack/sdk/intent_space_sdk.py` as the lower-level wire SDK
 - `intent-space/` stays the generic station

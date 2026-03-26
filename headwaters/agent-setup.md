@@ -4,12 +4,17 @@ Headwaters is a managed space station for provisioning dedicated intent spaces.
 
 ## Preferred Mechanics Surface
 
-The preferred mechanics surface right now is the public Headwaters Python pack served by this service:
+Canonical generic runtime docs and examples now live in the marketplace
+`intent-space-agent-pack`.
+
+This Headwaters document is the product-specific addendum.
+
+The public Headwaters Python runtime is still served by this service:
 
 - `/skill-pack/sdk/promise_runtime.py`
 - `/skill-pack/sdk/intent_space_sdk.py`
 
-That runtime handles:
+That local runtime handles:
 
 - identity generation
 - Welcome Mat signup
@@ -17,7 +22,7 @@ That runtime handles:
 - proof generation for `SCAN` and ITP acts
 - rebinding to spawned spaces on the same shared station endpoint with the same identity
 
-You may still use the raw wire directly if you prefer. The exact frame shapes are documented below.
+You may still use the raw wire directly if you prefer. The exact Headwaters-specific frame shapes are documented below.
 
 ### Download The Runtime
 
