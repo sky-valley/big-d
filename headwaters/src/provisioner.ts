@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'path';
 import { issueSpaceToken } from './welcome-mat.ts';
 
-export interface ProvisionedSpace {
+export interface HomeProvisionedSpace {
   kind: 'home';
   spaceId: string;
   ownerPrincipalId: string;
@@ -11,6 +11,17 @@ export interface ProvisionedSpace {
   endpoint: string;
   stationToken: string;
 }
+
+export interface SharedProvisionedSpace {
+  kind: 'shared';
+  spaceId: string;
+  participantPrincipalIds: string[];
+  audience: string;
+  endpoint: string;
+  participantTokens: Record<string, string>;
+}
+
+export type ProvisionedSpace = HomeProvisionedSpace | SharedProvisionedSpace;
 
 interface HeadwatersProvisionerOptions {
   baseDir: string;
@@ -26,7 +37,8 @@ export class HeadwatersProvisioner {
   private readonly issuer: string;
   private readonly authSecret: string;
   private readonly maxSpaces: number;
-  private readonly spaces = new Map<string, ProvisionedSpace>();
+  private readonly homeSpacesByOwner = new Map<string, HomeProvisionedSpace>();
+  private readonly spacesById = new Map<string, ProvisionedSpace>();
 
   constructor(options: HeadwatersProvisionerOptions) {
     this.baseDir = options.baseDir;
@@ -39,26 +51,25 @@ export class HeadwatersProvisioner {
   }
 
   async stop(): Promise<void> {
-    this.spaces.clear();
+    this.homeSpacesByOwner.clear();
+    this.spacesById.clear();
   }
 
-  async provisionHomeSpace(ownerPrincipalId: string, jwkThumb: string): Promise<ProvisionedSpace & { created: boolean }> {
-    const existing = this.spaces.get(ownerPrincipalId);
+  async provisionHomeSpace(ownerPrincipalId: string, jwkThumb: string): Promise<HomeProvisionedSpace & { created: boolean }> {
+    const existing = this.homeSpacesByOwner.get(ownerPrincipalId);
     if (existing) {
-      const normalized = this.refreshRecord(existing, jwkThumb);
-      this.spaces.set(ownerPrincipalId, normalized);
+      const normalized = this.refreshHomeRecord(existing, jwkThumb);
+      this.homeSpacesByOwner.set(ownerPrincipalId, normalized);
+      this.spacesById.set(normalized.spaceId, normalized);
       this.persistRecord(normalized);
       return { ...normalized, created: false };
     }
 
-    if (this.spaces.size >= this.maxSpaces) {
-      throw new Error(`Headwaters capacity reached (${this.maxSpaces} hosted spaces)`);
-    }
+    this.assertCapacity();
 
     const spaceId = `space-${randomUUID()}`;
     const audience = `intent-space://headwaters/spaces/${spaceId}`;
-    const dir = join(this.baseDir, spaceId);
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(join(this.baseDir, spaceId), { recursive: true });
     const stationToken = issueSpaceToken({
       issuer: this.issuer,
       principalId: ownerPrincipalId,
@@ -68,7 +79,7 @@ export class HeadwatersProvisioner {
       secret: this.authSecret,
     });
 
-    const record: ProvisionedSpace = {
+    const record: HomeProvisionedSpace = {
       kind: 'home',
       spaceId,
       ownerPrincipalId,
@@ -78,16 +89,68 @@ export class HeadwatersProvisioner {
     };
 
     this.persistRecord(record);
-    this.spaces.set(ownerPrincipalId, record);
+    this.homeSpacesByOwner.set(ownerPrincipalId, record);
+    this.spacesById.set(record.spaceId, record);
+    return { ...record, created: true };
+  }
+
+  async provisionSharedSpace(
+    participantPrincipalIds: string[],
+    participantJwkThumbs: Record<string, string>,
+  ): Promise<SharedProvisionedSpace & { created: true }> {
+    this.assertCapacity();
+
+    const normalizedParticipants = Array.from(new Set(participantPrincipalIds));
+    const spaceId = `space-${randomUUID()}`;
+    const audience = `intent-space://headwaters/spaces/${spaceId}`;
+    mkdirSync(join(this.baseDir, spaceId), { recursive: true });
+
+    const participantTokens = Object.fromEntries(
+      normalizedParticipants.map((principalId) => {
+        const jwkThumb = participantJwkThumbs[principalId];
+        if (!jwkThumb) {
+          throw new Error(`Missing station binding for ${principalId}`);
+        }
+        return [
+          principalId,
+          issueSpaceToken({
+            issuer: this.issuer,
+            principalId,
+            audience,
+            spaceId,
+            jwkThumb,
+            secret: this.authSecret,
+          }),
+        ];
+      }),
+    );
+
+    const record: SharedProvisionedSpace = {
+      kind: 'shared',
+      spaceId,
+      participantPrincipalIds: normalizedParticipants,
+      audience,
+      endpoint: this.stationEndpoint,
+      participantTokens,
+    };
+
+    this.persistRecord(record);
+    this.spacesById.set(record.spaceId, record);
     return { ...record, created: true };
   }
 
   getSpaceById(spaceId: string): ProvisionedSpace | undefined {
-    return Array.from(this.spaces.values()).find((record) => record.spaceId === spaceId);
+    return this.spacesById.get(spaceId);
   }
 
   allSpaces(): ProvisionedSpace[] {
-    return Array.from(this.spaces.values());
+    return Array.from(this.spacesById.values());
+  }
+
+  private assertCapacity(): void {
+    if (this.spacesById.size >= this.maxSpaces) {
+      throw new Error(`Headwaters capacity reached (${this.maxSpaces} hosted spaces)`);
+    }
   }
 
   private loadPersistedSpaces(): void {
@@ -97,10 +160,14 @@ export class HeadwatersProvisioner {
       if (!existsSync(path)) continue;
       try {
         const parsed = this.normalizeRecord(JSON.parse(readFileSync(path, 'utf8')) as ProvisionedSpace);
-        if (parsed.ownerPrincipalId && parsed.spaceId) {
-          this.spaces.set(parsed.ownerPrincipalId, parsed);
+        if (parsed.kind === 'home') {
+          this.homeSpacesByOwner.set(parsed.ownerPrincipalId, parsed);
+          this.spacesById.set(parsed.spaceId, parsed);
           this.persistRecord(parsed);
+          continue;
         }
+        this.spacesById.set(parsed.spaceId, parsed);
+        this.persistRecord(parsed);
       } catch {
         // ignore malformed persisted records; operator cleanup can handle them later
       }
@@ -114,7 +181,7 @@ export class HeadwatersProvisioner {
     };
   }
 
-  private refreshRecord(record: ProvisionedSpace, jwkThumb: string): ProvisionedSpace {
+  private refreshHomeRecord(record: HomeProvisionedSpace, jwkThumb: string): HomeProvisionedSpace {
     const normalized = this.normalizeRecord(record);
     return {
       ...normalized,

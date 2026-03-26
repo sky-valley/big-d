@@ -12,8 +12,12 @@ import {
   HEADWATERS_STEWARD_ID,
   headwatersOrigin,
   isCreateHomeSpacePayload,
-  type HomeSpaceRequestPayload,
+  isCreateSharedSpacePayload,
+  isProvisioningPayload,
+  type CreateSpaceRequestPayload,
   type ProvisionedSpaceReply,
+  type ProvisionedSharedSpaceReply,
+  type SharedSpaceParticipantCredential,
 } from './contract.ts';
 import { issueCommonsStationToken } from './welcome-mat.ts';
 
@@ -175,6 +179,20 @@ function createStewardIdentity(authSecret: string): StewardIdentity {
   };
 }
 
+interface RequestValidationSuccess {
+  requestedKind: 'home' | 'shared';
+  ok: true;
+}
+
+interface RequestValidationFailure {
+  requestedKind: 'home' | 'shared';
+  ok: false;
+  reason: string;
+  reasonCode: string;
+}
+
+type RequestValidation = RequestValidationSuccess | RequestValidationFailure;
+
 export interface HeadwatersStewardOptions {
   dataDir: string;
   host: string;
@@ -235,19 +253,36 @@ export class HeadwatersSteward {
         parentId: HEADWATERS_COMMONS_SPACE_ID,
         content: 'I provision dedicated spaces in Headwaters through promises.',
         payload: {
-          offeredSpaces: [{ kind: 'home' }],
+          offeredSpaces: [{ kind: 'home' }, { kind: 'shared' }],
           howToRequest: {
-            type: 'INTENT',
-            parentId: HEADWATERS_COMMONS_SPACE_ID,
-            payload: {
-              requestedSpace: { kind: 'home' },
-              spacePolicy: {
-                visibility: 'private',
-                participants: ['<requester-sender-id>', HEADWATERS_STEWARD_ID],
+            home: {
+              type: 'INTENT',
+              parentId: HEADWATERS_COMMONS_SPACE_ID,
+              payload: {
+                requestedSpace: { kind: 'home' },
+                spacePolicy: {
+                  visibility: 'private',
+                  participants: ['<requester-principal-id>', HEADWATERS_STEWARD_ID],
+                },
+              },
+            },
+            shared: {
+              type: 'INTENT',
+              parentId: HEADWATERS_COMMONS_SPACE_ID,
+              payload: {
+                requestedSpace: {
+                  kind: 'shared',
+                  participants: ['<requester-principal-id>', '<other-principal-id>'],
+                },
+                spacePolicy: {
+                  visibility: 'private',
+                  participants: ['<requester-principal-id>', '<other-principal-id>', HEADWATERS_STEWARD_ID],
+                },
               },
             },
           },
           lifecycle: ['PROMISE', 'ACCEPT', 'COMPLETE', 'ASSESS'],
+          refusal: 'I explicitly decline invalid shared-space requests rather than ignoring them.',
         },
       },
     ));
@@ -286,7 +321,7 @@ export class HeadwatersSteward {
       && message.senderId !== HEADWATERS_STEWARD_ID
       && message.parentId === HEADWATERS_COMMONS_SPACE_ID
       && Boolean(message.intentId)
-      && isCreateHomeSpacePayload(message.payload);
+      && isProvisioningPayload(message.payload);
   }
 
   private requestIdFromMessage(message: StoredMessage): string | null {
@@ -299,13 +334,136 @@ export class HeadwatersSteward {
     return null;
   }
 
+  private requestInteriorParticipants(payload: Record<string, unknown>): string[] {
+    const policy = payload.spacePolicy as Record<string, unknown> | undefined;
+    return Array.isArray(policy?.participants)
+      ? policy!.participants.filter((value): value is string => typeof value === 'string')
+      : [];
+  }
+
+  private sharedRequestParticipants(payload: Record<string, unknown>): string[] {
+    const requestedSpace = payload.requestedSpace as Record<string, unknown> | undefined;
+    return Array.isArray(requestedSpace?.participants)
+      ? requestedSpace!.participants.filter((value): value is string => typeof value === 'string')
+      : [];
+  }
+
+  private hasDuplicates(values: string[]): boolean {
+    return new Set(values).size !== values.length;
+  }
+
+  private sameParticipantSet(left: string[], right: string[]): boolean {
+    if (left.length !== right.length) return false;
+    const normalizedLeft = [...left].sort();
+    const normalizedRight = [...right].sort();
+    return normalizedLeft.every((value, index) => value === normalizedRight[index]);
+  }
+
+  private validateRequest(request: PersistedStewardRequest): RequestValidation {
+    const payload = request.payload as Record<string, unknown>;
+    const policyParticipants = this.requestInteriorParticipants(payload);
+    const requestedSpace = (payload.requestedSpace ?? {}) as Record<string, unknown>;
+    const requestedKind = requestedSpace.kind === 'shared' ? 'shared' : 'home';
+
+    if (requestedKind === 'home') {
+      if (!policyParticipants.includes(HEADWATERS_STEWARD_ID) || !policyParticipants.includes(request.senderId)) {
+        return {
+          requestedKind: 'home',
+          ok: false,
+          reason: 'Home-space requests must keep the request interior private to the requester and steward.',
+          reasonCode: 'HEADWATERS_INVALID_HOME_REQUEST_POLICY',
+        };
+      }
+      return { requestedKind: 'home', ok: true };
+    }
+
+    if (!isCreateSharedSpacePayload(payload)) {
+      return {
+        requestedKind: 'shared',
+        ok: false,
+        reason: 'Shared-space requests must declare shared requestedSpace participants and a private request-interior policy.',
+        reasonCode: 'HEADWATERS_INVALID_SHARED_REQUEST_SHAPE',
+      };
+    }
+
+    const requestedParticipants = this.sharedRequestParticipants(payload);
+    if (requestedParticipants.length < 2) {
+      return {
+        requestedKind: 'shared',
+        ok: false,
+        reason: 'Shared-space requests must name at least two non-steward participants.',
+        reasonCode: 'HEADWATERS_SHARED_PARTICIPANT_COUNT',
+      };
+    }
+    if (!requestedParticipants.includes(request.senderId)) {
+      return {
+        requestedKind: 'shared',
+        ok: false,
+        reason: 'Shared-space requester must be explicitly included in requestedSpace.participants.',
+        reasonCode: 'HEADWATERS_SHARED_REQUESTER_NOT_INCLUDED',
+      };
+    }
+    if (requestedParticipants.includes(HEADWATERS_STEWARD_ID)) {
+      return {
+        requestedKind: 'shared',
+        ok: false,
+        reason: 'The steward cannot be a spawned shared-space participant.',
+        reasonCode: 'HEADWATERS_SHARED_STEWARD_NOT_ALLOWED',
+      };
+    }
+    if (this.hasDuplicates(requestedParticipants)) {
+      return {
+        requestedKind: 'shared',
+        ok: false,
+        reason: 'Shared-space participants must be unique principals.',
+        reasonCode: 'HEADWATERS_SHARED_DUPLICATE_PARTICIPANTS',
+      };
+    }
+    const expectedInteriorParticipants = [...requestedParticipants, HEADWATERS_STEWARD_ID];
+    if (!this.sameParticipantSet(policyParticipants, expectedInteriorParticipants)) {
+      return {
+        requestedKind: 'shared',
+        ok: false,
+        reason: 'The request interior must be private to the exact shared participant set plus the steward.',
+        reasonCode: 'HEADWATERS_SHARED_REQUEST_POLICY_MISMATCH',
+      };
+    }
+    for (const principalId of requestedParticipants) {
+      if (!this.registry.getByPrincipalId(principalId)?.jwkThumbprint) {
+        return {
+          requestedKind: 'shared',
+          ok: false,
+          reason: `Could not determine station binding for ${principalId}.`,
+          reasonCode: 'HEADWATERS_UNKNOWN_SHARED_PARTICIPANT_BINDING',
+        };
+      }
+    }
+    return { requestedKind: 'shared', ok: true };
+  }
+
+  private sharedCredentialBundle(
+    participantTokens: Record<string, string>,
+  ): SharedSpaceParticipantCredential[] {
+    return Object.entries(participantTokens).map(([principal_id, station_token]) => ({
+      principal_id,
+      station_token,
+    }));
+  }
+
+  private completionSummary(kind: 'home' | 'shared'): string {
+    if (kind === 'shared') {
+      return 'Shared space provisioned. Distribute the participant credentials, then connect directly and assess the result.';
+    }
+    return 'Home space provisioned. Connect directly to your dedicated space and assess the result.';
+  }
+
   private async handleProvisioningRequest(request: StoredMessage): Promise<void> {
     const requestId = request.intentId;
     if (!requestId) return;
     this.state.rememberRequest({
       intentId: requestId,
       senderId: request.senderId,
-      payload: request.payload as HomeSpaceRequestPayload,
+      payload: request.payload as CreateSpaceRequestPayload,
     });
     await this.handleRequest(this.state.request(requestId)!);
   }
@@ -315,15 +473,22 @@ export class HeadwatersSteward {
     if (!requestId || this.inFlightRequests.has(requestId)) return;
     this.inFlightRequests.add(requestId);
     try {
-      const payload = request.payload as Record<string, unknown>;
-      const policy = payload.spacePolicy as Record<string, unknown> | undefined;
-      const participants = Array.isArray(policy?.participants)
-        ? policy!.participants.filter((value): value is string => typeof value === 'string')
-        : [];
-      if (!participants.includes(HEADWATERS_STEWARD_ID) || !participants.includes(request.senderId)) {
+      const validation = this.validateRequest(request);
+      if (!validation.ok) {
+        this.client.post(buildDecline(
+          HEADWATERS_STEWARD_ID,
+          {
+            intentId: requestId,
+            parentId: requestId,
+            reason: validation.reason,
+            payload: { reasonCode: validation.reasonCode, requestedKind: validation.requestedKind },
+          },
+        ));
+        this.state.forgetRequest(requestId);
         return;
       }
 
+      const payload = request.payload as Record<string, unknown>;
       const subspace = await this.client.scan(requestId, request.since);
       this.state.updateRequestSince(requestId, this.client.latestSeq);
       const terminal = subspace.find((message) =>
@@ -341,10 +506,10 @@ export class HeadwatersSteward {
         && message.intentId === requestId,
       );
       const promiseId = existingPromise?.promiseId ?? request.promiseId;
+      const requestedSpace = (payload.requestedSpace ?? {}) as Record<string, unknown>;
+      const requestedKind = requestedSpace.kind === 'shared' ? 'shared' : 'home';
 
       if (!promiseId) {
-        const requestedSpace = (payload.requestedSpace ?? {}) as Record<string, unknown>;
-        const requestedKind = String(requestedSpace.kind ?? 'space');
         const nextPromiseId = `headwaters-promise-${randomUUID()}`;
         this.client.post(buildPromise(
           HEADWATERS_STEWARD_ID,
@@ -369,24 +534,46 @@ export class HeadwatersSteward {
       }
       if (!accepted && !request.accepted) return;
 
-      const requesterJkt = await this.lookupParticipantThumbprint(request.senderId);
-      if (!requesterJkt) {
-        this.client.post(buildDecline(
-          HEADWATERS_STEWARD_ID,
-          {
-            intentId: requestId,
-            parentId: requestId,
-            reason: `Could not determine station binding for ${request.senderId}.`,
-            payload: { reasonCode: 'HEADWATERS_UNKNOWN_REQUESTER_BINDING' },
-          },
-        ));
-        this.state.forgetRequest(requestId);
-        return;
-      }
-
-      let provisioned;
+      let completePayload: ProvisionedSpaceReply | ProvisionedSharedSpaceReply;
       try {
-        provisioned = await this.provisioner.provisionHomeSpace(request.senderId, requesterJkt);
+        if (isCreateHomeSpacePayload(payload)) {
+          const requesterJkt = await this.lookupParticipantThumbprint(request.senderId);
+          if (!requesterJkt) {
+            throw new Error(`Could not determine station binding for ${request.senderId}.`);
+          }
+          const provisioned = await this.provisioner.provisionHomeSpace(request.senderId, requesterJkt);
+          completePayload = {
+            headwatersStatus: provisioned.created ? 'SPACE_CREATED' : 'SPACE_ALREADY_EXISTS',
+            spaceKind: 'home',
+            spaceId: provisioned.spaceId,
+            station_endpoint: provisioned.endpoint,
+            station_audience: provisioned.audience,
+            station_token: provisioned.stationToken,
+          };
+        } else {
+          const requestedParticipants = this.sharedRequestParticipants(payload);
+          const participantJwkThumbs = Object.fromEntries(
+            await Promise.all(
+              requestedParticipants.map(async (principalId) => [principalId, await this.lookupParticipantThumbprint(principalId)] as const),
+            ),
+          );
+          const missing = Object.entries(participantJwkThumbs).find(([, jwkThumb]) => !jwkThumb);
+          if (missing) {
+            throw new Error(`Could not determine station binding for ${missing[0]}.`);
+          }
+          const provisioned = await this.provisioner.provisionSharedSpace(
+            requestedParticipants,
+            participantJwkThumbs as Record<string, string>,
+          );
+          completePayload = {
+            headwatersStatus: 'SPACE_CREATED',
+            spaceKind: 'shared',
+            spaceId: provisioned.spaceId,
+            station_endpoint: provisioned.endpoint,
+            station_audience: provisioned.audience,
+            participants: this.sharedCredentialBundle(provisioned.participantTokens),
+          };
+        }
       } catch (error) {
         this.client.post(buildDecline(
           HEADWATERS_STEWARD_ID,
@@ -400,20 +587,13 @@ export class HeadwatersSteward {
         this.state.forgetRequest(requestId);
         return;
       }
-      const completePayload: ProvisionedSpaceReply = {
-        headwatersStatus: provisioned.created ? 'SPACE_CREATED' : 'SPACE_ALREADY_EXISTS',
-        spaceKind: 'home',
-        spaceId: provisioned.spaceId,
-        station_endpoint: provisioned.endpoint,
-        station_audience: provisioned.audience,
-        station_token: provisioned.stationToken,
-      };
+
       this.client.post(buildComplete(
         HEADWATERS_STEWARD_ID,
         {
           promiseId,
           parentId: requestId,
-          summary: 'Home space provisioned. Connect directly to your dedicated space and assess the result.',
+          summary: this.completionSummary(requestedKind),
           payload: completePayload,
         },
       ));

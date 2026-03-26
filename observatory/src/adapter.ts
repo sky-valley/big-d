@@ -6,9 +6,11 @@ import type { StoredMessage } from '../../intent-space/src/types.ts';
 import type { ObservatorySnapshot, RoomEdge, RoomEvent, RoomSummary, RoomType, SemanticEventKind } from './model.ts';
 
 interface ProvisionedSpaceRecord {
-  kind: 'home';
+  kind: 'home' | 'shared';
   spaceId: string;
-  ownerId: string;
+  ownerId?: string;
+  ownerPrincipalId?: string;
+  participants?: string[];
   audience: string;
   endpoint: string;
   stationToken: string;
@@ -55,6 +57,24 @@ function rawRowsForParent(store: IntentStore, parentId: string): StoredMessage[]
       timestamp: Number(row.timestamp),
     };
   });
+}
+
+function rawRowsForParents(store: IntentStore, parentIds: string[]): StoredMessage[] {
+  const seen = new Set<string>();
+  const merged: StoredMessage[] = [];
+  for (const parentId of parentIds) {
+    for (const row of rawRowsForParent(store, parentId)) {
+      const key = `${row.type}:${row.intentId ?? ''}:${row.promiseId ?? ''}:${row.seq}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(row);
+    }
+  }
+  return merged.sort((left, right) => left.seq - right.seq);
+}
+
+function topLevelParentsForProvisionedSpace(record: ProvisionedSpaceRecord): string[] {
+  return ['root', record.spaceId];
 }
 
 function previewFor(events: RoomEvent[]): string {
@@ -255,10 +275,15 @@ export function readObservatorySnapshot(): ObservatorySnapshot {
         const spaceDbPath = join(spacesDir, entry.name, 'intent-space.db');
         const spaceStore = existsSync(spaceDbPath) ? storeFor(spaceDbPath) : null;
         try {
-          const spaceMessages = spaceStore ? rawRowsForParent(spaceStore, record.spaceId) : [];
+          const topLevelParents = topLevelParentsForProvisionedSpace(record);
+          const spaceMessages = spaceStore ? rawRowsForParents(spaceStore, topLevelParents) : [];
           const spaceEvents = toSemanticEvents(record.spaceId, 'spawned_space', spaceMessages);
           eventsByRoom[record.spaceId] = spaceEvents;
           const parentRequest = Array.from(requestToSpace.entries()).find(([, spaceId]) => spaceId === record.spaceId)?.[0];
+          const participants = Array.isArray(record.participants)
+            ? record.participants
+            : [record.ownerPrincipalId ?? record.ownerId].filter((value): value is string => typeof value === 'string');
+          const ownerLabel = record.ownerPrincipalId ?? record.ownerId ?? 'declared participants';
           edges.push({
             from: parentRequest ?? HEADWATERS_COMMONS_SPACE_ID,
             to: record.spaceId,
@@ -268,9 +293,9 @@ export function readObservatorySnapshot(): ObservatorySnapshot {
             id: record.spaceId,
             type: 'spawned_space',
             title: `Space · ${record.spaceId}`,
-            subtitle: `Dedicated room for ${record.ownerId}`,
+            subtitle: `Dedicated room for ${ownerLabel}`,
             visibility: 'private',
-            participants: [record.ownerId],
+            participants,
             connectedTo: parentRequest ?? HEADWATERS_COMMONS_SPACE_ID,
             updatedAt: roomUpdatedAt(spaceEvents),
             eventCount: spaceEvents.length,

@@ -52,6 +52,64 @@ The post office delivers to the neighborhood. Residents decide which letters to 
 
 This is how broadcast scales without becoming imposition.
 
+### 4a. Bound space, store-local root, and referred intent space
+
+Agents always act relative to some currently relevant space, even when the
+underlying substrate is uniform.
+
+For an agent or runtime participating in a space hierarchy:
+
+- the **current bound space** is the space the agent is presently treating as
+  its addressed store or participation surface
+- the **store-local root** is the top-level containment surface inside the
+  currently addressed store
+- a **referred intent space** is the interior of a specific existing intent the
+  next act is about
+
+Normative posting rule:
+
+- top-level activity inside the currently addressed store should use that
+  store's top-level participation target
+- messages specifically about an existing intent should use `parentId =
+  <intent-id>`
+
+In the simplest case, that top-level participation target is the store-local
+`root`.
+
+In station-authenticated product surfaces, a bound `space_id` may identify the
+store or audience you are in without also being the `parentId` used for
+top-level posts inside that store.
+
+`root` is therefore not the universal posting target for all later activity
+across a whole station. But it often is the correct top-level target inside the
+currently addressed store.
+
+This preserves the fractal model:
+
+- post at the store's top-level participation surface when opening a new
+  top-level subject there
+- continue in the referred intent space when the next act is about that intent
+
+### 4b. Recursive containment is for narrower subjects
+
+Replies do not automatically justify a new deeper space.
+
+Deeper recursion is appropriate when the new message opens a narrower subject
+that should itself have observable history and further contained activity.
+
+Promise-lifecycle acts about a given intent belong in that intent's interior by
+default:
+
+- `PROMISE`
+- `ACCEPT`
+- `DECLINE`
+- `COMPLETE`
+- `ASSESS`
+
+That is not a special workflow rule. It is the ordinary containment rule
+applied to messages whose meaning is specifically about an intent already in
+view.
+
 ### 5. Pull, not push
 
 Observers maintain a cursor (`since`) and pull new messages at their own pace. The space holds the log; the observer controls the read position. Natural backpressure — no O(N*M) broadcast fan-out.

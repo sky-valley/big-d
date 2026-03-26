@@ -95,7 +95,7 @@ async function main(): Promise<void> {
   process.env.HEADWATERS_COMMONS_ENDPOINT = `tcp://${host}:${commonsPort}`;
   process.env.HEADWATERS_COMMONS_AUDIENCE = 'intent-space://headwaters/test-commons';
 
-  process.env.HEADWATERS_MAX_SPACES = '1';
+  process.env.HEADWATERS_MAX_SPACES = '2';
 
   let service = new HeadwatersService({
     dataDir,
@@ -237,6 +237,127 @@ async function main(): Promise<void> {
 
       homeClient.disconnect();
 
+      const sharedRequest = {
+        type: 'INTENT' as const,
+        intentId: `intent-shared-${Date.now()}`,
+        parentId: HEADWATERS_COMMONS_SPACE_ID,
+        senderId: enrollment.senderId,
+        timestamp: Date.now(),
+        payload: {
+          content: 'Please create a shared space for alpha and beta.',
+          requestedSpace: {
+            kind: 'shared',
+            participants: [enrollment.senderId, otherEnrollment.senderId],
+          },
+          spacePolicy: {
+            visibility: 'private',
+            participants: [enrollment.senderId, otherEnrollment.senderId, HEADWATERS_STEWARD_ID],
+          },
+        },
+      };
+      commonsClient.post(sharedRequest);
+      const sharedPromise = await waitForMessage(
+        commonsClient,
+        (msg) => msg.type === 'PROMISE' && msg.parentId === sharedRequest.intentId && msg.senderId === HEADWATERS_STEWARD_ID,
+      );
+      commonsClient.post({
+        type: 'ACCEPT',
+        promiseId: sharedPromise.promiseId as string,
+        parentId: sharedRequest.intentId,
+        senderId: enrollment.senderId,
+        timestamp: Date.now(),
+        payload: {},
+      });
+      const sharedReply = await waitForMessage(
+        commonsClient,
+        (msg) => (msg.type === 'COMPLETE' || msg.type === 'DECLINE') && msg.parentId === sharedRequest.intentId && msg.senderId === HEADWATERS_STEWARD_ID,
+      );
+      assert(sharedReply.type === 'COMPLETE', `expected shared COMPLETE, got ${String(sharedReply.type)}`);
+      if (sharedReply.type !== 'COMPLETE') {
+        commonsClient.disconnect();
+        otherClient.disconnect();
+        return;
+      }
+      const sharedPayload = sharedReply.payload as Record<string, unknown>;
+      assert(sharedPayload.spaceKind === 'shared', `expected shared space kind, got ${String(sharedPayload.spaceKind)}`);
+      const sharedParticipants = Array.isArray(sharedPayload.participants)
+        ? sharedPayload.participants as Array<Record<string, unknown>>
+        : [];
+      assert(sharedParticipants.length === 2, `expected 2 participant credentials, got ${sharedParticipants.length}`);
+      const requesterCredential = sharedParticipants.find((record) => record.principal_id === enrollment.senderId);
+      const otherCredential = sharedParticipants.find((record) => record.principal_id === otherEnrollment.senderId);
+      assert(Boolean(requesterCredential), 'expected requester shared credential');
+      assert(Boolean(otherCredential), 'expected second participant shared credential');
+      assert(typeof sharedPayload.station_endpoint === 'string', 'expected shared station_endpoint');
+      assert(typeof sharedPayload.station_audience === 'string', 'expected shared station_audience');
+
+      commonsClient.post({
+        type: 'ASSESS',
+        promiseId: sharedPromise.promiseId as string,
+        parentId: sharedRequest.intentId,
+        senderId: enrollment.senderId,
+        timestamp: Date.now(),
+        payload: { assessment: 'FULFILLED' },
+      });
+
+      const sharedUrl = new URL(String(sharedPayload.station_endpoint));
+      const requesterSharedClient = new IntentSpaceClient({ host: sharedUrl.hostname, port: Number(sharedUrl.port) });
+      const otherSharedClient = new IntentSpaceClient({ host: sharedUrl.hostname, port: Number(sharedUrl.port) });
+      await requesterSharedClient.connect();
+      await requesterSharedClient.authenticate(
+        String(requesterCredential?.station_token),
+        (action, request) => enrollment.buildProofFor(
+          String(requesterCredential?.station_token),
+          String(sharedPayload.station_audience),
+          action,
+          request,
+        ),
+      );
+      await otherSharedClient.connect();
+      await otherSharedClient.authenticate(
+        String(otherCredential?.station_token),
+        (action, request) => otherEnrollment.buildProofFor(
+          String(otherCredential?.station_token),
+          String(sharedPayload.station_audience),
+          action,
+          request,
+        ),
+      );
+
+      const requesterSharedIntent = {
+        type: 'INTENT' as const,
+        intentId: `intent-shared-alpha-${Date.now()}`,
+        parentId: 'root',
+        senderId: enrollment.senderId,
+        timestamp: Date.now(),
+        payload: {
+          content: 'hello from alpha in the shared space',
+        },
+      };
+      const otherSharedIntent = {
+        type: 'INTENT' as const,
+        intentId: `intent-shared-beta-${Date.now()}`,
+        parentId: 'root',
+        senderId: otherEnrollment.senderId,
+        timestamp: Date.now(),
+        payload: {
+          content: 'hello from beta in the shared space',
+        },
+      };
+      requesterSharedClient.post(requesterSharedIntent);
+      otherSharedClient.post(otherSharedIntent);
+      const sharedMessages = await requesterSharedClient.scan('root', 0);
+      assert(
+        sharedMessages.some((message) => message.intentId === requesterSharedIntent.intentId),
+        'expected requester message in shared space scan',
+      );
+      assert(
+        sharedMessages.some((message) => message.intentId === otherSharedIntent.intentId),
+        'expected second participant message in shared space scan',
+      );
+      requesterSharedClient.disconnect();
+      otherSharedClient.disconnect();
+
       steward?.kill('SIGTERM');
       await new Promise((resolve) => setTimeout(resolve, 200));
       await service.stop();
@@ -317,6 +438,45 @@ async function main(): Promise<void> {
 
       commonsClient.disconnect();
       otherClient.disconnect();
+    }
+
+    test('invalid shared-space requests are explicitly declined');
+    {
+      const invalidEnrollment = await enrollAgent(`http://${host}:${httpPort}`, 'agent-gamma');
+      const invalidClient = new IntentSpaceClient({ host, port: commonsPort });
+      await invalidClient.connect();
+      await invalidClient.authenticate(invalidEnrollment.stationToken, invalidEnrollment.buildProof);
+
+      const invalidRequest = {
+        type: 'INTENT' as const,
+        intentId: `intent-invalid-shared-${Date.now()}`,
+        parentId: HEADWATERS_COMMONS_SPACE_ID,
+        senderId: invalidEnrollment.senderId,
+        timestamp: Date.now(),
+        payload: {
+          content: 'Please create a malformed shared space.',
+          requestedSpace: {
+            kind: 'shared',
+            participants: [invalidEnrollment.senderId, invalidEnrollment.senderId],
+          },
+          spacePolicy: {
+            visibility: 'private',
+            participants: [invalidEnrollment.senderId, HEADWATERS_STEWARD_ID],
+          },
+        },
+      };
+      invalidClient.post(invalidRequest);
+      const decline = await waitForMessage(
+        invalidClient,
+        (msg) => msg.type === 'DECLINE' && msg.parentId === invalidRequest.intentId && msg.senderId === HEADWATERS_STEWARD_ID,
+      );
+      const declinePayload = decline.payload as Record<string, unknown>;
+      assert(decline.type === 'DECLINE', `expected DECLINE for invalid shared request, got ${String(decline.type)}`);
+      assert(
+        typeof declinePayload.reasonCode === 'string' && String(declinePayload.reasonCode).startsWith('HEADWATERS_SHARED_'),
+        `expected shared decline reason code, got ${String(declinePayload.reasonCode)}`,
+      );
+      invalidClient.disconnect();
     }
 
     test('public discovery docs expose canonical pack and downloadable runtime files');

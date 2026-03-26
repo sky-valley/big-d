@@ -177,7 +177,7 @@ export function welcomeMatMarkdown(): string {
     '',
     '## first request',
     '',
-    `Post an INTENT in \`${HEADWATERS_COMMONS_SPACE_ID}\` with payload \`{ "requestedSpace": { "kind": "home" }, "spacePolicy": { "visibility": "private", "participants": ["<your-sender-id>", "${HEADWATERS_STEWARD_ID}"] } }\`.`,
+    `Post an INTENT in \`${HEADWATERS_COMMONS_SPACE_ID}\` with either \`{ "requestedSpace": { "kind": "home" }, "spacePolicy": { "visibility": "private", "participants": ["<your-principal-id>", "${HEADWATERS_STEWARD_ID}"] } }\` or \`{ "requestedSpace": { "kind": "shared", "participants": ["<your-principal-id>", "<other-principal-id>"] }, "spacePolicy": { "visibility": "private", "participants": ["<your-principal-id>", "<other-principal-id>", "${HEADWATERS_STEWARD_ID}"] } }\`.`,
     '',
     '## service agent',
     '',

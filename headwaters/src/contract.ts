@@ -83,8 +83,13 @@ export interface JwtPayload extends Record<string, unknown> {
 }
 
 export interface RequestedSpace extends Record<string, unknown> {
-  kind: 'home';
+  kind: 'home' | 'shared';
   requestedName?: string;
+}
+
+export interface SharedRequestedSpace extends RequestedSpace {
+  kind: 'shared';
+  participants: string[];
 }
 
 export interface PrivateRequestSpacePolicy extends Record<string, unknown> {
@@ -97,13 +102,34 @@ export interface HomeSpaceRequestPayload extends Record<string, unknown> {
   spacePolicy: PrivateRequestSpacePolicy;
 }
 
+export interface SharedSpaceRequestPayload extends Record<string, unknown> {
+  requestedSpace: SharedRequestedSpace;
+  spacePolicy: PrivateRequestSpacePolicy;
+}
+
+export type CreateSpaceRequestPayload = HomeSpaceRequestPayload | SharedSpaceRequestPayload;
+
+export interface SharedSpaceParticipantCredential extends Record<string, unknown> {
+  principal_id: string;
+  station_token: string;
+}
+
 export interface ProvisionedSpaceReply extends Record<string, unknown> {
   headwatersStatus: 'SPACE_CREATED' | 'SPACE_ALREADY_EXISTS';
-  spaceKind: 'home';
+  spaceKind: 'home' | 'shared';
   spaceId: string;
   station_endpoint: string;
   station_audience: string;
   station_token: string;
+}
+
+export interface ProvisionedSharedSpaceReply extends Record<string, unknown> {
+  headwatersStatus: 'SPACE_CREATED';
+  spaceKind: 'shared';
+  spaceId: string;
+  station_endpoint: string;
+  station_audience: string;
+  participants: SharedSpaceParticipantCredential[];
 }
 
 export function isSignupRequestBody(value: unknown): value is SignupRequestBody {
@@ -128,4 +154,25 @@ export function isCreateHomeSpacePayload(value: unknown): value is HomeSpaceRequ
       && (spacePolicy as Record<string, unknown>).visibility === 'private'
       && Array.isArray((spacePolicy as Record<string, unknown>).participants)
   );
+}
+
+export function isCreateSharedSpacePayload(value: unknown): value is SharedSpaceRequestPayload {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  const requestedSpace = record.requestedSpace;
+  const spacePolicy = record.spacePolicy;
+  return Boolean(
+    requestedSpace
+      && typeof requestedSpace === 'object'
+      && (requestedSpace as Record<string, unknown>).kind === 'shared'
+      && Array.isArray((requestedSpace as Record<string, unknown>).participants)
+      && spacePolicy
+      && typeof spacePolicy === 'object'
+      && (spacePolicy as Record<string, unknown>).visibility === 'private'
+      && Array.isArray((spacePolicy as Record<string, unknown>).participants)
+  );
+}
+
+export function isProvisioningPayload(value: unknown): value is CreateSpaceRequestPayload {
+  return isCreateHomeSpacePayload(value) || isCreateSharedSpacePayload(value);
 }

@@ -114,9 +114,10 @@ The first implemented slice is narrow:
 - a canonical steward process as a separate participant
 - private request subspaces declared by participant set
 - promise-native home-space provisioning in the commons
+- promise-native shared-space provisioning for a fixed principal set
 - direct participation in a real spawned home space with its own audience and token binding on the shared station endpoint
 
-Shared collaboration spaces and richer membership flows come later.
+Later invite and mutable-membership flows still come later.
 
 ## Identity Model
 

@@ -159,7 +159,9 @@ Example authenticated `SCAN`:
 
 ## First Request
 
-After signup and commons auth, post:
+After signup and commons auth, post a provisioning `INTENT`.
+
+Home example:
 
 ```json
 {
@@ -182,7 +184,31 @@ After signup and commons auth, post:
 }
 ```
 
-That request intent is public in the commons, but its interior subspace is private to the participant set you declared.
+Shared example:
+
+```json
+{
+  "type": "INTENT",
+  "intentId": "intent-456",
+  "parentId": "headwaters-commons",
+  "senderId": "prn_headwaters_abc123",
+  "timestamp": 1760000000000,
+  "payload": {
+    "content": "Please create a shared space for us.",
+    "requestedSpace": {
+      "kind": "shared",
+      "participants": ["prn_headwaters_abc123", "prn_headwaters_def456"]
+    },
+    "spacePolicy": {
+      "visibility": "private",
+      "participants": ["prn_headwaters_abc123", "prn_headwaters_def456", "headwaters-steward"]
+    }
+  },
+  "proof": "<itp-pop+jwt proof for this INTENT request>"
+}
+```
+
+That request intent is public in the commons, but its interior subspace is private to the participant set you declared for the request interior.
 
 The provisioning lifecycle then happens inside that private request subspace:
 
@@ -238,10 +264,40 @@ Example steward completion payload:
     "content": "Home space ready. Re-authenticate on the shared station endpoint using your dedicated space token.",
     "headwatersStatus": "SPACE_CREATED",
     "spaceKind": "home",
-    "spaceId": "home-your-handle",
+    "spaceId": "space-123",
     "station_endpoint": "tcp://127.0.0.1:4010",
-    "station_audience": "intent-space://headwaters/spaces/home-your-handle",
+    "station_audience": "intent-space://headwaters/spaces/space-123",
     "station_token": "<token for your dedicated home space>"
+  }
+}
+```
+
+Example shared-space completion payload:
+
+```json
+{
+  "type": "COMPLETE",
+  "promiseId": "headwaters-promise-456",
+  "parentId": "intent-456",
+  "senderId": "headwaters-steward",
+  "timestamp": 1760000001000,
+  "payload": {
+    "content": "Shared space provisioned. Distribute the participant credentials, then connect directly and assess the result.",
+    "headwatersStatus": "SPACE_CREATED",
+    "spaceKind": "shared",
+    "spaceId": "space-456",
+    "station_endpoint": "tcp://127.0.0.1:4010",
+    "station_audience": "intent-space://headwaters/spaces/space-456",
+    "participants": [
+      {
+        "principal_id": "prn_headwaters_abc123",
+        "station_token": "<token for prn_headwaters_abc123>"
+      },
+      {
+        "principal_id": "prn_headwaters_def456",
+        "station_token": "<token for prn_headwaters_def456>"
+      }
+    ]
   }
 }
 ```
@@ -282,6 +338,8 @@ For the current public-hosting model, that usually means the same shared Headwat
 8. Wait for the steward `PROMISE` in your private request subspace.
 9. Post `ACCEPT`.
 10. Wait for the steward `COMPLETE`.
-11. Extract `station_endpoint`, `station_audience`, and `station_token`.
+11. Extract `station_endpoint`, `station_audience`, and either:
+    - `station_token` for a home space
+    - the right participant entry from `participants` for a shared space
 12. Post `ASSESS` after inspecting the completion payload.
-13. Reconnect directly to that spawned home space and authenticate there.
+13. Reconnect directly to that spawned space and authenticate there.

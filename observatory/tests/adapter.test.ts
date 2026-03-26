@@ -11,7 +11,7 @@ function makeTempHeadwatersDir(): string {
   return mkdtempSync(join(tmpdir(), 'observatory-headwaters-'));
 }
 
-test('adapter derives commons, private request rooms, and spawned spaces', () => {
+test('adapter derives commons, private request rooms, and spawned spaces across both top-level parent conventions', () => {
   const dataDir = makeTempHeadwatersDir();
   process.env.OBSERVATORY_HEADWATERS_DATA_DIR = dataDir;
   try {
@@ -83,7 +83,7 @@ test('adapter derives commons, private request rooms, and spawned spaces', () =>
     writeFileSync(join(spaceDir, 'space.json'), JSON.stringify({
       kind: 'home',
       spaceId: 'home-agent-a',
-      ownerId: 'agent-a',
+      ownerPrincipalId: 'agent-a',
       audience: 'intent-space://headwaters/spaces/home-agent-a',
       endpoint: 'tcp://127.0.0.1:4010',
       stationToken: 'token',
@@ -93,10 +93,18 @@ test('adapter derives commons, private request rooms, and spawned spaces', () =>
       spawnedStore.post({
         type: 'INTENT',
         intentId: 'hello-space',
-        parentId: 'home-agent-a',
+        parentId: 'root',
         senderId: 'agent-a',
         timestamp: 6,
         payload: { content: 'Hello from my new space.' },
+      });
+      spawnedStore.post({
+        type: 'INTENT',
+        intentId: 'hello-space-bound',
+        parentId: 'home-agent-a',
+        senderId: 'agent-a',
+        timestamp: 7,
+        payload: { content: 'Hello from the bound space target.' },
       });
     } finally {
       spawnedStore.close();
@@ -110,7 +118,7 @@ test('adapter derives commons, private request rooms, and spawned spaces', () =>
     );
     assert.equal(snapshot.eventsByRoom['request-1'].some((event) => event.kind === 'promise_posted'), true);
     assert.equal(snapshot.eventsByRoom['request-1'].some((event) => event.kind === 'complete_posted'), true);
-    assert.equal(snapshot.eventsByRoom['home-agent-a'].some((event) => event.kind === 'intent_posted'), true);
+    assert.equal(snapshot.eventsByRoom['home-agent-a'].filter((event) => event.kind === 'intent_posted').length, 2);
     assert.equal(snapshot.edges.some((edge) => edge.from === 'request-1' && edge.to === 'home-agent-a'), true);
   } finally {
     delete process.env.OBSERVATORY_HEADWATERS_DATA_DIR;

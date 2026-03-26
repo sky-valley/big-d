@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
-import type { HomeSpaceRequestPayload } from './contract.ts';
+import type { CreateSpaceRequestPayload } from './contract.ts';
 
 export interface PersistedStewardRequest {
   intentId: string;
   senderId: string;
-  payload: HomeSpaceRequestPayload;
+  payload: CreateSpaceRequestPayload;
   since: number;
   promiseId?: string;
   accepted?: boolean;
