@@ -9,7 +9,19 @@ let knownRoomIds = new Set();
 let renderedSnapshotHash = null;
 let renderedSelectedRoomId = null;
 let renderedSelectedEventId = null;
+let renderedBrowseDepth = 0;
 let isFirstRender = true;
+
+// Interior browsing — stack of { parentId, label } for drilling into intent threads
+let browseStack = [];
+
+// Pan/zoom state — persists across renders
+let graphScale = 1;
+let graphPanX = 0;
+let graphPanY = 0;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 4;
+const ZOOM_STEP = 0.15;
 
 function escapeHtml(value) {
   return String(value)
@@ -186,20 +198,138 @@ function buildGraphMarkup(rooms) {
   `;
 }
 
+function applyGraphTransform() {
+  const surface = document.querySelector('.graph-surface');
+  if (surface) {
+    surface.style.transform = `translate(${graphPanX}px, ${graphPanY}px) scale(${graphScale})`;
+  }
+}
+
+let graphPanZoomBound = false;
+
+function bindGraphPanZoom() {
+  const container = document.querySelector('.hero-graph');
+  if (!container) return;
+
+  // Always re-apply the current transform (the surface DOM may have been replaced)
+  applyGraphTransform();
+
+  // Only bind event listeners once
+  if (graphPanZoomBound) return;
+  graphPanZoomBound = true;
+
+  // Wheel zoom — zoom toward cursor position
+  container.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const cursorX = e.clientX - rect.left;
+    const cursorY = e.clientY - rect.top;
+
+    const oldScale = graphScale;
+    const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+    graphScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, graphScale + delta));
+
+    // Adjust pan so zoom centers on cursor
+    const ratio = graphScale / oldScale;
+    graphPanX = cursorX - ratio * (cursorX - graphPanX);
+    graphPanY = cursorY - ratio * (cursorY - graphPanY);
+
+    applyGraphTransform();
+  }, { passive: false });
+
+  // Drag to pan
+  let dragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let panStartX = 0;
+  let panStartY = 0;
+
+  container.addEventListener('pointerdown', (e) => {
+    // Don't pan when clicking station buttons or control buttons
+    if (e.target.closest('.station') || e.target.closest('.graph-controls')) return;
+    dragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    panStartX = graphPanX;
+    panStartY = graphPanY;
+    container.classList.add('is-panning');
+    container.setPointerCapture(e.pointerId);
+  });
+
+  container.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    graphPanX = panStartX + (e.clientX - dragStartX);
+    graphPanY = panStartY + (e.clientY - dragStartY);
+    applyGraphTransform();
+  });
+
+  const endDrag = () => {
+    dragging = false;
+    container.classList.remove('is-panning');
+  };
+  container.addEventListener('pointerup', endDrag);
+  container.addEventListener('pointercancel', endDrag);
+
+  // Zoom control buttons — use event delegation so they work after re-renders
+  container.addEventListener('click', (e) => {
+    const btn = e.target.closest('.graph-controls button');
+    if (!btn) return;
+
+    const rect = container.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+
+    if (btn.classList.contains('graph-zoom-in')) {
+      const oldScale = graphScale;
+      graphScale = Math.min(ZOOM_MAX, graphScale + ZOOM_STEP);
+      const ratio = graphScale / oldScale;
+      graphPanX = cx - ratio * (cx - graphPanX);
+      graphPanY = cy - ratio * (cy - graphPanY);
+    } else if (btn.classList.contains('graph-zoom-out')) {
+      const oldScale = graphScale;
+      graphScale = Math.max(ZOOM_MIN, graphScale - ZOOM_STEP);
+      const ratio = graphScale / oldScale;
+      graphPanX = cx - ratio * (cx - graphPanX);
+      graphPanY = cy - ratio * (cy - graphPanY);
+    } else if (btn.classList.contains('graph-zoom-reset')) {
+      graphScale = 1;
+      graphPanX = 0;
+      graphPanY = 0;
+    }
+    applyGraphTransform();
+  });
+}
+
 function snapshotFingerprint(snap) {
   const rooms = snap.rooms || [];
   const eventCounts = rooms.map((r) => `${r.id}:${(snap.eventsByRoom?.[r.id] || []).length}`).join(',');
-  return `${rooms.length}|${eventCounts}`;
+  const interiorCounts = Object.entries(snap.interiorEvents || {}).map(([k, v]) => `${k}:${v.length}`).join(',');
+  return `${rooms.length}|${eventCounts}|${interiorCounts}|bs${browseStack.length}`;
 }
 
-function eventRowHtml(event, isSelected) {
+function eventRowHtml(event, isSelected, hasChildren) {
   return `
-    <button class="event-row${isSelected ? ' is-selected' : ''}" data-event-id="${escapeHtml(event.id)}">
+    <button class="event-row${isSelected ? ' is-selected' : ''}${hasChildren ? ' has-children' : ''}" data-event-id="${escapeHtml(event.id)}"${hasChildren ? ` data-drill-id="${escapeHtml(event.raw?.intentId ?? '')}"` : ''}>
       <span class="event-kind">${escapeHtml(event.kind.replaceAll('_', ' '))}</span>
-      <span class="event-label">${escapeHtml(event.label)}</span>
-      <span class="event-meta">${escapeHtml(event.actorId)} · ${escapeHtml(summarizeTime(event.timestamp))}</span>
+      <span class="event-label">${escapeHtml(event.label)}${hasChildren ? ' <span class="drill-arrow">›</span>' : ''}</span>
+      <span class="event-meta">${escapeHtml(event.actorId)} · ${escapeHtml(summarizeTime(event.timestamp))}${hasChildren ? ' · has thread' : ''}</span>
     </button>
   `;
+}
+
+/** Get the events visible in the browser, respecting the current browseStack depth. */
+function currentBrowseEvents(roomEvents) {
+  if (browseStack.length === 0) return roomEvents;
+  const deepest = browseStack[browseStack.length - 1];
+  return snapshot?.interiorEvents?.[deepest.parentId] ?? [];
+}
+
+/** Check if an event has drillable children in interiorEvents. */
+function eventHasChildren(event) {
+  const intentId = event.raw?.intentId;
+  if (!intentId) return false;
+  const children = snapshot?.interiorEvents?.[intentId];
+  return children && children.length > 0;
 }
 
 function buildBreadcrumbPath(roomId, rooms, edges) {
@@ -248,12 +378,14 @@ function buildBreadcrumbMarkup(selectedRoom, rooms, edges) {
   const roomById = new Map(rooms.map((r) => [r.id, r]));
   const path = buildBreadcrumbPath(selectedRoom.id, rooms, edges);
 
-  return path.map((id, i) => {
+  const isLastRoom = browseStack.length === 0;
+
+  let markup = path.map((id, i) => {
     const room = roomById.get(id);
     if (!room) return '';
     const siblings = siblingsOf(id, rooms, edges);
     const hasSiblings = siblings.length > 1;
-    const isLast = i === path.length - 1;
+    const isLast = isLastRoom && i === path.length - 1;
 
     const separator = i > 0 ? '<span class="crumb-sep">›</span>' : '';
     const typeLabel = room.type === 'commons' ? 'commons'
@@ -277,6 +409,18 @@ function buildBreadcrumbMarkup(selectedRoom, rooms, edges) {
       ${dropdown}
     </div>`;
   }).join('');
+
+  // Append browse-stack crumbs for intent interiors
+  for (let i = 0; i < browseStack.length; i++) {
+    const entry = browseStack[i];
+    const isLast = i === browseStack.length - 1;
+    markup += `<span class="crumb-sep">›</span><div class="crumb${isLast ? ' crumb-current' : ''}">
+      <span class="crumb-type">thread</span>
+      <button class="crumb-name" data-browse-depth="${i}">${escapeHtml(entry.label)}</button>
+    </div>`;
+  }
+
+  return markup;
 }
 
 function bindRoomClicks() {
@@ -298,6 +442,17 @@ function bindRoomClicks() {
       app.querySelectorAll('.crumb-dropdown.is-open').forEach((d) => d.classList.remove('is-open'));
       selectedRoomId = node.getAttribute('data-room-id');
       selectedEventId = null;
+      browseStack = []; // reset drill-in when switching rooms
+      render();
+    });
+  });
+
+  // Browse-depth crumbs: clicking pops the stack to that depth
+  app.querySelectorAll('[data-browse-depth]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const depth = parseInt(node.getAttribute('data-browse-depth'), 10);
+      browseStack = browseStack.slice(0, depth + 1);
+      selectedEventId = null;
       render();
     });
   });
@@ -311,6 +466,15 @@ function bindRoomClicks() {
 function bindEventClicks() {
   app.querySelectorAll('#event-rail [data-event-id]').forEach((node) => {
     node.addEventListener('click', () => {
+      const drillId = node.getAttribute('data-drill-id');
+      if (drillId) {
+        // Drill into this intent's interior
+        const label = node.querySelector('.event-label')?.textContent?.replace(' ›', '') ?? drillId.slice(-8);
+        browseStack.push({ parentId: drillId, label });
+        selectedEventId = null;
+        render();
+        return;
+      }
       selectedEventId = node.getAttribute('data-event-id');
       render();
     });
@@ -334,16 +498,19 @@ function render() {
   const rooms = snapshot.rooms || [];
   if (!selectedRoomId || !rooms.some((room) => room.id === selectedRoomId)) {
     selectedRoomId = rooms[0]?.id ?? null;
+    browseStack = [];
   }
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? rooms[0];
   const roomEvents = selectedRoom ? (snapshot.eventsByRoom?.[selectedRoom.id] ?? []) : [];
-  if (!selectedEventId || !roomEvents.some((event) => event.id === selectedEventId)) {
-    selectedEventId = roomEvents.at(-1)?.id ?? null;
+  const visibleEvents = currentBrowseEvents(roomEvents);
+  if (!selectedEventId || !visibleEvents.some((event) => event.id === selectedEventId)) {
+    selectedEventId = visibleEvents.at(-1)?.id ?? null;
   }
-  const selectedEvent = roomEvents.find((event) => event.id === selectedEventId) ?? roomEvents.at(-1) ?? null;
+  const selectedEvent = visibleEvents.find((event) => event.id === selectedEventId) ?? visibleEvents.at(-1) ?? null;
 
   const nextHash = snapshotFingerprint(snapshot);
-  const roomChanged = selectedRoomId !== renderedSelectedRoomId;
+  const browseDepthChanged = browseStack.length !== renderedBrowseDepth;
+  const roomChanged = selectedRoomId !== renderedSelectedRoomId || browseDepthChanged;
   const eventChanged = selectedEventId !== renderedSelectedEventId;
   const dataChanged = nextHash !== renderedSnapshotHash;
 
@@ -370,9 +537,9 @@ function render() {
       rail.querySelectorAll('[data-event-id]').forEach((node) => existingIds.add(node.getAttribute('data-event-id')));
 
       // Append only new events
-      const newEvents = roomEvents.filter((e) => !existingIds.has(e.id));
+      const newEvents = visibleEvents.filter((e) => !existingIds.has(e.id));
       for (const event of newEvents) {
-        rail.insertAdjacentHTML('beforeend', eventRowHtml(event, event.id === selectedEventId));
+        rail.insertAdjacentHTML('beforeend', eventRowHtml(event, event.id === selectedEventId, eventHasChildren(event)));
       }
 
       // Update selection highlight
@@ -399,7 +566,13 @@ function render() {
     // Refresh graph for new rooms
     const graph = app.querySelector('.hero-graph');
     if (graph) {
-      graph.innerHTML = buildGraphMarkup(rooms);
+      graph.innerHTML = buildGraphMarkup(rooms)
+        + `<div class="graph-controls">
+            <button class="graph-zoom-in" title="Zoom in">+</button>
+            <button class="graph-zoom-out" title="Zoom out">&minus;</button>
+            <button class="graph-zoom-reset" title="Reset view">&#8226;</button>
+          </div>`;
+      bindGraphPanZoom();
       graph.querySelectorAll('[data-room-id]').forEach((node) => {
         node.addEventListener('click', () => {
           selectedRoomId = node.getAttribute('data-room-id');
@@ -422,11 +595,13 @@ function render() {
     knownRoomIds = new Set(rooms.map((room) => room.id));
     renderedSnapshotHash = nextHash;
     renderedSelectedRoomId = selectedRoomId;
+    renderedBrowseDepth = browseStack.length;
     renderedSelectedEventId = selectedEventId;
     return;
   }
 
   // Full render: first load, room switch, or structural change
+  graphPanZoomBound = false; // DOM is about to be replaced
   app.innerHTML = `
     <main class="shell">
       <section class="hero-plane">
@@ -444,6 +619,11 @@ function render() {
         </div>
         <div class="hero-graph">
           ${buildGraphMarkup(rooms)}
+          <div class="graph-controls">
+            <button class="graph-zoom-in" title="Zoom in">+</button>
+            <button class="graph-zoom-out" title="Zoom out">&minus;</button>
+            <button class="graph-zoom-reset" title="Reset view">&#8226;</button>
+          </div>
         </div>
       </section>
 
@@ -456,8 +636,8 @@ function render() {
         <div class="browser-viewport">
           <div class="browser-page" id="event-rail">
             ${selectedRoom ? `
-              <p class="page-subtitle">${escapeHtml(selectedRoom.subtitle)}</p>
-              ${roomEvents.map((event) => eventRowHtml(event, event.id === selectedEventId)).join('')}
+              <p class="page-subtitle">${escapeHtml(selectedRoom.subtitle)}${browseStack.length > 0 ? ` › ${escapeHtml(browseStack[browseStack.length - 1].label)}` : ''}</p>
+              ${visibleEvents.map((event) => eventRowHtml(event, event.id === selectedEventId, eventHasChildren(event))).join('')}
             ` : '<p class="page-empty">No rooms discovered yet.</p>'}
           </div>
 
@@ -476,10 +656,12 @@ function render() {
   isFirstRender = false;
   renderedSnapshotHash = nextHash;
   renderedSelectedRoomId = selectedRoomId;
+  renderedBrowseDepth = browseStack.length;
   renderedSelectedEventId = selectedEventId;
 
   bindRoomClicks();
   bindEventClicks();
+  bindGraphPanZoom();
 }
 
 async function boot() {

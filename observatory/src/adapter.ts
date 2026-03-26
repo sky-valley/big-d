@@ -59,24 +59,6 @@ function rawRowsForParent(store: IntentStore, parentId: string): StoredMessage[]
   });
 }
 
-function rawRowsForParents(store: IntentStore, parentIds: string[]): StoredMessage[] {
-  const seen = new Set<string>();
-  const merged: StoredMessage[] = [];
-  for (const parentId of parentIds) {
-    for (const row of rawRowsForParent(store, parentId)) {
-      const key = `${row.type}:${row.intentId ?? ''}:${row.promiseId ?? ''}:${row.seq}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      merged.push(row);
-    }
-  }
-  return merged.sort((left, right) => left.seq - right.seq);
-}
-
-function topLevelParentsForProvisionedSpace(record: ProvisionedSpaceRecord): string[] {
-  return ['root', record.spaceId];
-}
-
 function previewFor(events: RoomEvent[]): string {
   return events.at(-1)?.label ?? 'No visible activity yet';
 }
@@ -199,6 +181,7 @@ export function readObservatorySnapshot(): ObservatorySnapshot {
   const rooms: RoomSummary[] = [];
   const edges: RoomEdge[] = [];
   const eventsByRoom: Record<string, RoomEvent[]> = {};
+  const interiorEvents: Record<string, RoomEvent[]> = {};
 
   if (!existsSync(commonsDbPath)) {
     return {
@@ -209,6 +192,7 @@ export function readObservatorySnapshot(): ObservatorySnapshot {
       rooms: [],
       edges: [],
       eventsByRoom: {},
+      interiorEvents: {},
     };
   }
 
@@ -275,8 +259,7 @@ export function readObservatorySnapshot(): ObservatorySnapshot {
         const spaceDbPath = join(spacesDir, entry.name, 'intent-space.db');
         const spaceStore = existsSync(spaceDbPath) ? storeFor(spaceDbPath) : null;
         try {
-          const topLevelParents = topLevelParentsForProvisionedSpace(record);
-          const spaceMessages = spaceStore ? rawRowsForParents(spaceStore, topLevelParents) : [];
+          const spaceMessages = spaceStore ? rawRowsForParent(spaceStore, record.spaceId) : [];
           const spaceEvents = toSemanticEvents(record.spaceId, 'spawned_space', spaceMessages);
           eventsByRoom[record.spaceId] = spaceEvents;
           const parentRequest = Array.from(requestToSpace.entries()).find(([, spaceId]) => spaceId === record.spaceId)?.[0];
@@ -301,6 +284,17 @@ export function readObservatorySnapshot(): ObservatorySnapshot {
             eventCount: spaceEvents.length,
             preview: previewFor(spaceEvents),
           });
+
+          // Discover intent interiors: any top-level INTENT that has child messages
+          if (spaceStore) {
+            const topIntents = spaceMessages.filter((m) => m.type === 'INTENT' && typeof m.intentId === 'string');
+            for (const intent of topIntents) {
+              const childMessages = rawRowsForParent(spaceStore, intent.intentId!);
+              if (childMessages.length > 0) {
+                interiorEvents[intent.intentId!] = toSemanticEvents(intent.intentId!, 'spawned_space', childMessages);
+              }
+            }
+          }
         } finally {
           spaceStore?.close();
         }
@@ -324,5 +318,6 @@ export function readObservatorySnapshot(): ObservatorySnapshot {
     rooms,
     edges,
     eventsByRoom,
+    interiorEvents,
   };
 }

@@ -97,12 +97,50 @@ button { font: inherit; color: inherit; }
     linear-gradient(rgba(17, 18, 23, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(17, 18, 23, 0.05) 1px, transparent 1px);
   background-size: 3rem 3rem;
-  overflow: clip;
+  overflow: hidden;
+  cursor: grab;
 }
+.hero-graph.is-panning { cursor: grabbing; }
 
 .graph-surface {
   position: absolute;
   inset: 0;
+  transform-origin: 0 0;
+}
+
+/* Zoom controls overlay */
+.graph-controls {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  z-index: 10;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(17, 18, 23, 0.08);
+}
+.graph-controls button {
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  transition: background 100ms ease;
+}
+.graph-controls button:hover {
+  background: rgba(255, 255, 255, 1);
+}
+.graph-controls button + button {
+  border-top: 1px solid var(--line);
 }
 
 .graph-lines {
@@ -338,6 +376,20 @@ button { font: inherit; color: inherit; }
   border-color: var(--line);
   border-left-color: var(--signal);
   background: rgba(255, 255, 255, 0.7);
+}
+
+/* Drillable events — intent with a child thread */
+.event-row.has-children {
+  border-left-color: var(--accent);
+}
+.event-row.has-children:hover {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.drill-arrow {
+  font-weight: 700;
+  color: var(--accent);
+  margin-left: 0.3rem;
 }
 
 .event-kind,

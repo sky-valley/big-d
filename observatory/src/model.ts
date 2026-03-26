@@ -49,4 +49,6 @@ export interface ObservatorySnapshot {
   rooms: RoomSummary[];
   edges: RoomEdge[];
   eventsByRoom: Record<string, RoomEvent[]>;
+  /** Events nested inside an intent interior, keyed by the parent intent ID. */
+  interiorEvents: Record<string, RoomEvent[]>;
 }
