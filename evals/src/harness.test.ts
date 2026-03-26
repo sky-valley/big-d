@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildInterviewPrompt, shouldTriggerInterview } from './harness.ts';
+import { buildInterviewPrompt, buildPromptWithExitInterview } from './harness.ts';
 import { assignBuiltinProfile, buildAgentPrompt, buildBasePrompt } from './prompts/headwaters-agent-pack.ts';
 
 test('assignBuiltinProfile follows deterministic launch order and overflows to generalist', () => {
@@ -39,33 +39,13 @@ test('buildInterviewPrompt includes the fixed structure and completion marker', 
   assert.match(prompt, /# Post-Headwaters Interview/);
   assert.match(prompt, /## What Happened At The End/);
   assert.match(prompt, /INTERVIEW_SAVED/);
-  assert.match(prompt, /Do not reconnect to Headwaters/);
+  assert.match(prompt, /When you decide to leave the space/);
 });
 
-test('shouldTriggerInterview waits for a final disconnect grace window', () => {
-  assert.equal(shouldTriggerInterview({
-    reachedSpace: true,
-    latestCloseAt: 1_000,
-    latestActivityAt: 900,
-  }, 3_500, 3_000), false);
+test('buildPromptWithExitInterview appends the exit interview contract and file path', () => {
+  const prompt = buildPromptWithExitInterview('Base prompt.', '/tmp/agent-workspace');
 
-  assert.equal(shouldTriggerInterview({
-    reachedSpace: true,
-    latestCloseAt: 1_000,
-    latestActivityAt: 900,
-  }, 4_500, 3_000), true);
-});
-
-test('shouldTriggerInterview ignores reconnect-like later activity and never-reached runs', () => {
-  assert.equal(shouldTriggerInterview({
-    reachedSpace: true,
-    latestCloseAt: 1_000,
-    latestActivityAt: 1_100,
-  }, 6_000, 3_000), false);
-
-  assert.equal(shouldTriggerInterview({
-    reachedSpace: false,
-    latestCloseAt: 1_000,
-    latestActivityAt: 900,
-  }, 6_000, 3_000), false);
+  assert.match(prompt, /^Base prompt\./);
+  assert.match(prompt, /\/tmp\/agent-workspace\/\.intent-space\/state\/post-headwaters-interview\.md/);
+  assert.match(prompt, /Only after writing the interview should you end your run/);
 });
