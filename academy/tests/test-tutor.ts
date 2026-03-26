@@ -90,6 +90,18 @@ async function main(): Promise<void> {
   });
   await tutor.start();
 
+  test('academy discovery surfaces expose canonical pack and live endpoints');
+  {
+    const rootHtml = await fetch(`${academyOrigin}/`).then((response) => response.text());
+    const llmsTxt = await fetch(`${academyOrigin}/llms.txt`).then((response) => response.text());
+    const agentCard = await fetch(`${academyOrigin}/.well-known/agent-card.json`).then((response) => response.json() as Promise<Record<string, unknown>>);
+
+    assert(rootHtml.includes('claude-code-marketplace/tree/main/plugins/intent-space-agent-pack'), 'expected root overview to point to canonical pack');
+    assert(llmsTxt.includes('/.well-known/welcome.md'), 'expected llms.txt to include welcome discovery');
+    assert(llmsTxt.includes('tcp://127.0.0.1:4101'), 'expected llms.txt to include live station endpoint');
+    assert(agentCard.canonicalSkillPackUrl === 'https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack', `unexpected canonical pack url ${String(agentCard.canonicalSkillPackUrl)}`);
+  }
+
   const visitor = await createVisitor('visitor-agent');
 
   test('Invalid tutorial greeting is declined with guidance');

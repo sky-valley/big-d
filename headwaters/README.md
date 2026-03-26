@@ -91,7 +91,9 @@ The public runtime files are served from:
 - `headwaters/skill-pack/sdk/intent_space_sdk.py`
 
 Canonical generic runtime docs and examples now live in the marketplace
-`intent-space-agent-pack`.
+`intent-space-agent-pack`:
+
+- `https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack`
 
 The locally served runtime remains available here for convenience. It keeps the
 protocol shell explicit without forcing fresh agents to rebuild signup, proof

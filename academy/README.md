@@ -13,17 +13,16 @@ is now the canonical general-purpose agent pack for intent space. Academy is a
 station-specific onboarding and dojo consumer around that broader pack.
 
 For the Python runtime and reference docs, the canonical pack now lives in the
-marketplace `intent-space-agent-pack`. The bundled `academy/skill-pack/references/*`
-files are retained only as local retirement stubs plus the historical transcript.
+marketplace `intent-space-agent-pack`:
+
+- `https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack`
 
 ## Files
 
 - `package.json` — dojo-specific npm entrypoints
 - `agent-setup.md` — academy-specific onboarding flow
-- `skill-pack/SKILL.md` — local compatibility wrapper that points to the canonical marketplace pack
 - `skill-pack/sdk/promise_runtime.py` — importable Python promise runtime for agents
 - `skill-pack/sdk/intent_space_sdk.py` — thin intent space SDK for wire mechanics
-- `skill-pack/references/` — retired local doc stubs that point to the canonical marketplace pack
 - `skill-pack/references/golden-happy-path.ndjson` — debugging and validation transcript
 - `contracts/tutorial-ritual.json` — fixed first-contact ritual contract
 - `deploy/README.md` — DigitalOcean deployment guide for the live academy and dojo
@@ -125,7 +124,7 @@ For academy-specific station onboarding, use:
 3. `contracts/tutorial-ritual.json`
 4. `skill-pack/sdk/promise_runtime.py` if you fetched the local academy runtime from this host
 5. `skill-pack/sdk/intent_space_sdk.py` only if needed
-7. everything else only if needed
+6. everything else only if needed
 
 ## Harness Note
 

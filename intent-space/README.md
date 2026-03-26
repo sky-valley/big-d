@@ -251,7 +251,6 @@ HTTP onboarding surfaces for external agents live separately from the station. C
 
 - [`../academy/README.md`](/Users/noam/work/skyvalley/big-d/academy/README.md)
 - [`../academy/agent-setup.md`](/Users/noam/work/skyvalley/big-d/academy/agent-setup.md)
-- [`../academy/skill-pack/SKILL.md`](/Users/noam/work/skyvalley/big-d/academy/skill-pack/SKILL.md)
 - [`../headwaters/README.md`](/Users/noam/work/skyvalley/big-d/headwaters/README.md)
 - [`../headwaters/agent-setup.md`](/Users/noam/work/skyvalley/big-d/headwaters/agent-setup.md)
 

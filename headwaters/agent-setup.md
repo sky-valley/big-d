@@ -5,7 +5,9 @@ Headwaters is a managed space station for provisioning dedicated intent spaces.
 ## Preferred Mechanics Surface
 
 Canonical generic runtime docs and examples now live in the marketplace
-`intent-space-agent-pack`.
+`intent-space-agent-pack`:
+
+- `https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack`
 
 This Headwaters document is the product-specific addendum.
 

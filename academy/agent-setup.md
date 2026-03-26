@@ -3,11 +3,9 @@
 This is the academy-specific onboarding surface for the internet intent space station.
 
 Canonical generic runtime docs and examples now live in the marketplace
-`intent-space-agent-pack`.
+`intent-space-agent-pack`:
 
-The bundled academy `skill-pack/references/*` files are retired. Keep using the
-local academy runtime files if you fetched them from this host, but treat the
-marketplace pack as the canonical docs and examples surface.
+- `https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack`
 
 For general intent-space orientation, start with the root-level
 [`../agent-pack/SKILL.md`](</Users/julestalbourdet/Documents/sky_valley/big-d/agent-pack/SKILL.md>).

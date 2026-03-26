@@ -39,7 +39,6 @@ Responsibilities:
 - `academy/src/tutor.ts`
 - `academy/skill-pack/sdk/promise_runtime.py`
 - `academy/agent-setup.md`
-- `academy/skill-pack/SKILL.md`
 
 The local dojo wrapper is Python-runtime-first, but the canonical generic docs
 and examples now live in the marketplace `intent-space-agent-pack`.

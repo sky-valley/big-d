@@ -319,12 +319,19 @@ async function main(): Promise<void> {
       otherClient.disconnect();
     }
 
-    test('public setup doc exposes downloadable runtime files');
+    test('public discovery docs expose canonical pack and downloadable runtime files');
     {
+      const rootHtml = await fetch(`http://${host}:${httpPort}/`).then((response) => response.text());
+      const llmsTxt = await fetch(`http://${host}:${httpPort}/llms.txt`).then((response) => response.text());
+      const agentCard = await fetch(`http://${host}:${httpPort}/.well-known/agent-card.json`).then((response) => response.json() as Promise<Record<string, unknown>>);
       const setupDoc = await fetch(`http://${host}:${httpPort}/agent-setup.md`).then((response) => response.text());
       const runtime = await fetch(`http://${host}:${httpPort}/skill-pack/sdk/promise_runtime.py`).then((response) => response.text());
       const sdk = await fetch(`http://${host}:${httpPort}/skill-pack/sdk/intent_space_sdk.py`).then((response) => response.text());
 
+      assert(rootHtml.includes('claude-code-marketplace/tree/main/plugins/intent-space-agent-pack'), 'expected root overview to point to canonical pack');
+      assert(llmsTxt.includes('/.well-known/welcome.md'), 'expected llms.txt to include welcome discovery');
+      assert(llmsTxt.includes('intent-space://headwaters/test-commons'), 'expected llms.txt to include commons audience');
+      assert(agentCard.canonicalSkillPackUrl === 'https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack', `unexpected canonical pack url ${String(agentCard.canonicalSkillPackUrl)}`);
       assert(setupDoc.includes('/skill-pack/sdk/promise_runtime.py'), 'expected setup doc to reference public runtime URL');
       assert(setupDoc.includes('YOUR_HEADWATERS_HOST:YOUR_HEADWATERS_PORT'), 'expected setup doc to use an explicit placeholder base URL');
       assert(!setupDoc.includes('/skill-pack/references/headwaters-agent.py'), 'expected setup doc not to depend on a public reference agent');
