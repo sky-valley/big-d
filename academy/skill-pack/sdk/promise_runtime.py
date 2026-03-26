@@ -247,6 +247,8 @@ class PromiseRuntimeSession:
             audience=audience,
             local_state=self.local_state,
         )
+        if isinstance(sender_id, str) and sender_id:
+            self.agent_id = sender_id
         self.record_step(
             "session.connect_to",
             {
