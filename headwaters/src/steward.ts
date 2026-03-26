@@ -404,9 +404,9 @@ export class HeadwatersSteward {
         headwatersStatus: provisioned.created ? 'SPACE_CREATED' : 'SPACE_ALREADY_EXISTS',
         spaceKind: 'home',
         spaceId: provisioned.spaceId,
-        stationEndpoint: provisioned.endpoint,
-        stationAudience: provisioned.audience,
-        stationToken: provisioned.stationToken,
+        station_endpoint: provisioned.endpoint,
+        station_audience: provisioned.audience,
+        station_token: provisioned.stationToken,
       };
       this.client.post(buildComplete(
         HEADWATERS_STEWARD_ID,

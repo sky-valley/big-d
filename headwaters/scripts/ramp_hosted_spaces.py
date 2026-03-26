@@ -150,9 +150,9 @@ def run_agent(
         complete = outcome
 
         payload = complete.get("payload", {})
-        endpoint = payload.get("stationEndpoint")
-        audience = payload.get("stationAudience")
-        station_token = payload.get("stationToken")
+        endpoint = payload.get("station_endpoint")
+        audience = payload.get("station_audience")
+        station_token = payload.get("station_token")
         if not isinstance(endpoint, str) or not isinstance(audience, str) or not isinstance(station_token, str):
             raise RuntimeError(f"invalid completion payload: {payload}")
 
@@ -186,7 +186,7 @@ def run_agent(
             "status": "ok",
             "workspace": str(workspace),
             "spaceId": payload.get("spaceId"),
-            "stationAudience": audience,
+            "station_audience": audience,
             "startedAt": started_at,
             "finishedAt": finished_at,
             "durations": {

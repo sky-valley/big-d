@@ -101,9 +101,9 @@ export interface ProvisionedSpaceReply extends Record<string, unknown> {
   headwatersStatus: 'SPACE_CREATED' | 'SPACE_ALREADY_EXISTS';
   spaceKind: 'home';
   spaceId: string;
-  stationEndpoint: string;
-  stationAudience: string;
-  stationToken: string;
+  station_endpoint: string;
+  station_audience: string;
+  station_token: string;
 }
 
 export function isSignupRequestBody(value: unknown): value is SignupRequestBody {

@@ -191,12 +191,12 @@ async function main(): Promise<void> {
         return;
       }
       assert(payload.headwatersStatus === 'SPACE_CREATED', `expected SPACE_CREATED, got ${String(payload.headwatersStatus)}`);
-      assert(typeof payload.stationEndpoint === 'string', 'expected stationEndpoint in steward reply');
-      assert(typeof payload.stationAudience === 'string', 'expected stationAudience in steward reply');
-      assert(typeof payload.stationToken === 'string', 'expected stationToken in steward reply');
+      assert(typeof payload.station_endpoint === 'string', 'expected station_endpoint in steward reply');
+      assert(typeof payload.station_audience === 'string', 'expected station_audience in steward reply');
+      assert(typeof payload.station_token === 'string', 'expected station_token in steward reply');
       assert(
-        payload.stationEndpoint === `tcp://${host}:${commonsPort}`,
-        `expected shared station endpoint, got ${String(payload.stationEndpoint)}`,
+        payload.station_endpoint === `tcp://${host}:${commonsPort}`,
+        `expected shared station endpoint, got ${String(payload.station_endpoint)}`,
       );
 
       commonsClient.post({
@@ -208,14 +208,14 @@ async function main(): Promise<void> {
         payload: { assessment: 'FULFILLED' },
       });
 
-      const homeUrl = new URL(String(payload.stationEndpoint));
+      const homeUrl = new URL(String(payload.station_endpoint));
       const homeClient = new IntentSpaceClient({ host: homeUrl.hostname, port: Number(homeUrl.port) });
       await homeClient.connect();
       await homeClient.authenticate(
-        String(payload.stationToken),
+        String(payload.station_token),
         (action, request) => enrollment.buildProofFor(
-          String(payload.stationToken),
-          String(payload.stationAudience),
+          String(payload.station_token),
+          String(payload.station_audience),
           action,
           request,
         ),
@@ -261,10 +261,10 @@ async function main(): Promise<void> {
       const recoveredHomeClient = new IntentSpaceClient({ host, port: commonsPort });
       await recoveredHomeClient.connect();
       await recoveredHomeClient.authenticate(
-        String(payload.stationToken),
+        String(payload.station_token),
         (action, request) => enrollment.buildProofFor(
-          String(payload.stationToken),
-          String(payload.stationAudience),
+          String(payload.station_token),
+          String(payload.station_audience),
           action,
           request,
         ),

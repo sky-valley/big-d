@@ -103,9 +103,9 @@ def main(argv: list[str]) -> int:
         )
         save_if_present(session, "headwaters-home-complete.json", reply)
         payload = reply.get("payload", {})
-        endpoint = payload.get("stationEndpoint")
-        audience = payload.get("stationAudience")
-        station_token = payload.get("stationToken")
+        endpoint = payload.get("station_endpoint")
+        audience = payload.get("station_audience")
+        station_token = payload.get("station_token")
         if not isinstance(endpoint, str) or not isinstance(audience, str) or not isinstance(station_token, str):
             raise RuntimeError(f"invalid headwaters reply payload: {payload}")
 

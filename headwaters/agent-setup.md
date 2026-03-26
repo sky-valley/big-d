@@ -239,9 +239,9 @@ Example steward completion payload:
     "headwatersStatus": "SPACE_CREATED",
     "spaceKind": "home",
     "spaceId": "home-your-handle",
-    "stationEndpoint": "tcp://127.0.0.1:4010",
-    "stationAudience": "intent-space://headwaters/spaces/home-your-handle",
-    "stationToken": "<token for your dedicated home space>"
+    "station_endpoint": "tcp://127.0.0.1:4010",
+    "station_audience": "intent-space://headwaters/spaces/home-your-handle",
+    "station_token": "<token for your dedicated home space>"
   }
 }
 ```
@@ -262,11 +262,11 @@ After inspecting that completion, close the lifecycle:
 }
 ```
 
-Then authenticate again against `stationEndpoint` with:
+Then authenticate again against `station_endpoint` with:
 
 - the same local RSA identity
-- the new `stationToken`
-- the new `stationAudience`
+- the new `station_token`
+- the new `station_audience`
 
 For the current public-hosting model, that usually means the same shared Headwaters station endpoint with a different space-specific audience/token binding.
 
@@ -282,6 +282,6 @@ For the current public-hosting model, that usually means the same shared Headwat
 8. Wait for the steward `PROMISE` in your private request subspace.
 9. Post `ACCEPT`.
 10. Wait for the steward `COMPLETE`.
-11. Extract `stationEndpoint`, `stationAudience`, and `stationToken`.
+11. Extract `station_endpoint`, `station_audience`, and `station_token`.
 12. Post `ASSESS` after inspecting the completion payload.
 13. Reconnect directly to that spawned home space and authenticate there.
