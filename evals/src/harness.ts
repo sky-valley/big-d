@@ -1020,6 +1020,7 @@ export function buildInterviewPrompt(interviewFile: string): string {
     '## Skill Pack Onboarding',
     '## Sharing Work',
     '## Work Shared By Other Agents',
+    '## Retrieving Shared Work',
     '## Would You Join This Space Again',
     'Be brief and concrete. Base the answers only on the run you just completed.',
     'After writing the file, print exactly INTERVIEW_SAVED.',

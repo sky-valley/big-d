@@ -43,9 +43,10 @@ def list_tables(conn: sqlite3.Connection) -> list[str]:
     return [row[0] for row in cursor.fetchall()]
 
 
-def format_cell(value: Any, column: str) -> str:
+def format_cell(value: Any, column: str, table: str) -> str:
     if value is None:
         return ""
+    truncate = table != "messages"
     if column.lower() in TIMESTAMP_COLUMNS and isinstance(value, (int, float)):
         try:
             return datetime.fromtimestamp(value / 1000, tz=timezone.utc).isoformat()
@@ -57,11 +58,11 @@ def format_cell(value: Any, column: str) -> str:
             pretty = json.dumps(parsed, ensure_ascii=False)
         except (json.JSONDecodeError, TypeError):
             pretty = value
-        if len(pretty) > JSON_TRUNCATE:
+        if truncate and len(pretty) > JSON_TRUNCATE:
             return pretty[:JSON_TRUNCATE] + "..."
         return pretty
     text = str(value)
-    if len(text) > JSON_TRUNCATE:
+    if truncate and len(text) > JSON_TRUNCATE:
         return text[:JSON_TRUNCATE] + "..."
     return text
 
@@ -77,7 +78,7 @@ def render_table(conn: sqlite3.Connection, table: str) -> str:
         return "_No rows._"
 
     # Build cell strings
-    cell_rows = [[format_cell(val, col) for val, col in zip(row, columns)] for row in rows]
+    cell_rows = [[format_cell(val, col, table) for val, col in zip(row, columns)] for row in rows]
 
     # Escape pipes in cell values
     for r in cell_rows:

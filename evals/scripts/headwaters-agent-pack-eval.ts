@@ -26,7 +26,7 @@ export function parseArgs(argv: string[]): {
     outputDir: resolve(process.cwd(), 'tmp', 'headwaters-agent-pack-eval'),
     trials: 1,
     timeoutMs: 60 * 60 * 1000,
-    idleTimeoutMs: 10 * 60 * 1000,
+    idleTimeoutMs: 20 * 60 * 1000,
     observationMs: 120_000,
     staggerMs: 0,
     injectContent: undefined as string | undefined,
