@@ -12,6 +12,7 @@ fi
 shift
 
 ARGS=()
+DEFAULT_OUTPUT_DIR=""
 
 case "$PRESET" in
   baseline)
@@ -19,8 +20,8 @@ case "$PRESET" in
       --agents codex,claude
       --trials 1
       --observation-ms 8000
-      --output-dir tmp/headwaters-agent-pack-baseline
     )
+    DEFAULT_OUTPUT_DIR="tmp/headwaters-agent-pack-baseline"
     ;;
   profiled)
     ARGS=(
@@ -28,8 +29,8 @@ case "$PRESET" in
       --trials 1
       --observation-ms 8000
       --profile-mode builtin
-      --output-dir tmp/headwaters-agent-pack-profiled
     )
+    DEFAULT_OUTPUT_DIR="tmp/headwaters-agent-pack-profiled"
     ;;
   smoke)
     ARGS=(
@@ -38,8 +39,8 @@ case "$PRESET" in
       --observation-ms 0
       --timeout-ms 60000
       --idle-timeout-ms 30000
-      --output-dir tmp/headwaters-agent-pack-smoke
     )
+    DEFAULT_OUTPUT_DIR="tmp/headwaters-agent-pack-smoke"
     ;;
   observatory)
     ARGS=(
@@ -47,14 +48,32 @@ case "$PRESET" in
       --trials 1
       --observation-ms 8000
       --with-observatory
-      --output-dir tmp/headwaters-agent-pack-observatory
     )
+    DEFAULT_OUTPUT_DIR="tmp/headwaters-agent-pack-observatory"
     ;;
   *)
     echo "Unknown preset '$PRESET'. Supported: baseline, profiled, smoke, observatory" >&2
     exit 1
     ;;
 esac
+
+has_explicit_output_dir=false
+for arg in "$@"; do
+  if [[ "$arg" == "--output-dir" ]]; then
+    has_explicit_output_dir=true
+    break
+  fi
+done
+
+if [[ "$has_explicit_output_dir" == false ]]; then
+  next_output_dir="$DEFAULT_OUTPUT_DIR"
+  suffix=2
+  while [[ -e "$EVALS_DIR/$next_output_dir" ]]; do
+    next_output_dir="${DEFAULT_OUTPUT_DIR}-${suffix}"
+    suffix=$((suffix + 1))
+  done
+  ARGS+=(--output-dir "$next_output_dir")
+fi
 
 cd "$EVALS_DIR"
 exec node --experimental-strip-types scripts/headwaters-agent-pack-eval.ts "${ARGS[@]}" "$@"

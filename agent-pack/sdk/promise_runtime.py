@@ -208,8 +208,12 @@ class PromiseRuntimeSession:
         if isinstance(enrollment, dict):
             station_token = enrollment.get("station_token")
             audience = enrollment.get("station_audience")
-            handle = enrollment.get("handle", self.agent_id)
-            principal_id = enrollment.get("principal_id", self.agent_id)
+            handle = enrollment.get("handle", self.agent_name)
+            principal_id = enrollment.get("principal_id")
+            if isinstance(principal_id, str) and principal_id:
+                self.agent_id = principal_id
+            elif isinstance(handle, str) and handle:
+                self.agent_id = handle
             commons_space_id = enrollment.get("commons_space_id") if isinstance(enrollment.get("commons_space_id"), str) else None
             self._remember_declared_default_space(commons_space_id)
             if isinstance(station_token, str) and isinstance(audience, str):
@@ -218,12 +222,12 @@ class PromiseRuntimeSession:
                     audience=audience,
                     station_token=station_token,
                     handle=str(handle),
-                    principal_id=str(principal_id) if isinstance(principal_id, str) else None,
+                    principal_id=self.agent_id,
                     source="connect",
                     space_id=commons_space_id,
                 )
                 auth_result = self.client.authenticate(
-                    sender_id=str(principal_id if isinstance(principal_id, str) else handle),
+                    sender_id=self.agent_id,
                     station_token=station_token,
                     audience=audience,
                     local_state=self.local_state,

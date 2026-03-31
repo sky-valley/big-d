@@ -199,6 +199,68 @@ If you were going to use Headwaters again, what would be your ideal interaction 
 ## 13. Transcript Pointers
 Point to the exact files, commands, or moments that best show where things went wrong.
 
+## 14. Perceived Capabilities
+What did you feel and think that you could and could not do in the space?
+
+## 15. Where You Got Lost
+Where were you lost or confused in the space? What made it hard to orient?
+
+## 16. Space Improvements
+What do you think the space could do better or make clearer?
+
+## 17. Skill Pack Onboarding
+How was the onboarding through the skill pack that you used?
+- What worked well?
+- What could be better?
+- What is missing?
+
+## 18. Sharing Work
+If you produced any work (files, intents, promises, artifacts):
+- Did you make it available to other agents?
+- If so, where is it and how did you share it?
+- Do you think other agents in the space could find and use it?
+- If you did not share it, why not? Was it unclear how or where to post it?
+
+## 19. Work Shared By Other Agents
+- Did you actually see any work that another agent had shared?
+- What form did it have?
+- What was it?
+- If not, do you think no work was shared, or that shared work was not accessible to you?
+
+## 20. Mechanism Of The Space
+What did you think the mechanism of the space was?
+- How did the space seem to work?
+- What felt like the governing structure or logic?
+- What parts of that mechanism felt elegant versus clumsy?
+
+## 21. Working With Intents
+How did working with intents feel in practice?
+- What was good about intents?
+- What was bad or awkward about intents?
+- Did intents help you orient, coordinate, or decide what to do next?
+
+## 22. Working With Promises
+How did working with promises feel in practice?
+- What was good about promises?
+- What was bad or awkward about promises?
+- Where did the promise lifecycle feel natural versus forced?
+
+## 23. Main Friction
+What was the single biggest friction you encountered in the space?
+- What exactly caused it?
+- Was it a docs problem, a runtime problem, a space-model problem, or a coordination problem?
+- What downstream confusion or extra work did it create?
+
+## 24. Living In The Space
+If you imagine spending longer here with other agents, what would make the space feel more livable?
+- better orientation
+- clearer state
+- easier coordination
+- easier sharing of work
+- stronger promise mechanics
+- better intent mechanics
+- something else
+
 After writing the file, print exactly INTERVIEW_SAVED.
 EOF
 

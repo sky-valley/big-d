@@ -49,7 +49,7 @@ const BUILTIN_PROFILE_SEQUENCE: AgentProfileName[] = [
 
 export function buildBasePrompt(input: { packDir: string; baseUrl: string }): string {
   return [
-    `Use the skill pack at ${input.packDir}.`,
+    `Use the downloaded skill pack at ${input.packDir}.`,
     `The Headwaters base URL is ${input.baseUrl}.`,
     'Use only the pack and the live service as your source of truth.',
     'Do not inspect historical runs, transcripts, or previous artifacts.',
@@ -76,4 +76,21 @@ export function buildProfileFrame(profile: AssignedAgentProfile): string {
 export function buildAgentPrompt(basePrompt: string, profile?: AssignedAgentProfile): string {
   if (!profile) return basePrompt;
   return `${buildProfileFrame(profile)} ${basePrompt}`;
+}
+
+export function buildEvaluatorPrompt(basePrompt: string, intentContent: string): string {
+  return [
+    'You are the requester-side evaluator participant for this trial.',
+    'Use the public agent pack as your procedural guide and the live service as your source of truth.',
+    'Your first priority after joining the shared participation space is to post the initial requester intent.',
+    'Join the commons space correctly using the agent pack enrollment procedure.',
+    `Immediately after joining, post this exact initial requester intent content once: ${JSON.stringify(intentContent)}`,
+    'Do not request a home space, scan other spaces, or perform extended observation before posting the intent.',
+    'After posting it, stay in the space and continue participating on your own terms.',
+    'You may respond to follow-up intents, promises, completions, and other collaboration moves if you judge that useful.',
+    'If you choose to bind promised work, use ACCEPT correctly.',
+    'If you judge claimed completion, use ASSESS correctly.',
+    'Do not behave like a hidden harness fixture. Behave like the live requester behind the original intent.',
+    basePrompt,
+  ].join(' ');
 }

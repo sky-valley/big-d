@@ -1,6 +1,6 @@
 import { resolve } from 'path';
 import { pathToFileURL } from 'url';
-import { runHeadwatersAgentPackEval, type ProfileMode } from '../src/harness.ts';
+import { runHeadwatersAgentPackEval, type AgentTarget, type ProfileMode } from '../src/harness.ts';
 
 export function parseArgs(argv: string[]): {
   agents: string[];
@@ -11,22 +11,34 @@ export function parseArgs(argv: string[]): {
   observationMs: number;
   staggerMs: number;
   injectContent?: string;
+  evaluatorAgent: AgentTarget | 'none';
   withObservatory: boolean;
   observatoryPortBase: number;
   profileMode: ProfileMode;
+  packMarketplaceRepoUrl?: string;
+  packMarketplaceName?: string;
+  packPluginName?: string;
+  packRef?: string;
+  packCacheDir?: string;
 } {
   const result = {
     agents: ['scripted-headwaters'],
     outputDir: resolve(process.cwd(), 'tmp', 'headwaters-agent-pack-eval'),
     trials: 1,
-    timeoutMs: 10 * 60 * 1000,
-    idleTimeoutMs: 5 * 60 * 1000,
+    timeoutMs: 60 * 60 * 1000,
+    idleTimeoutMs: 10 * 60 * 1000,
     observationMs: 120_000,
     staggerMs: 0,
     injectContent: undefined as string | undefined,
+    evaluatorAgent: 'codex' as AgentTarget | 'none',
     withObservatory: false,
     observatoryPortBase: 4311,
     profileMode: 'none' as ProfileMode,
+    packMarketplaceRepoUrl: undefined as string | undefined,
+    packMarketplaceName: undefined as string | undefined,
+    packPluginName: undefined as string | undefined,
+    packRef: undefined as string | undefined,
+    packCacheDir: undefined as string | undefined,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -71,6 +83,16 @@ export function parseArgs(argv: string[]): {
       index += 1;
       continue;
     }
+    if (arg === '--evaluator-agent' && argv[index + 1]) {
+      const value = argv[index + 1] as AgentTarget | 'none';
+      if (value !== 'none' && value !== 'codex' && value !== 'claude' && value !== 'pi' && value !== 'scripted-headwaters') {
+        console.error(`Error: Invalid --evaluator-agent '${value}'. Supported: none, codex, claude, pi, scripted-headwaters`);
+        process.exit(1);
+      }
+      result.evaluatorAgent = value;
+      index += 1;
+      continue;
+    }
     if (arg === '--with-observatory') {
       result.withObservatory = true;
       continue;
@@ -88,6 +110,32 @@ export function parseArgs(argv: string[]): {
       }
       result.profileMode = value;
       index += 1;
+      continue;
+    }
+    if (arg === '--pack-marketplace-repo-url' && argv[index + 1]) {
+      result.packMarketplaceRepoUrl = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg === '--pack-marketplace-name' && argv[index + 1]) {
+      result.packMarketplaceName = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg === '--pack-plugin-name' && argv[index + 1]) {
+      result.packPluginName = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg === '--pack-ref' && argv[index + 1]) {
+      result.packRef = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg === '--pack-cache-dir' && argv[index + 1]) {
+      result.packCacheDir = resolve(process.cwd(), argv[index + 1]);
+      index += 1;
+      continue;
     }
   }
 
@@ -122,9 +170,15 @@ async function main(): Promise<void> {
     observationMs: args.observationMs,
     staggerMs: args.staggerMs,
     injectContent: args.injectContent,
+    evaluatorAgent: args.evaluatorAgent,
     withObservatory: args.withObservatory,
     observatoryPortBase: args.observatoryPortBase,
     profileMode: args.profileMode,
+    packMarketplaceRepoUrl: args.packMarketplaceRepoUrl,
+    packMarketplaceName: args.packMarketplaceName,
+    packPluginName: args.packPluginName,
+    packRef: args.packRef,
+    packCacheDir: args.packCacheDir,
   });
 
   console.log(reportPath);

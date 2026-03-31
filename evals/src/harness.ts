@@ -6,9 +6,16 @@ import {
   assignBuiltinProfile,
   buildAgentPrompt,
   buildBasePrompt,
+  buildEvaluatorPrompt,
   type AgentProfileName,
   type AssignedAgentProfile,
 } from './prompts/headwaters-agent-pack.ts';
+import {
+  buildPackSourceConfig,
+  materializePackIntoWorkspace,
+  type PackProvisioning,
+  type PackSourceConfig,
+} from './pack-provisioning.ts';
 
 export type AgentTarget = 'codex' | 'claude' | 'pi' | 'scripted-headwaters';
 export type RunStatus = 'passed' | 'failed' | 'timeout' | 'unavailable';
@@ -26,9 +33,15 @@ interface EvalOptions {
   observationMs: number;
   staggerMs?: number;
   injectContent?: string;
+  evaluatorAgent?: AgentTarget | 'none';
   withObservatory?: boolean;
   observatoryPortBase?: number;
   profileMode: ProfileMode;
+  packMarketplaceRepoUrl?: string;
+  packMarketplaceName?: string;
+  packPluginName?: string;
+  packRef?: string;
+  packCacheDir?: string;
 }
 
 interface StageHandle {
@@ -60,6 +73,7 @@ interface RecipeContext {
 }
 
 interface RunningAgent {
+  role: 'worker' | 'evaluator';
   agent: AgentTarget;
   instanceLabel: string;
   profile?: AssignedAgentProfile;
@@ -70,17 +84,22 @@ interface RunningAgent {
   waitForExit?: Promise<number | null>;
   unavailableReason?: string;
   handle?: string;
+  principalId?: string;
   interviewStatus: 'completed' | 'failed' | 'unavailable';
   interviewFile?: string;
+  packProvisioning?: PackProvisioning;
+  packProvisioningError?: string;
 }
 
 interface AgentEvidence {
   handle?: string;
+  principalId?: string;
   messages: Array<Record<string, unknown>>;
   monitoringEvents: Array<Record<string, unknown>>;
 }
 
 interface AgentRunSummary {
+  role: 'worker' | 'evaluator';
   agent: AgentTarget;
   instanceLabel: string;
   profile?: AssignedAgentProfile;
@@ -92,6 +111,7 @@ interface AgentRunSummary {
   stderrPath: string;
   generatedFiles: string[];
   handle?: string;
+  principalId?: string;
   evidence: AgentEvidence;
   unavailableReason?: string;
   orientationPassed: boolean;
@@ -99,6 +119,8 @@ interface AgentRunSummary {
   collaborationPassed: boolean;
   interviewStatus: 'completed' | 'failed' | 'unavailable';
   interviewFile?: string;
+  packProvisioning?: PackProvisioning;
+  packProvisioningError?: string;
 }
 
 interface InterviewObservation {
@@ -122,8 +144,10 @@ interface TrialSummary {
   coexistencePassCount: number;
   collaborationPassCount: number;
   agentSummaries: AgentRunSummary[];
+  evaluatorSummary?: AgentRunSummary;
   sharedEvidence: AgentEvidence;
   observatory: ObservatorySummary;
+  packSource: PackSourceConfig;
 }
 
 interface ObservatorySummary {
@@ -157,9 +181,17 @@ export async function runHeadwatersAgentPackEval(options: EvalOptions): Promise<
   const outputDir = resolve(options.outputDir);
   mkdirSync(outputDir, { recursive: true });
   const summaries: TrialSummary[] = [];
+  const packSource = buildPackSourceConfig({
+    outputDir,
+    marketplaceRepoUrl: options.packMarketplaceRepoUrl,
+    marketplaceName: options.packMarketplaceName,
+    pluginName: options.packPluginName,
+    ref: options.packRef,
+    cacheDir: options.packCacheDir,
+  });
 
   for (let trial = 1; trial <= options.trials; trial += 1) {
-    summaries.push(await runTrial(trial, options));
+    summaries.push(await runTrial(trial, options, packSource));
   }
 
   const reportPath = join(outputDir, 'report.json');
@@ -168,7 +200,7 @@ export async function runHeadwatersAgentPackEval(options: EvalOptions): Promise<
   return { reportPath, summaries };
 }
 
-async function runTrial(trial: number, options: EvalOptions): Promise<TrialSummary> {
+async function runTrial(trial: number, options: EvalOptions, packSource: PackSourceConfig): Promise<TrialSummary> {
   const runDir = join(resolve(options.outputDir), `trial-${String(trial).padStart(2, '0')}`);
   mkdirSync(runDir, { recursive: true });
   log(trial, `Starting — ${options.agents.length} agents, stagger: ${options.staggerMs ?? 0}ms`);
@@ -195,57 +227,48 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
   }
   const startedAt = new Date();
   const injectedIntentContent = options.injectContent ?? DEFAULT_INJECT_CONTENT;
-  const operatorWorkspace = join(runDir, 'operator');
-  let injectorExit: Promise<number | null> | null = null;
-
-  // When observationMs is 0, pre-seed the intent before agents connect
-  // so it's already visible in the commons on their first scan.
-  if (options.observationMs === 0) {
-    const exitCode = await launchIntentInjector({
-      repoRoot: resolve(options.repoRoot),
-      stage,
-      workspaceDir: operatorWorkspace,
-      content: injectedIntentContent,
-    });
-    injectorExit = Promise.resolve(exitCode);
-    log(trial, 'Intent injected');
-  }
-
-  const basePrompt = buildBasePrompt({
-    packDir: join(options.repoRoot, 'agent-pack'),
-    baseUrl: stage.baseUrl,
-  });
-  const runningAgents = await launchAgents({
+  const workerAgents = await launchAgents({
     trial,
     repoRoot: resolve(options.repoRoot),
     runDir,
     stage,
-    basePrompt,
+    packSource,
     profileMode: options.profileMode,
     agentNames: options.agents,
     staggerMs: options.staggerMs ?? 0,
   });
-
-  let injectorTimer: ReturnType<typeof setTimeout> | undefined;
-  if (options.observationMs > 0) {
-    injectorTimer = setTimeout(() => {
-      injectorExit = launchIntentInjector({
-        repoRoot: resolve(options.repoRoot),
-        stage,
-        workspaceDir: operatorWorkspace,
-        content: injectedIntentContent,
-      }).then((code) => {
-        log(trial, 'Intent injected');
-        return code;
-      });
-    }, options.observationMs);
-  }
+  let evaluatorAgent: RunningAgent | undefined;
+  let runningParticipants = [...workerAgents];
 
   let timedOut = false;
   let terminationReason: TerminationReason = 'process-exit';
   try {
+    if (options.evaluatorAgent && options.evaluatorAgent !== 'none') {
+      if (options.observationMs > 0) {
+        await sleep(options.observationMs);
+      }
+      evaluatorAgent = await launchEvaluator({
+        trial,
+        repoRoot: resolve(options.repoRoot),
+        runDir,
+        stage,
+        packSource,
+        injectedIntentContent,
+        evaluatorAgent: options.evaluatorAgent,
+      });
+      runningParticipants = [...workerAgents, evaluatorAgent];
+      if (options.observationMs === 0 && evaluatorAgent.child) {
+        await waitForInjectedIntent({
+          repoRoot: options.repoRoot,
+          dbPath: stage.commonsDbPath,
+          content: injectedIntentContent,
+          timeoutMs: 60_000,
+        });
+        log(trial, 'Evaluator posted initial intent');
+      }
+    }
     const outcome = await awaitAgentsCompletion(
-      runningAgents,
+      runningParticipants,
       options.timeoutMs,
       options.idleTimeoutMs,
     );
@@ -259,11 +282,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
       log(trial, 'Idle timeout reached');
     }
   } finally {
-    if (injectorTimer) clearTimeout(injectorTimer);
-    await Promise.all(runningAgents.map(async (agent) => stopProcess(agent.child)));
-    if (injectorExit) {
-      await injectorExit.catch(() => null);
-    }
+    await Promise.all(runningParticipants.map(async (agent) => stopProcess(agent.child)));
     await stopProcess(observatory.child);
     await stage.stop();
   }
@@ -277,15 +296,16 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
   });
   const collaborationSpaceIds = discoverCollaborationSpaceIds(sharedEvidence, injectedIntentContent);
 
-  const agentSummaries = await Promise.all(runningAgents.map(async (agent) => {
+  const participantSummaries = await Promise.all(runningParticipants.map(async (agent) => {
     const generatedFiles = listFiles(agent.workspaceDir);
     const handle = agent.handle ?? discoverHandle(agent.workspaceDir);
+    const principalId = discoverPrincipalId(agent.workspaceDir);
     const evidence = await readSpaceDb({
       repoRoot: options.repoRoot,
       dbPath: stage.commonsDbPath,
       fromTs: startedAt.getTime(),
       toTs: endedAt.getTime(),
-      actorId: handle,
+      actorId: principalId,
     });
     const interviewFile = join(agent.workspaceDir, '.intent-space', 'state', 'post-headwaters-interview.md');
     const interviewObservation = observeInterviewState(evidence);
@@ -295,6 +315,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
         ? 'failed'
         : 'unavailable';
     return {
+      role: agent.role,
       agent: agent.agent,
       instanceLabel: agent.instanceLabel,
       profile: agent.profile,
@@ -308,6 +329,7 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
       stderrPath: agent.stderrPath,
       generatedFiles,
       handle,
+      principalId,
       evidence,
       unavailableReason: agent.unavailableReason,
       orientationPassed: false,
@@ -315,8 +337,12 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
       collaborationPassed: false,
       interviewStatus,
       interviewFile: existsSync(interviewFile) ? interviewFile : undefined,
+      packProvisioning: agent.packProvisioning,
+      packProvisioningError: agent.packProvisioningError,
     } satisfies AgentRunSummary;
   }));
+  const evaluatorSummary = participantSummaries.find((summary) => summary.role === 'evaluator');
+  const agentSummaries = participantSummaries.filter((summary) => summary.role === 'worker');
 
   const orientationVerdict = scoreOrientation(agentSummaries);
   const coexistenceVerdict = scoreCoexistence(agentSummaries);
@@ -335,12 +361,20 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     agentSummary.collaborationPassed = agentPassedCollaboration(agentSummary, collaborationSpaceIds);
   }
 
-  // Build agent-map: instance label → intent-space handle + profile
-  const agentMap: Record<string, { handle: string | null; profile: AgentProfileName | null }> = {};
+  // Build agent-map: instance label → intent-space handle + principalId + profile
+  const agentMap: Record<string, { handle: string | null; principalId: string | null; profile: AgentProfileName | null }> = {};
   for (const agentSummary of agentSummaries) {
     agentMap[agentSummary.instanceLabel] = {
       handle: agentSummary.handle ?? null,
+      principalId: agentSummary.principalId ?? null,
       profile: agentSummary.profile?.name ?? null,
+    };
+  }
+  if (evaluatorSummary) {
+    agentMap[evaluatorSummary.instanceLabel] = {
+      handle: evaluatorSummary.handle ?? null,
+      principalId: evaluatorSummary.principalId ?? null,
+      profile: null,
     };
   }
   writeFileSync(join(runDir, 'agent-map.json'), JSON.stringify(agentMap, null, 2));
@@ -351,6 +385,16 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     agentMap,
     runDir,
   });
+
+  try {
+    execFileSync('python3', [
+      join(resolve(options.repoRoot), 'evals', 'scripts', 'dump_space_tables.py'),
+      runDir,
+    ], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+    log(trial, `DB snapshot at ${join(runDir, 'db-snapshot.md')}`);
+  } catch (err) {
+    log(trial, `Warning: dump_space_tables.py failed: ${err instanceof Error ? err.message : err}`);
+  }
 
   const status: RunStatus = timedOut
     ? 'timeout'
@@ -375,8 +419,10 @@ async function runTrial(trial: number, options: EvalOptions): Promise<TrialSumma
     coexistencePassCount: agentSummaries.filter((s) => s.coexistencePassed).length,
     collaborationPassCount: agentSummaries.filter((s) => s.collaborationPassed).length,
     agentSummaries,
+    evaluatorSummary,
     sharedEvidence,
     observatory: observatory.summary,
+    packSource,
   };
 
   writeFileSync(join(runDir, 'summary.json'), JSON.stringify(summary, null, 2));
@@ -390,12 +436,11 @@ async function launchAgents(input: {
   repoRoot: string;
   runDir: string;
   stage: StageHandle;
-  basePrompt: string;
+  packSource: PackSourceConfig;
   profileMode: ProfileMode;
   agentNames: string[];
   staggerMs: number;
 }): Promise<RunningAgent[]> {
-  const packDir = join(input.repoRoot, 'agent-pack');
   const results: RunningAgent[] = [];
 
   // Count occurrences of each agent type
@@ -425,7 +470,6 @@ async function launchAgents(input: {
     const agentDir = join(input.runDir, 'agents', instanceLabel);
     const workspaceDir = join(agentDir, 'workspace');
     mkdirSync(workspaceDir, { recursive: true });
-    const prompt = buildPromptWithExitInterview(buildAgentPrompt(input.basePrompt, profile), workspaceDir);
     const stdoutPath = join(agentDir, 'stdout.log');
     const stderrPath = join(agentDir, 'stderr.log');
     writeFileSync(stdoutPath, '');
@@ -434,6 +478,7 @@ async function launchAgents(input: {
     if (!recipe) {
       log(input.trial, `Failed to spawn ${instanceLabel}: No recipe configured for ${agent}`);
       results.push({
+        role: 'worker',
         agent,
         instanceLabel,
         workspaceDir,
@@ -446,6 +491,15 @@ async function launchAgents(input: {
     }
 
     try {
+      const packProvisioning = materializePackIntoWorkspace({
+        workspaceDir,
+        source: input.packSource,
+      });
+      const basePrompt = buildBasePrompt({
+        packDir: packProvisioning.workspacePackDir,
+        baseUrl: input.stage.baseUrl,
+      });
+      const prompt = buildPromptWithExitInterview(buildAgentPrompt(basePrompt, profile), workspaceDir);
       const ctx: RecipeContext = {
         repoRoot: input.repoRoot,
         workspaceDir,
@@ -454,7 +508,7 @@ async function launchAgents(input: {
         prompt,
         agent,
         instanceLabel,
-        packDir,
+        packDir: packProvisioning.workspacePackDir,
       };
 
       const child = spawn(recipe.command, recipe.args(ctx), {
@@ -477,6 +531,7 @@ async function launchAgents(input: {
       });
 
       results.push({
+        role: 'worker',
         agent,
         instanceLabel,
         profile,
@@ -486,11 +541,13 @@ async function launchAgents(input: {
         child,
         waitForExit: new Promise((resolve) => child.on('exit', (code) => resolve(code))),
         interviewStatus: 'unavailable',
+        packProvisioning,
       });
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       log(input.trial, `Failed to spawn ${instanceLabel}: ${reason}`);
       results.push({
+        role: 'worker',
         agent,
         instanceLabel,
         profile,
@@ -499,11 +556,114 @@ async function launchAgents(input: {
         stderrPath,
         unavailableReason: `Failed to spawn ${agent}: ${reason}`,
         interviewStatus: 'unavailable',
+        packProvisioningError: reason,
       });
     }
   }
 
   return results;
+}
+
+async function launchEvaluator(input: {
+  trial: number;
+  repoRoot: string;
+  runDir: string;
+  stage: StageHandle;
+  packSource: PackSourceConfig;
+  injectedIntentContent: string;
+  evaluatorAgent: AgentTarget;
+}): Promise<RunningAgent> {
+  const agent = input.evaluatorAgent;
+  const recipe = getRecipe(agent);
+  const instanceLabel = `evaluator-${agent}`;
+  const agentDir = join(input.runDir, 'evaluator');
+  const workspaceDir = join(agentDir, 'workspace');
+  mkdirSync(workspaceDir, { recursive: true });
+  const stdoutPath = join(agentDir, 'stdout.log');
+  const stderrPath = join(agentDir, 'stderr.log');
+  writeFileSync(stdoutPath, '');
+  writeFileSync(stderrPath, '');
+
+  if (!recipe) {
+    const reason = `No recipe configured for ${agent}`;
+    log(input.trial, `Failed to spawn ${instanceLabel}: ${reason}`);
+    return {
+      role: 'evaluator',
+      agent,
+      instanceLabel,
+      workspaceDir,
+      stdoutPath,
+      stderrPath,
+      unavailableReason: reason,
+      interviewStatus: 'unavailable',
+    };
+  }
+
+  try {
+    const packProvisioning = materializePackIntoWorkspace({
+      workspaceDir,
+      source: input.packSource,
+    });
+    const basePrompt = buildBasePrompt({
+      packDir: packProvisioning.workspacePackDir,
+      baseUrl: input.stage.baseUrl,
+    });
+    const prompt = buildPromptWithExitInterview(
+      buildEvaluatorPrompt(basePrompt, input.injectedIntentContent),
+      workspaceDir,
+    );
+    const ctx: RecipeContext = {
+      repoRoot: input.repoRoot,
+      workspaceDir,
+      runDir: agentDir,
+      stage: input.stage,
+      prompt,
+      agent,
+      instanceLabel,
+      packDir: packProvisioning.workspacePackDir,
+    };
+    const child = spawn(recipe.command, recipe.args(ctx), {
+      cwd: workspaceDir,
+      env: recipe.env?.(ctx) ?? process.env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    if (recipe.inputMode === 'stdin') {
+      child.stdin.write(prompt);
+      child.stdin.end();
+    }
+    pipeToFile(child.stdout, stdoutPath);
+    pipeToFile(child.stderr, stderrPath);
+    log(input.trial, `Launched ${instanceLabel} (${agent})`);
+    child.on('exit', (code) => {
+      log(input.trial, `${instanceLabel} exited (code ${code})`);
+    });
+    return {
+      role: 'evaluator',
+      agent,
+      instanceLabel,
+      workspaceDir,
+      stdoutPath,
+      stderrPath,
+      child,
+      waitForExit: new Promise((resolve) => child.on('exit', (code) => resolve(code))),
+      interviewStatus: 'unavailable',
+      packProvisioning,
+    };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    log(input.trial, `Failed to spawn ${instanceLabel}: ${reason}`);
+    return {
+      role: 'evaluator',
+      agent,
+      instanceLabel,
+      workspaceDir,
+      stdoutPath,
+      stderrPath,
+      unavailableReason: `Failed to spawn ${agent}: ${reason}`,
+      interviewStatus: 'unavailable',
+      packProvisioningError: reason,
+    };
+  }
 }
 
 function getRecipe(agent: AgentTarget): AgentRecipe | null {
@@ -520,7 +680,7 @@ function getRecipe(agent: AgentTarget): AgentRecipe | null {
       '--cd',
       ctx.workspaceDir,
       '--add-dir',
-      ctx.repoRoot,
+      ctx.packDir,
       ctx.prompt,
     ],
   };
@@ -825,7 +985,6 @@ async function readSpaceDb(input: {
   const stdout = execFileSync('python3', args, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
   const parsed = JSON.parse(stdout) as AgentEvidence;
   return {
-    handle: input.actorId,
     messages: parsed.messages ?? [],
     monitoringEvents: parsed.monitoringEvents ?? [],
   };
@@ -846,7 +1005,21 @@ export function buildInterviewPrompt(interviewFile: string): string {
     '## What Would You Have Delegated',
     '## What Promises Did You See Resolve',
     '## Did Posting Feel Useful',
+    '## Mechanism Of The Space',
+    'Explain how the space itself seemed to work from your point of view. What felt like the governing mechanism?',
+    '## Working With Intents',
+    'What was good or bad about working with intents? Did they help you orient, coordinate, or decide what to do next?',
+    '## Working With Promises',
+    'What was good or bad about working with promises? Where did the promise lifecycle feel natural versus awkward?',
+    '## Main Friction',
+    'What was the single biggest friction you encountered in the space, and what made it costly?',
     '## Smallest Fix',
+    '## Perceived Capabilities',
+    '## Where You Got Lost',
+    '## Space Improvements',
+    '## Skill Pack Onboarding',
+    '## Sharing Work',
+    '## Work Shared By Other Agents',
     '## Would You Join This Space Again',
     'Be brief and concrete. Base the answers only on the run you just completed.',
     'After writing the file, print exactly INTERVIEW_SAVED.',
@@ -857,6 +1030,28 @@ export function buildInterviewPrompt(interviewFile: string): string {
 export function buildPromptWithExitInterview(basePrompt: string, workspaceDir: string): string {
   const interviewFile = join(workspaceDir, '.intent-space', 'state', 'post-headwaters-interview.md');
   return `${basePrompt} ${buildInterviewPrompt(interviewFile)}`;
+}
+
+async function waitForInjectedIntent(input: {
+  repoRoot: string;
+  dbPath: string;
+  content: string;
+  timeoutMs: number;
+}): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < input.timeoutMs) {
+    const evidence = await readSpaceDb({
+      repoRoot: input.repoRoot,
+      dbPath: input.dbPath,
+      fromTs: 0,
+      toTs: Date.now(),
+    });
+    if (discoverCollaborationSpaceIds(evidence, input.content).size > 0) {
+      return;
+    }
+    await sleep(250);
+  }
+  throw new Error('Timed out waiting for evaluator to post the initial intent');
 }
 
 function observeInterviewState(evidence: AgentEvidence): InterviewObservation {
@@ -891,6 +1086,23 @@ function discoverHandle(workspaceDir: string): string | undefined {
   return undefined;
 }
 
+function discoverPrincipalId(workspaceDir: string): string | undefined {
+  const candidates = [
+    join(workspaceDir, '.intent-space', 'state', 'station-enrollment.json'),
+    join(workspaceDir, '.intent-space', 'state', 'enrollment.json'),
+  ];
+  for (const path of candidates) {
+    if (!existsSync(path)) continue;
+    try {
+      const parsed = JSON.parse(readFileSync(path, 'utf8')) as { principal_id?: string };
+      if (typeof parsed.principal_id === 'string') return parsed.principal_id;
+    } catch {
+      // try next
+    }
+  }
+  return undefined;
+}
+
 function classifyAgentStatus(evidence: AgentEvidence): RunStatus {
   const eventTypes = new Set(evidence.monitoringEvents.map((event) => String(event.event_type ?? event.eventType)));
   if (eventTypes.has('auth_failed')) return 'failed';
@@ -907,7 +1119,7 @@ function agentPassedOrientation(summary: AgentRunSummary): boolean {
 }
 
 function agentPassedCoexistence(summary: AgentRunSummary): boolean {
-  if (!summary.handle) return false;
+  if (!summary.principalId) return false;
   const eventTypes = new Set(summary.evidence.monitoringEvents.map((event) => String(event.event_type ?? event.eventType)));
   return eventTypes.has('scan_succeeded') || summary.evidence.messages.length > 0;
 }
@@ -931,12 +1143,12 @@ function discoverCollaborationSpaceIds(sharedEvidence: AgentEvidence, injectedIn
 }
 
 function agentPassedCollaboration(summary: AgentRunSummary, collaborationSpaceIds: Set<string>): boolean {
-  if (!summary.handle) return false;
+  if (!summary.principalId) return false;
   if (collaborationSpaceIds.size === 0) return false;
   return summary.evidence.messages.some((message) => {
     return typeof message.parent_id === 'string'
       && collaborationSpaceIds.has(message.parent_id)
-      && message.sender_id === summary.handle;
+      && message.sender_id === summary.principalId;
   });
 }
 
@@ -947,7 +1159,7 @@ function scoreOrientation(agentSummaries: AgentRunSummary[]): StageVerdict {
 }
 
 function scoreCoexistence(agentSummaries: AgentRunSummary[]): StageVerdict {
-  const active = agentSummaries.filter((summary) => summary.handle);
+  const active = agentSummaries.filter((summary) => summary.principalId);
   if (active.length < 2) return 'not-run';
   const observed = active.filter((summary) => {
     const eventTypes = new Set(summary.evidence.monitoringEvents.map((event) => String(event.event_type ?? event.eventType)));
@@ -958,7 +1170,7 @@ function scoreCoexistence(agentSummaries: AgentRunSummary[]): StageVerdict {
 }
 
 function scoreCollaboration(agentSummaries: AgentRunSummary[], collaborationSpaceIds: Set<string>): StageVerdict {
-  const active = agentSummaries.filter((summary) => summary.handle);
+  const active = agentSummaries.filter((summary) => summary.principalId);
   if (active.length < 2) return 'not-run';
   if (collaborationSpaceIds.size === 0) return 'failed';
   const collaborating = active.filter((summary) => agentPassedCollaboration(summary, collaborationSpaceIds));
@@ -969,15 +1181,15 @@ function scoreCollaboration(agentSummaries: AgentRunSummary[], collaborationSpac
 function generateTimeline(input: {
   agentSummaries: AgentRunSummary[];
   sharedEvidence: AgentEvidence;
-  agentMap: Record<string, { handle: string | null; profile: AgentProfileName | null }>;
+  agentMap: Record<string, { handle: string | null; principalId: string | null; profile: AgentProfileName | null }>;
   runDir: string;
 }): void {
-  // Reverse the agent map: handle → display label
-  const handleToLabel = new Map<string, string>();
+  // Reverse the agent map: principalId → display label
+  const principalIdToLabel = new Map<string, string>();
   for (const [label, metadata] of Object.entries(input.agentMap)) {
-    if (metadata.handle) {
+    if (metadata.principalId) {
       const displayLabel = metadata.profile ? `${label} (${metadata.profile})` : label;
-      handleToLabel.set(metadata.handle, displayLabel);
+      principalIdToLabel.set(metadata.principalId, displayLabel);
     }
   }
 
@@ -1008,7 +1220,7 @@ function generateTimeline(input: {
 
     const ts = typeof event.timestamp === 'number' ? event.timestamp : 0;
     const actorId = String(event.actor_id ?? event.actorId ?? '');
-    const agentLabel = handleToLabel.get(actorId) ?? (actorId || 'unknown');
+    const agentLabel = principalIdToLabel.get(actorId) ?? (actorId || 'unknown');
     const detail = typeof event.detail === 'string' ? event.detail : '';
     let summary = eventType;
     if (detail) {
@@ -1026,7 +1238,7 @@ function generateTimeline(input: {
   for (const message of input.sharedEvidence.messages) {
     const ts = typeof message.timestamp === 'number' ? message.timestamp : 0;
     const senderId = String(message.sender_id ?? '');
-    const agentLabel = handleToLabel.get(senderId) ?? (senderId || 'unknown');
+    const agentLabel = principalIdToLabel.get(senderId) ?? (senderId || 'unknown');
     const messageType = String(message.type ?? 'MESSAGE');
     const payload = message.payload as Record<string, unknown> | undefined;
     const content = typeof payload?.content === 'string'
@@ -1063,6 +1275,7 @@ function renderMarkdownReport(summaries: TrialSummary[]): string {
     lines.push(`- coexistence: ${summary.coexistenceVerdict} (${summary.coexistencePassCount}/${total})`);
     lines.push(`- collaboration: ${summary.collaborationVerdict} (${summary.collaborationPassCount}/${total})`);
     lines.push(`- base URL: ${summary.baseUrl}`);
+    lines.push(`- pack source: ${summary.packSource.pluginName}@${summary.packSource.ref} from ${summary.packSource.marketplaceRepoUrl}`);
     if (summary.observatory.status === 'running' && summary.observatory.url) {
       lines.push(`- observatory: ${summary.observatory.url}`);
     } else if (summary.observatory.enabled) {
@@ -1077,8 +1290,25 @@ function renderMarkdownReport(summaries: TrialSummary[]): string {
       const cx = agent.coexistencePassed ? 'pass' : 'fail';
       const cl = agent.collaborationPassed ? 'pass' : 'fail';
       lines.push(`| ${agent.instanceLabel} | ${agent.profile?.name ?? '-'} | ${agent.status} | ${agent.handle ?? '-'} | ${o} | ${cx} | ${cl} | ${agent.interviewStatus} |`);
+      if (agent.packProvisioning) {
+        lines.push(`  pack: ${agent.packProvisioning.pluginName}@${agent.packProvisioning.requestedRef} -> ${agent.packProvisioning.resolvedCommitSha} (${agent.packProvisioning.workspacePackDir})`);
+      } else if (agent.packProvisioningError) {
+        lines.push(`  pack: failed (${agent.packProvisioningError})`);
+      }
     }
     lines.push('');
+    if (summary.evaluatorSummary) {
+      lines.push(`Evaluator: ${summary.evaluatorSummary.instanceLabel} (${summary.evaluatorSummary.agent})`);
+      lines.push(`- status: ${summary.evaluatorSummary.status}`);
+      lines.push(`- handle: ${summary.evaluatorSummary.handle ?? '-'}`);
+      lines.push(`- interview: ${summary.evaluatorSummary.interviewStatus}`);
+      if (summary.evaluatorSummary.packProvisioning) {
+        lines.push(`- pack: ${summary.evaluatorSummary.packProvisioning.pluginName}@${summary.evaluatorSummary.packProvisioning.requestedRef} -> ${summary.evaluatorSummary.packProvisioning.resolvedCommitSha}`);
+      } else if (summary.evaluatorSummary.packProvisioningError) {
+        lines.push(`- pack: failed (${summary.evaluatorSummary.packProvisioningError})`);
+      }
+      lines.push('');
+    }
   }
   return lines.join('\n');
 }
