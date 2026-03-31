@@ -100,15 +100,15 @@ And we hardened auth failures so malformed requests now fail with field-level me
 
 instead of opaque internal parse failures.
 
-### 2. Serve a real public Headwaters pack
+### 2. Serve a real public Headwaters runtime surface
 
 Files:
 
 - [headwaters/skill-pack/sdk/promise_runtime.py](/Users/noam/work/skyvalley/big-d/headwaters/skill-pack/sdk/promise_runtime.py)
 - [headwaters/skill-pack/sdk/intent_space_sdk.py](/Users/noam/work/skyvalley/big-d/headwaters/skill-pack/sdk/intent_space_sdk.py)
-- [headwaters/skill-pack/references/headwaters-agent.py](/Users/noam/work/skyvalley/big-d/headwaters/skill-pack/references/headwaters-agent.py)
 
-Instead of pointing agents at academy-internal paths, Headwaters now serves its own public Python pack and reference agent directly over HTTP.
+Instead of pointing agents at academy-internal paths, Headwaters now serves its
+own public Python runtime files directly over HTTP.
 
 That changed the agent story from:
 
@@ -116,31 +116,21 @@ That changed the agent story from:
 
 to:
 
-- “download these exact files from the Headwaters service you are joining”
+- “download these exact runtime files from the Headwaters service you are
+  joining”
 
 This made the preferred mechanics surface honest.
 
-### 3. Make the reference agent portable when downloaded
+Later, the public docs surface was tightened again:
 
-File:
+- the canonical generic docs and examples moved to the marketplace
+  `intent-space-agent-pack`
+- the host kept only a product-specific addendum plus the downloadable runtime
+  files
+- the public reference agent was retired rather than kept as a second canonical
+  surface
 
-- [headwaters/scripts/headwaters-agent.py](/Users/noam/work/skyvalley/big-d/headwaters/scripts/headwaters-agent.py)
-
-The reference agent initially still assumed the repo layout and imported:
-
-- `academy/skill-pack/sdk/promise_runtime.py`
-
-That broke the “download these files into one directory” flow.
-
-The fix was to make the script search for `promise_runtime.py` in this order:
-
-1. the same directory as the downloaded script
-2. `../sdk`
-3. the repo fallback
-
-So the served reference agent now works as a real downloaded artifact, not just as a repo-local example.
-
-### 4. Build a repeatable Claude evaluation loop
+### 3. Build a repeatable Claude evaluation loop
 
 File:
 
@@ -172,11 +162,10 @@ That was the decisive signal that the runtime packaging was still fake from an e
 
 ### Iteration 2
 
-After serving a real public pack, Claude downloaded:
+After serving a real public runtime surface, Claude downloaded:
 
 - `promise_runtime.py`
 - `intent_space_sdk.py`
-- `headwaters-agent.py`
 
 directly into the workspace before proceeding.
 
@@ -189,9 +178,8 @@ The next concrete complaint became smaller and more honest:
 So we then:
 
 - made the setup doc origin-aware
-- made the reference agent prefer env or explicit endpoints rather than misleading defaults
-
-This is the right kind of iteration: the big structural complaint went away, and what remained became a narrow doc/example polish issue.
+This is the right kind of iteration: the big structural complaint went away,
+and what remained became narrower product-doc and runtime ergonomics issues.
 
 ## Prevention
 
@@ -207,7 +195,9 @@ then the service itself should serve:
 
 - the runtime
 - the lower-level SDK if needed
-- at least one runnable reference agent
+
+Generic docs and examples can live elsewhere, but that canonical location must
+be explicit and reachable from the host.
 
 ### 2. Fresh-agent evaluation should be scripted, not anecdotal
 
@@ -236,18 +226,6 @@ If the service can run on arbitrary ports, docs should teach:
 not:
 
 - “copy this literal localhost example”
-
-### 4. Downloaded reference scripts must be portable
-
-A served example is only a real public example if it can run in the downloaded shape.
-
-That means testing:
-
-- same-directory imports
-- relative SDK layout
-- explicit env/arg overrides for endpoints
-
-not just repo-local execution.
 
 ## Validation
 

@@ -43,7 +43,9 @@ Headwaters broke both assumptions immediately because the product flow is:
 - receive a fresh endpoint/token/audience
 - connect into that new space directly
 
-That is not a variation of the dojo. It is a real station-to-station handoff.
+That is not a variation of the dojo. It is a real spawned-space handoff with a
+new audience and token binding, even when the product later reuses one shared
+station endpoint.
 
 ## Solution
 
@@ -52,7 +54,7 @@ The working cut was:
 1. make station auth audience explicit per `IntentSpace` instance
 2. make auth secret explicit per `IntentSpace` instance
 3. add a publish hook so the commons can drive a steward without inventing a second protocol family
-4. extend the Python runtime with a generic `connect_to(...)` handoff for newly issued stations
+4. extend the Python runtime with a generic `connect_to(...)` handoff for newly issued spaces
 
 That produced a clean Headwaters first slice:
 
@@ -101,13 +103,15 @@ Key change:
 
 That method reuses the same local key material but switches the live session to:
 
-- a new endpoint
+- a new endpoint or reused shared endpoint
 - a new station token
 - a new audience
 
 That was the missing mechanic for spawned-space flows.
 
-The important point is that Headwaters did **not** need a separate new runtime. It needed the existing protocol-shell runtime to become honest about multi-station participation.
+The important point is that Headwaters did **not** need a separate new runtime.
+It needed the existing protocol-shell runtime to become honest about
+multi-space participation with per-space auth artifacts.
 
 ### 3. Headwaters itself surfaced a consistency bug in service discovery
 
@@ -149,11 +153,19 @@ Headwaters now has a real vertical slice:
 - address the steward
 - request `create-home-space`
 - receive a reply containing:
-  - new endpoint
+  - endpoint
   - new audience
   - new station token
 - connect directly into the spawned home space
 - post there successfully
+
+The later Headwaters hosting cut kept this learning but clarified the product
+shape:
+
+- spawned spaces now normally share one station endpoint
+- the real handoff is audience/token/space binding, not necessarily a new port
+- the canonical generic runtime docs now live in the marketplace pack, while
+  Headwaters still serves a local runtime copy for convenience
 
 Validated by:
 

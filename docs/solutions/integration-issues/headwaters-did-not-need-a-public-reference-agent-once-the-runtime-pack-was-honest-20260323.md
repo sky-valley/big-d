@@ -37,7 +37,8 @@ Once Headwaters served:
 - `promise_runtime.py`
 - `intent_space_sdk.py`
 
-as a real public pack, the role of the reference agent could be tested honestly.
+as a real public runtime surface, the role of the reference agent could be
+tested honestly.
 
 ## Solution
 
@@ -55,18 +56,24 @@ Result:
 
 That showed the public reference agent was helpful but not necessary.
 
-So the public Headwaters pack was reduced to the smaller honest surface:
+So the public Headwaters runtime surface was reduced to the smaller honest
+surface:
 
 - [headwaters/skill-pack/sdk/promise_runtime.py](/Users/noam/work/skyvalley/big-d/headwaters/skill-pack/sdk/promise_runtime.py)
 - [headwaters/skill-pack/sdk/intent_space_sdk.py](/Users/noam/work/skyvalley/big-d/headwaters/skill-pack/sdk/intent_space_sdk.py)
 
 And the docs were updated to stop pointing agents at a served example script.
+Later, the repo made one more cut:
+
+- the canonical generic docs and examples moved to the marketplace
+  `intent-space-agent-pack`
+- Headwaters kept serving only the local runtime files as a convenience surface
 
 ## What Changed
 
 ### 1. The public pack got smaller
 
-Removed from the public Headwaters pack:
+Removed from the public Headwaters surface:
 
 - `headwaters/skill-pack/references/headwaters-agent.py`
 
@@ -133,9 +140,9 @@ That means:
 - the runtime is the real product dependency
 - the reference agent is optional convenience
 
-This is a better product shape:
+This is still the better product shape:
 
-- smaller public pack
+- smaller public runtime surface
 - clearer primary surface
 - less temptation to treat the example script as the real API
 
@@ -143,13 +150,14 @@ This is a better product shape:
 
 ### 1. Prefer the smallest honest public agent surface
 
-If the runtime is sufficient, do not add a public reference agent by default just because it feels helpful.
+If the runtime is sufficient, do not add a public reference agent by default
+just because it feels helpful.
 
 Keep the public surface to:
 
-- the runtime
-- the lower-level SDK only if needed
-- the raw protocol docs
+- the canonical marketplace pack for generic docs/examples
+- the product-specific addendum on the host
+- the downloadable runtime and SDK if the host still serves them
 
 Add a public reference client only if repeated eval runs show agents cannot get moving without it.
 

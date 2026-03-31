@@ -100,12 +100,14 @@ The new happy path is:
 4. steward provisions the space and posts `COMPLETE`
 5. requester posts `ASSESS`
 
-The fulfillment artifact lives in `COMPLETE`:
+The fulfillment artifact lives in `COMPLETE`.
 
-- `spaceId`
-- `stationEndpoint`
-- `stationAudience`
-- `stationToken`
+For home spaces that includes one space descriptor plus the issued access
+artifacts for the requester.
+
+For shared spaces the same lifecycle now returns one shared space descriptor
+plus participant-specific access artifacts rather than one flat top-level token
+for everyone.
 
 That made space creation look like the same kind of cooperative act the rest of the system already uses, instead of a service-shaped exception.
 
@@ -141,7 +143,10 @@ Files:
 
 Once the steward became a real separate process, it could no longer rely on HTTP-signup-local state hidden inside the service object.
 
-Headwaters now persists the enrolled handle -> JWK thumbprint binding so the steward can mint the spawned-space station token for the same agent key that enrolled through Welcome Mat.
+The first steward cut persisted enough enrollment-key binding for the separate
+steward to mint spawned-space tokens. Headwaters later tightened this further by
+introducing explicit station-local `principal_id` records and keying durable
+ownership to those principals rather than to the self-chosen handle.
 
 That was the missing bridge between:
 
@@ -199,6 +204,18 @@ The fresh-agent loop also confirmed that the public Headwaters pack remained usa
 - Treat per-message thread linkage as persistence-critical. `PROMISE`, `ACCEPT`, `COMPLETE`, and `ASSESS` all need durable request association, not just `INTENT`.
 - When splitting a service actor out of the HTTP host, explicitly persist whatever identity binding that actor will need later. Do not rely on hidden in-memory signup context.
 - Keep the public agent pack in the validation loop whenever the workflow changes. The pack staying comfortable after the steward refactor mattered as much as the refactor itself.
+
+## Refresh Note
+
+Two later Headwaters changes matter when reading this learning now:
+
+- durable ownership and wire identity are now principal-based, not handle-based
+- shared-space provisioning extends the same promise-native request-interior
+  pattern to a fixed participant set
+
+Those changes refine the identity and fulfillment details, but they do not
+change the core learning that the steward had to become a real participant and
+that the provisioning lifecycle belongs in the private request interior.
 
 ## Related Docs
 
