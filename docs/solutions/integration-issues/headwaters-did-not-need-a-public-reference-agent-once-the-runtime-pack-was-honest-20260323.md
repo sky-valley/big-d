@@ -178,7 +178,7 @@ Verified with:
 
 - `cd headwaters && npm test`
 - the Claude eval loop in:
-  - [headwaters/scripts/headwaters-claude-eval-loop.sh](/Users/noam/work/skyvalley/big-d/headwaters/scripts/headwaters-claude-eval-loop.sh)
+  - [evals/scripts/headwaters-claude-eval-loop.sh](/Users/noam/work/skyvalley/big-d/evals/scripts/headwaters-claude-eval-loop.sh)
 
 Key artifacts:
 

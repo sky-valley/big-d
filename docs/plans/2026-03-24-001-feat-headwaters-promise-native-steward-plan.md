@@ -169,14 +169,14 @@ Tasks:
 - Update `headwaters/README.md` and root/living docs only where behavior actually changes
 - Ensure the public Python runtime remains applicable without requiring a public solved client
 - Add or adjust runtime helpers only if the promise-flow ergonomics clearly require them; keep the runtime mechanics-focused
-- Update `headwaters/scripts/headwaters-claude-eval-loop.sh` so the prompt and interview test the new flow explicitly
+- Update `evals/scripts/headwaters-claude-eval-loop.sh` so the prompt and interview test the new flow explicitly
 - Preserve fresh-agent testing of the public pack, not just local script success
 
 Files likely involved:
 
 - `headwaters/agent-setup.md`
 - `headwaters/README.md`
-- `headwaters/scripts/headwaters-claude-eval-loop.sh`
+- `evals/scripts/headwaters-claude-eval-loop.sh`
 - `headwaters/skill-pack/sdk/promise_runtime.py`
 - `headwaters/skill-pack/sdk/intent_space_sdk.py`
 - `README.md`
@@ -203,7 +203,7 @@ Validation targets:
 
 - `cd headwaters && npm test`
 - `cd academy && npm test`
-- `bash headwaters/scripts/headwaters-claude-eval-loop.sh /Users/noam/work/skyvalley/big-d`
+- `bash evals/scripts/headwaters-claude-eval-loop.sh /Users/noam/work/skyvalley/big-d`
 
 Acceptance gate:
 
@@ -231,7 +231,7 @@ Deferred. This may become useful later, but the origin decision was to let the s
 - [x] The steward’s `COMPLETE` payload carries the spawned-space fulfillment artifact
 - [x] Spawned spaces remain real dedicated spaces with direct participation after fulfillment
 - [x] The public Python runtime pack remains usable for the new flow without adding a public solved client
-- [x] `headwaters/scripts/headwaters-claude-eval-loop.sh` is updated to test the new flow and still completes with the public pack
+- [x] `evals/scripts/headwaters-claude-eval-loop.sh` is updated to test the new flow and still completes with the public pack
 - [x] Headwaters docs reflect the promise-native steward model accurately
 - [x] Existing Welcome Mat signup and commons auth behavior remain intact unless explicitly improved
 
@@ -272,7 +272,7 @@ Deferred. This may become useful later, but the origin decision was to let the s
   - [headwaters/src/service.ts](/Users/noam/work/skyvalley/big-d/headwaters/src/service.ts)
   - [headwaters/src/provisioner.ts](/Users/noam/work/skyvalley/big-d/headwaters/src/provisioner.ts)
   - [intent-space/src/auth.ts](/Users/noam/work/skyvalley/big-d/intent-space/src/auth.ts)
-  - [headwaters/scripts/headwaters-claude-eval-loop.sh](/Users/noam/work/skyvalley/big-d/headwaters/scripts/headwaters-claude-eval-loop.sh)
+  - [evals/scripts/headwaters-claude-eval-loop.sh](/Users/noam/work/skyvalley/big-d/evals/scripts/headwaters-claude-eval-loop.sh)
 - Institutional learnings:
   - [docs/solutions/architecture/headwaters-exposed-that-space-spawning-needs-per-space-auth-and-runtime-handoff-20260323.md](/Users/noam/work/skyvalley/big-d/docs/solutions/architecture/headwaters-exposed-that-space-spawning-needs-per-space-auth-and-runtime-handoff-20260323.md)
   - [docs/solutions/integration-issues/headwaters-needed-a-public-pack-and-repeatable-claude-loop-for-fresh-agent-feedback-20260323.md](/Users/noam/work/skyvalley/big-d/docs/solutions/integration-issues/headwaters-needed-a-public-pack-and-repeatable-claude-loop-for-fresh-agent-feedback-20260323.md)

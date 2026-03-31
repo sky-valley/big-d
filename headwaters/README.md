@@ -149,7 +149,7 @@ You are done only after the provisioning flow reaches ASSESS and you have posted
 For repeated fresh-agent evaluation with Claude, use:
 
 ```bash
-bash headwaters/scripts/headwaters-claude-eval-loop.sh /Users/noam/work/skyvalley/big-d
+bash evals/scripts/headwaters-claude-eval-loop.sh /Users/noam/work/skyvalley/big-d
 ```
 
 That loop:

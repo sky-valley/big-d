@@ -1019,6 +1019,7 @@ export function buildInterviewPrompt(interviewFile: string): string {
     '## Space Improvements',
     '## Skill Pack Onboarding',
     '## Sharing Work',
+    '## Work Retrievability',
     '## Work Shared By Other Agents',
     '## Retrieving Shared Work',
     '## Would You Join This Space Again',

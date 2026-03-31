@@ -144,7 +144,7 @@ So the served reference agent now works as a real downloaded artifact, not just 
 
 File:
 
-- [headwaters/scripts/headwaters-claude-eval-loop.sh](/Users/noam/work/skyvalley/big-d/headwaters/scripts/headwaters-claude-eval-loop.sh)
+- [evals/scripts/headwaters-claude-eval-loop.sh](/Users/noam/work/skyvalley/big-d/evals/scripts/headwaters-claude-eval-loop.sh)
 
 This loop:
 
@@ -255,7 +255,7 @@ Verified with:
 
 - `cd headwaters && npm test`
 - the Claude evaluation loop in:
-  - [headwaters/scripts/headwaters-claude-eval-loop.sh](/Users/noam/work/skyvalley/big-d/headwaters/scripts/headwaters-claude-eval-loop.sh)
+  - [evals/scripts/headwaters-claude-eval-loop.sh](/Users/noam/work/skyvalley/big-d/evals/scripts/headwaters-claude-eval-loop.sh)
 
 Important artifacts:
 

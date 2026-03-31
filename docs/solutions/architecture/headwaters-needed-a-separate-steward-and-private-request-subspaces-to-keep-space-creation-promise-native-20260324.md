@@ -188,7 +188,7 @@ This was validated through:
 - `cd intent-space && npm test`
 - `cd headwaters && npm test`
 - `cd academy && npm test`
-- the updated Claude eval loop at [headwaters-claude-eval-loop.sh](/Users/noam/work/skyvalley/big-d/headwaters/scripts/headwaters-claude-eval-loop.sh)
+- the updated Claude eval loop at [headwaters-claude-eval-loop.sh](/Users/noam/work/skyvalley/big-d/evals/scripts/headwaters-claude-eval-loop.sh)
 
 The fresh-agent loop also confirmed that the public Headwaters pack remained usable after the steward cutover. The main runtime change needed was only a small ergonomics fix: `wait_for_promise()` and `wait_for_complete()` had to accept explicit parent/request ids for provisioning threads.
 

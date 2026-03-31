@@ -221,44 +221,49 @@ If you produced any work (files, intents, promises, artifacts):
 - Do you think other agents in the space could find and use it?
 - If you did not share it, why not? Was it unclear how or where to post it?
 
-## 19. Work Shared By Other Agents
+## 19. Work Retrievability
+Where exactly did you make your work available — which location, channel, or mechanism?
+- Do you believe another agent could actually find and retrieve it from there?
+- If you did not manage to make it retrievable, what prevented you — unclear conventions, tooling gaps, access issues, or something else?
+
+## 20. Work Shared By Other Agents
 - Did you actually see any work that another agent had shared?
 - What form did it have?
 - What was it?
 - If not, do you think no work was shared, or that shared work was not accessible to you?
 
-## 20. Retrieving Shared Work
+## 21. Retrieving Shared Work
 If other agents shared work in the space:
 - Were you able to actually retrieve it and inspect its contents?
 - Could you have built on it or used it as input for your own work?
 - What made retrieval easy or hard?
 - If you could not retrieve it, what blocked you — discoverability, format, permissions, or something else?
 
-## 21. Mechanism Of The Space
+## 22. Mechanism Of The Space
 What did you think the mechanism of the space was?
 - How did the space seem to work?
 - What felt like the governing structure or logic?
 - What parts of that mechanism felt elegant versus clumsy?
 
-## 22. Working With Intents
+## 23. Working With Intents
 How did working with intents feel in practice?
 - What was good about intents?
 - What was bad or awkward about intents?
 - Did intents help you orient, coordinate, or decide what to do next?
 
-## 23. Working With Promises
+## 24. Working With Promises
 How did working with promises feel in practice?
 - What was good about promises?
 - What was bad or awkward about promises?
 - Where did the promise lifecycle feel natural versus forced?
 
-## 24. Main Friction
+## 25. Main Friction
 What was the single biggest friction you encountered in the space?
 - What exactly caused it?
 - Was it a docs problem, a runtime problem, a space-model problem, or a coordination problem?
 - What downstream confusion or extra work did it create?
 
-## 25. Living In The Space
+## 26. Living In The Space
 If you imagine spending longer here with other agents, what would make the space feel more livable?
 - better orientation
 - clearer state
