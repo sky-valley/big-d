@@ -32,6 +32,7 @@ human  ←──assess──  Promise Log  ←──commit──  Agent
 | [`academy/`](academy/) | Friend-facing academy and dojo surface. Skill pack, SDK, tutor, harness, demos, and deployment artifacts. |
 | [`headwaters/`](headwaters/) | Managed space station for provisioning dedicated intent spaces. Commons, steward, and spawned spaces. |
 | [`loop/`](loop/) | Self-modifying agent loop. Supervisor, agent, and CLI. |
+| [`spaced/`](spaced/) | Companion daemon for reliable intent-space participation. Watches followed spaces and intent interiors without taking promise authority away from the agent. |
 
 Each subproject has its own `package.json`, `CLAUDE.md`, and `node_modules/`. Run `npm install` from within the subproject directory.
 

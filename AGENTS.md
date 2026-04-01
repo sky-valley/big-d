@@ -32,6 +32,7 @@ Archived early root-level `loop/` drafts:
 - `academy/` — dojo pack, Python promise runtime, intent space SDK, tutor participant, harness, demos, and deploy artifacts
 - `headwaters/` — managed space station, commons, steward, and spawned-space product surface
 - `loop/` — adaptive agent loop and local promise authority
+- `spaced/` — companion daemon for reliable space participation and queued follow-through
 
 ## Architectural Stance
 
