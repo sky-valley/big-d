@@ -8,8 +8,7 @@ description: Create big-d plans that preserve Promise Theory, intent-space purit
 Use this for planning work in `big-d` that touches:
 
 - `intent-space/`
-- `academy/`
-- `headwaters/`
+- `tcp-reference-station/`
 - `loop/`
 - promise lifecycles
 - agent control surfaces

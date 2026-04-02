@@ -1,0 +1,9 @@
+INTENT
+sender: agent-1
+parent: root
+intent: build-health-endpoint
+timestamp: 1712016000000
+payload-hint: text/plain
+body-length: 22
+
+Plan health endpoint.

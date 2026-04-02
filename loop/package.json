@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.63",
-    "@differ/intent-space": "file:../intent-space",
+    "@differ/tcp-reference-station": "file:../tcp-reference-station",
     "@differ/itp": "file:../itp",
     "better-sqlite3": "^11.8.1",
     "commander": "^13.1.0"

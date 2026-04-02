@@ -218,8 +218,6 @@ Required:
 Optional:
 
 - `space`
-- `tutorial-space`
-- `ritual-greeting`
 
 ### 2.4 Error Path
 

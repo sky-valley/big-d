@@ -30,7 +30,7 @@ import {
 } from '@differ/itp/src/protocol.ts';
 import type { AssessmentResult } from '@differ/itp/src/types.ts';
 import { TERMINAL_STATES } from '@differ/itp/src/types.ts';
-import { IntentSpaceClient } from '@differ/intent-space/src/client.ts';
+import { IntentSpaceClient } from '@differ/tcp-reference-station/src/client.ts';
 import { runSupervisor } from './supervisor.ts';
 import { printBanner } from './banner.ts';
 
@@ -212,7 +212,7 @@ program
       await new Promise(r => setTimeout(r, 200));
       client.disconnect();
     } catch {
-      const err = 'Intent space not running. Start it with: cd intent-space && npm start';
+      const err = 'Intent space not running. Start it with: cd tcp-reference-station && npm start';
       if (opts.json) {
         console.log(JSON.stringify({ error: err }));
       } else {

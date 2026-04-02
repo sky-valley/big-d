@@ -1,0 +1,5 @@
+AUTH
+station-token: <station-token>
+proof: <itp-pop-jwt>
+body-length: 0
+

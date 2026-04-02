@@ -328,7 +328,7 @@ export async function runSupervisor(sourceDir: string): Promise<void> {
   if (!existsSync(INTENT_SOCKET_PATH)) {
     console.log('Warning: intent space socket not found. Agents will start in degraded mode.');
     console.log(`  Expected: ${INTENT_SOCKET_PATH}`);
-    console.log('  Start it with: cd intent-space && npm start');
+    console.log('  Start it with: cd tcp-reference-station && npm start');
   }
 
   // Initial registry sync

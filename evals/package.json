@@ -1,8 +1,0 @@
-{
-  "name": "@differ/evals",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "headwaters:agent-pack": "node --experimental-strip-types scripts/headwaters-agent-pack-eval.ts"
-  }
-}

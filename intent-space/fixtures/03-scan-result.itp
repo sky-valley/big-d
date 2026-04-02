@@ -1,0 +1,7 @@
+SCAN_RESULT
+space: root
+latest-seq: 3
+payload-hint: application/json
+body-length: 94
+
+[{"type":"INTENT","intentId":"build-health-endpoint","parentId":"root","senderId":"agent-1"}]

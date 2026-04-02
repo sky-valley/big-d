@@ -7,7 +7,7 @@ Loop is an adaptive agent loop coordinated through Promise Theory. A fixed super
 - Node.js >= 18
 - npm
 - Bun
-- Intent space running (`cd ../intent-space && npm start`)
+- Reference station running (`cd ../tcp-reference-station && npm start`)
 
 ## Setup
 

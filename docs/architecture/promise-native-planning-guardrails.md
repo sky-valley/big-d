@@ -9,8 +9,7 @@ status: active
 Use this doc when planning work in `big-d` that touches:
 
 - `intent-space/`
-- `academy/`
-- `headwaters/`
+- `tcp-reference-station/`
 - `loop/`
 - any promise lifecycle
 - any agent control surface or managed coordination flow
@@ -166,7 +165,6 @@ That section should answer, briefly:
 Local learnings:
 
 - [welcome-mat-cutover-kept-itp-pure-by-splitting-http-signup-from-station-auth-20260323.md](../solutions/architecture/welcome-mat-cutover-kept-itp-pure-by-splitting-http-signup-from-station-auth-20260323.md)
-- [headwaters-needed-a-separate-steward-and-private-request-subspaces-to-keep-space-creation-promise-native-20260324.md](../solutions/architecture/headwaters-needed-a-separate-steward-and-private-request-subspaces-to-keep-space-creation-promise-native-20260324.md)
 - [promise-native-runtime-should-keep-space-primitive-and-thread-derived-20260316.md](../solutions/architecture-decisions/promise-native-runtime-should-keep-space-primitive-and-thread-derived-20260316.md)
 
 Promise Theory sources:
