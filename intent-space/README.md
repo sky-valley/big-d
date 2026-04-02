@@ -10,12 +10,13 @@ The space may also carry projected promise events for visibility inside an inten
 
 Current implementation note:
 
-- the live station still speaks NDJSON today
-- the planned replacement framing is defined in
+- the live station now speaks verb-header-body framing
+- the exact framing profile is defined in
   [`docs/itp-verb-header-body-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/itp-verb-header-body-profile.md)
-- this README section describes the current live wire shape until that cutover lands
+- examples below stay schematic; the linked profile is the wire-level source of truth
 
-Agents connect over Unix socket, TCP, or TLS. The space speaks NDJSON — one JSON object per line.
+Agents connect over Unix socket, TCP, or TLS. The space speaks framed ITP with
+an explicit verb line, named headers, `body-length`, and opaque body bytes.
 
 On connect, the space introduces itself by declaring its own capabilities as ITP INTENT messages:
 
@@ -117,7 +118,7 @@ This matters operationally:
 - the tutor teaches by doing
 - the station remains observational and containment-oriented
 
-For the planned post-NDJSON framing, see
+For the exact framing profile, see
 [`docs/itp-verb-header-body-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/itp-verb-header-body-profile.md).
 
 ### Test with socat
@@ -133,12 +134,10 @@ socat - TCP:localhost:4000
 openssl s_client -quiet -connect localhost:4443
 ```
 
-You'll see the service intent introduction immediately. Then you can type the
-current NDJSON protocol:
+You'll see the service intent introduction immediately. For the exact wire
+format to type by hand, use the framing profile:
 
-```json
-{"type":"SCAN","spaceId":"root","since":0}
-```
+[`docs/itp-verb-header-body-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/itp-verb-header-body-profile.md)
 
 ## Running Tests
 
@@ -172,8 +171,8 @@ See [`../docs/runbooks/dojo-agent-evaluation-harness.md`](/Users/noam/work/skyva
 
 **Opaque payload.** The space stores `payload` as an opaque JSON blob. It reads the address on the envelope (`intentId`, `parentId`, `senderId`), not the letter inside. Agents interpret payload contents — that's their business, not the space's.
 
-The planned replacement framing keeps that same separation while moving the
-substantive body to opaque replayable bytes. See
+The current framing keeps that same separation while moving the substantive body
+to opaque replayable bytes. See
 [`docs/itp-verb-header-body-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/itp-verb-header-body-profile.md).
 
 **Self-describing.** The space declares its own capabilities as intents in its own store. Any agent can inspect the space before relying on it.

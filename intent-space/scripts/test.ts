@@ -13,6 +13,7 @@ import { createHash, createHmac, generateKeyPairSync, randomUUID, sign } from 'c
 import { connect as netConnect } from 'net';
 import { IntentSpace } from '../src/space.ts';
 import { IntentSpaceClient } from '../src/client.ts';
+import { parseFramedMessages, serializeFramedMessage } from '../src/framing.ts';
 import { createIntent, createPromise } from '@differ/itp/src/protocol.ts';
 
 const testDir = mkdtempSync(join(tmpdir(), 'intent-space-test-'));
@@ -175,25 +176,25 @@ function latestMonitoringEvent(eventType: string): any {
   return matches.at(-1);
 }
 
-async function sendRawUnixLines(lines: string[]): Promise<string[]> {
+async function sendRawUnixFrames(frames: Buffer[]): Promise<string[]> {
   return await new Promise((resolve, reject) => {
     const responses: string[] = [];
     const socket = netConnect(socketPath);
-    let buffer = '';
+    let buffer = Buffer.alloc(0);
 
     socket.on('data', (chunk) => {
-      buffer += chunk.toString();
-      const parts = buffer.split('\n');
-      buffer = parts.pop() ?? '';
-      for (const part of parts) {
-        if (part.trim()) responses.push(part);
+      buffer = Buffer.concat([buffer, chunk]);
+      const parsed = parseFramedMessages(buffer);
+      buffer = parsed.remainder;
+      for (const frame of parsed.messages) {
+        responses.push(frame.body.toString('utf8'));
       }
     });
 
     socket.on('error', reject);
     socket.on('connect', () => {
-      for (const line of lines) {
-        socket.write(`${line}\n`);
+      for (const frame of frames) {
+        socket.write(frame);
       }
       setTimeout(() => {
         socket.end();
@@ -398,7 +399,7 @@ test('Reject INTENT without intentId');
     timestamp: Date.now(),
     payload: { content: 'oops' },
   };
-  (client as any).writeLine({
+  (client as any).writeMessage({
     ...broken,
     proof: identity.buildProof('INTENT', broken),
   });
@@ -624,33 +625,39 @@ test('Monitoring records successful persisted message path');
   );
 }
 
-// --- Test 17: monitoring records invalid JSON ---
-test('Monitoring records invalid JSON');
+// --- Test 17: monitoring records invalid frame ---
+test('Monitoring records invalid frame');
 {
-  const responses = await sendRawUnixLines(['{not-json']);
-  const invalidJsonEvent = latestMonitoringEvent('invalid_json');
+  const responses = await sendRawUnixFrames([Buffer.from('bogus\n\n', 'utf8')]);
+  const invalidFrameEvent = latestMonitoringEvent('invalid_frame');
   assert(
-    responses.some((line) => line.includes('Invalid JSON')),
-    `Expected Invalid JSON response, got: ${responses.join(' | ')}`,
+    responses.some((line) => line.includes('Invalid frame')),
+    `Expected Invalid frame response, got: ${responses.join(' | ')}`,
   );
   assert(
-    invalidJsonEvent
-      && invalidJsonEvent.stage === 'parse'
-      && invalidJsonEvent.outcome === 'rejected',
-    `Expected invalid_json monitoring event, got: ${JSON.stringify(invalidJsonEvent)}`,
+    invalidFrameEvent
+      && invalidFrameEvent.stage === 'parse'
+      && invalidFrameEvent.outcome === 'rejected',
+    `Expected invalid_frame monitoring event, got: ${JSON.stringify(invalidFrameEvent)}`,
   );
 }
 
 // --- Test 18: monitoring records auth failure ---
 test('Monitoring records auth failure');
 {
-  const responses = await sendRawUnixLines([
-    JSON.stringify({ type: 'AUTH', stationToken: '', proof: '' }),
-  ]);
+  const authFrame = serializeFramedMessage({
+    verb: 'AUTH',
+    headers: {
+      'station-token': 'not-a-jwt',
+      proof: 'also-not-a-jwt',
+    },
+    body: Buffer.alloc(0),
+  });
+  const authResponses = await sendRawUnixFrames([authFrame]);
   const authFailedEvent = latestMonitoringEvent('auth_failed');
   assert(
-    responses.some((line) => line.includes('Authentication failed')),
-    `Expected auth failure response, got: ${responses.join(' | ')}`,
+    authResponses.some((line) => line.includes('Authentication failed')),
+    `Expected auth failure response, got: ${authResponses.join(' | ')}`,
   );
   assert(
     authFailedEvent

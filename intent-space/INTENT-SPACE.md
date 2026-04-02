@@ -169,12 +169,13 @@ The `payload` column stores an opaque JSON blob. The space reads the address on 
 
 Current implementation note:
 
-- the live station still uses NDJSON over stream transports today
-- the planned replacement framing is defined in
+- the live station now uses verb-header-body framing over stream transports
+- the exact framing profile is defined in
   [`docs/itp-verb-header-body-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/itp-verb-header-body-profile.md)
-- this section describes the current live wire shape until that cutover lands
+- examples below stay schematic and message-shaped for readability; the linked
+  profile is the wire-level source of truth
 
-NDJSON over a stream transport. One JSON object per line.
+Verb-header-body framing over a stream transport.
 
 Current implementation transports:
 
@@ -207,7 +208,8 @@ No new message types. The ordering alone encodes the cooperative binding.
 
 ### Posting a message
 
-The client sends a standard ITP message. The space persists it and echoes it back with its assigned `seq`:
+The client sends a standard ITP act using the framed protocol. The space
+persists it and echoes it back with its assigned `seq`:
 
 ```
 → INTENT { type: "INTENT", intentId: "abc", senderId: "agent-1", parentId: "root", payload: { content: "add a /health endpoint" }, timestamp: 1709942400000 }
@@ -227,7 +229,8 @@ This is observational only. The agent's local promise log still determines wheth
 
 ### Scanning a space
 
-SCAN is a private query — not an intent, not persisted, not broadcast. It's the read path.
+SCAN is a private query — not an intent, not persisted, not broadcast. It uses
+the same frame shape, but remains the read path rather than a stored social act.
 
 ```
 → SCAN { spaceId: "root", since: 0 }

@@ -23,6 +23,13 @@ import type {
   AuthResult,
 } from './types.ts';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
+import {
+  FrameParseError,
+  clientMessageToFrame,
+  frameToServerMessage,
+  parseFramedMessages,
+  serializeFramedMessage,
+} from './framing.ts';
 
 type ProofFactory = (action: string, requestWithoutProof: Record<string, unknown>) => string;
 
@@ -33,7 +40,7 @@ interface AuthContext {
 
 export class IntentSpaceClient extends EventEmitter {
   private socket: Socket | TLSSocket | null = null;
-  private buffer = '';
+  private buffer: Buffer<ArrayBufferLike> = Buffer.alloc(0);
   private _latestSeq = 0;
   private target: ClientTarget;
   private authContext: AuthContext | null = null;
@@ -59,7 +66,7 @@ export class IntentSpaceClient extends EventEmitter {
         this.emitProblem(err);
         reject(err);
       });
-      this.socket.on('data', (chunk: Buffer) => this.handleData(chunk.toString()));
+      this.socket.on('data', (chunk: Buffer) => this.handleData(chunk));
       this.socket.on('close', () => {
         this.socket = null;
         this.emit('disconnect');
@@ -88,7 +95,7 @@ export class IntentSpaceClient extends EventEmitter {
         payload: request.payload,
       }));
     }
-    this.writeLine(request);
+    this.writeMessage(request);
   }
 
   /** Scan a space. Returns stored messages with parentId = spaceId and seq > since. */
@@ -126,7 +133,7 @@ export class IntentSpaceClient extends EventEmitter {
           since: since ?? 0,
         }));
       }
-      this.writeLine(request);
+      this.writeMessage(request);
     });
   }
 
@@ -161,30 +168,26 @@ export class IntentSpaceClient extends EventEmitter {
       };
 
       this.on('_message', handler);
-      this.writeLine(request);
+      this.writeMessage(request);
     });
   }
 
-  // ============ NDJSON parsing ============
-
-  private handleData(chunk: string): void {
-    this.buffer += chunk;
-    const lines = this.buffer.split('\n');
-    this.buffer = lines.pop() ?? '';
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const msg: ServerMessage = JSON.parse(line);
-        this.handleMessage(msg);
-      } catch {
-        this.emitProblem(new Error('Invalid JSON from server'));
+  private handleData(chunk: Buffer): void {
+    this.buffer = Buffer.concat([this.buffer, chunk]);
+    try {
+      const parsed = parseFramedMessages(this.buffer);
+      this.buffer = parsed.remainder;
+      for (const frame of parsed.messages) {
+        this.handleMessage(frameToServerMessage(frame));
       }
+    } catch (error) {
+      const message = error instanceof FrameParseError ? error.message : 'Invalid frame from server';
+      this.emitProblem(new Error(message));
+      this.buffer = Buffer.alloc(0);
     }
   }
 
   private handleMessage(msg: ServerMessage): void {
-    // Emit raw message for scan promise resolution
     this.emit('_message', msg);
 
     if (msg.type === 'ERROR') {
@@ -209,9 +212,9 @@ export class IntentSpaceClient extends EventEmitter {
     }
   }
 
-  private writeLine(msg: unknown): void {
+  private writeMessage(msg: AuthRequest | AuthenticatedITPMessage | ScanRequest): void {
     if (!this.socket) throw new Error('Not connected');
-    this.socket.write(JSON.stringify(msg) + '\n');
+    this.socket.write(serializeFramedMessage(clientMessageToFrame(msg)));
   }
 
   private emitProblem(err: Error): void {

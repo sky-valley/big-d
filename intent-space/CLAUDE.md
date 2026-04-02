@@ -6,7 +6,7 @@ See [INTENT-SPACE.md](INTENT-SPACE.md) for the full abstraction, wire protocol, 
 
 ## Architecture
 
-The intent space is an autonomous agent. On startup it declares its own capabilities as ITP INTENT messages (using its own protocol), then accepts client connections over a Unix domain socket and optionally over TCP/TLS speaking NDJSON.
+The intent space is an autonomous agent. On startup it declares its own capabilities as ITP INTENT messages (using its own protocol), then accepts client connections over a Unix domain socket and optionally over TCP/TLS using the current verb-header-body framing.
 
 | File | Role |
 |------|------|
@@ -48,6 +48,10 @@ On connect, the space sends its service intents as ITP INTENT messages. Clients 
 
 New intents are posted as ITP INTENT messages and echoed back with their assigned `seq`. Projected promise events may also be stored and echoed for visibility inside intent subspaces.
 
+For exact wire framing, use `docs/itp-verb-header-body-profile.md` as the source
+of truth rather than treating the schematic examples in this file as byte-level
+wire syntax.
+
 The space is not authoritative for promise logic. It may carry projections, but lifecycle interpretation still belongs to the promise log.
 
 ## Conventions
@@ -81,8 +85,8 @@ Pending negative/stress tests (not yet implemented):
 - Client disconnects mid-write — server survival
 - Server stops — client disconnect event + graceful degradation
 - Concurrent posts from N clients — ordering, no lost intents
-- Large payload — 1MB line limit enforcement
-- Malformed JSON — ERROR response
+- Large payload/frame stress behavior
+- Malformed frame — ERROR response
 - Empty content — is `""` a valid intent?
 - Scan on nonexistent spaceId — should return empty, not error
 - Rapid reconnects — stale socket detection under race

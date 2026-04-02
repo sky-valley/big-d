@@ -6,11 +6,11 @@ stations.
 Current implementation note:
 
 - this document describes the current live auth expression
-- the planned post-NDJSON framing and auth transport-profile doctrine are
+- the current verb-header-body framing and auth transport-profile doctrine are
   defined in
   [`itp-verb-header-body-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/itp-verb-header-body-profile.md)
-- until that cutover lands, the JSON examples below remain the current live
-  wire shape
+- the JSON examples below are historical request-shape sketches and should be
+  read together with the framing profile rather than as the live byte framing
 
 It keeps the architecture split clean:
 

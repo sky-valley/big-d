@@ -1,5 +1,5 @@
 /**
- * IntentSpace — NDJSON server over Unix socket and/or TCP.
+ * IntentSpace — framed ITP server over Unix socket and/or TCP.
  *
  * Two message families:
  *   - Stored ITP messages: persisted, echoed to all connected clients
@@ -21,6 +21,13 @@ import { join } from 'path';
 import { createHash } from 'crypto';
 import { IntentStore, DEFAULT_DB_DIR } from './store.ts';
 import { buildServiceIntents } from './service-intents.ts';
+import {
+  FrameParseError,
+  frameToClientMessage,
+  parseFramedMessages,
+  serializeFramedMessage,
+  serverMessageToFrame,
+} from './framing.ts';
 import type {
   AuthenticatedITPMessage,
   AuthRequest,
@@ -34,12 +41,12 @@ import type {
 import type { ITPMessage } from '@differ/itp/src/types.ts';
 import { defaultStationAudience, verifyAuthRequest, verifyPerMessageProof, type StationSessionAuth } from './auth.ts';
 
-const MAX_LINE_LENGTH = 1024 * 1024; // 1MB
+const MAX_FRAME_BUFFER_LENGTH = 8 * 1024 * 1024; // 8MB
 
 interface ClientConnection {
   id: string;
   socket: Socket;
-  buffer: string;
+  buffer: Buffer;
   introduced: boolean;
   authenticated?: StationSessionAuth;
 }
@@ -201,7 +208,7 @@ export class IntentSpace {
     const client: ClientConnection = {
       id: `conn-${++this.connectionCount}`,
       socket,
-      buffer: '',
+      buffer: Buffer.alloc(0),
       introduced: false,
     };
     this.clients.add(client);
@@ -218,7 +225,7 @@ export class IntentSpace {
     this.sendServiceIntents(client);
     client.introduced = true;
 
-    socket.on('data', (chunk: Buffer) => this.handleData(client, chunk.toString()));
+    socket.on('data', (chunk: Buffer) => this.handleData(client, chunk));
     socket.on('close', () => {
       this.clients.delete(client);
       this.recordMonitoring({
@@ -266,41 +273,38 @@ export class IntentSpace {
     }
   }
 
-  // ============ NDJSON parsing ============
+  private handleData(client: ClientConnection, chunk: Buffer): void {
+    client.buffer = Buffer.concat([client.buffer, chunk]);
 
-  private handleData(client: ClientConnection, chunk: string): void {
-    client.buffer += chunk;
-
-    if (client.buffer.length > MAX_LINE_LENGTH) {
+    if (client.buffer.length > MAX_FRAME_BUFFER_LENGTH) {
       this.recordMonitoring({
         stage: 'parse',
         outcome: 'rejected',
-        eventType: 'line_too_long',
+        eventType: 'frame_too_large',
         connectionId: client.id,
         sessionId: this.sessionIdForClient(client),
         actorId: client.authenticated?.senderId,
         detail: {
           size: client.buffer.length,
-          max: MAX_LINE_LENGTH,
+          max: MAX_FRAME_BUFFER_LENGTH,
           responseType: 'ERROR',
         },
       });
-      this.send(client, { type: 'ERROR', message: `Line exceeds ${MAX_LINE_LENGTH} bytes` });
-      client.buffer = '';
+      this.send(client, { type: 'ERROR', message: `Frame exceeds ${MAX_FRAME_BUFFER_LENGTH} bytes` });
+      client.buffer = Buffer.alloc(0);
       return;
     }
 
-    const lines = client.buffer.split('\n');
-    client.buffer = lines.pop() ?? '';
+    try {
+      const parsed = parseFramedMessages(client.buffer);
+      client.buffer = parsed.remainder;
 
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const msg: ClientMessage = JSON.parse(line);
+      for (const frame of parsed.messages) {
+        const msg = frameToClientMessage(frame);
         this.recordMonitoring({
           stage: 'parse',
           outcome: 'accepted',
-          eventType: 'json_parsed',
+          eventType: 'frame_parsed',
           connectionId: client.id,
           sessionId: this.sessionIdForClient(client),
           actorId: client.authenticated?.senderId,
@@ -308,20 +312,25 @@ export class IntentSpace {
           detail: {},
         });
         this.handleMessage(client, msg);
-      } catch {
-        this.recordMonitoring({
-          stage: 'parse',
-          outcome: 'rejected',
-          eventType: 'invalid_json',
-          connectionId: client.id,
-          sessionId: this.sessionIdForClient(client),
-          actorId: client.authenticated?.senderId,
-          detail: {
-            responseType: 'ERROR',
-          },
-        });
-        this.send(client, { type: 'ERROR', message: 'Invalid JSON' });
       }
+    } catch (error) {
+      this.recordMonitoring({
+        stage: 'parse',
+        outcome: 'rejected',
+        eventType: 'invalid_frame',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        detail: {
+          message: error instanceof Error ? error.message : String(error),
+          responseType: 'ERROR',
+        },
+      });
+      this.send(client, {
+        type: 'ERROR',
+        message: error instanceof FrameParseError ? `Invalid frame: ${error.message}` : 'Invalid frame',
+      });
+      client.buffer = Buffer.alloc(0);
     }
   }
 
@@ -684,20 +693,20 @@ export class IntentSpace {
 
   private send(client: ClientConnection, msg: ServerMessage): void {
     try {
-      client.socket.write(JSON.stringify(msg) + '\n');
+      client.socket.write(serializeFramedMessage(serverMessageToFrame(msg)));
     } catch {
       this.clients.delete(client);
     }
   }
 
   private broadcast(msg: ServerMessage): void {
-    const line = JSON.stringify(msg) + '\n';
+    const frame = serializeFramedMessage(serverMessageToFrame(msg));
     for (const client of this.clients) {
       if (!this.canClientSeeMessage(client, msg)) {
         continue;
       }
       try {
-        client.socket.write(line);
+        client.socket.write(frame);
       } catch {
         this.clients.delete(client);
       }
