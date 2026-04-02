@@ -4,6 +4,7 @@ import { connect as netConnect } from 'net';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { IntentSpaceClient } from '../../intent-space/src/client.ts';
+import { parseFramedMessages, serializeFramedMessage } from '../../intent-space/src/framing.ts';
 import { HEADWATERS_COMMONS_SPACE_ID, HEADWATERS_STEWARD_ID } from '../src/contract.ts';
 import { enrollAgent } from '../src/agent-enrollment.ts';
 import { createHeadwatersHttpServer } from '../src/server.ts';
@@ -29,29 +30,27 @@ function assert(cond: boolean, msg: string) {
   }
 }
 
-async function sendRawFrame(host: string, port: number, frame: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function sendRawFrame(host: string, port: number, frame: Buffer): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const socket = netConnect(port, host);
-    let buffer = '';
+    let buffer = Buffer.alloc(0);
     const timer = setTimeout(() => {
       socket.destroy();
       reject(new Error('timeout waiting for raw response'));
     }, 5000);
 
     socket.on('connect', () => {
-      socket.write(JSON.stringify(frame) + '\n');
+      socket.write(frame);
     });
     socket.on('data', (chunk) => {
-      buffer += chunk.toString();
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const msg = JSON.parse(line) as Record<string, unknown>;
-        if (msg.type === 'ERROR') {
+      buffer = Buffer.concat([buffer, chunk]);
+      const parsed = parseFramedMessages(buffer);
+      buffer = parsed.remainder;
+      for (const framed of parsed.messages) {
+        if (framed.verb === 'ERROR') {
           clearTimeout(timer);
           socket.destroy();
-          resolve(msg);
+          resolve({ type: 'ERROR', message: framed.body.toString('utf8') });
           return;
         }
       }
@@ -563,13 +562,16 @@ async function main(): Promise<void> {
 
     test('malformed AUTH returns a protocol-grade field error');
     {
-      const error = await sendRawFrame(host, commonsPort, {
-        type: 'AUTH',
-        proof: 'not-a-jwt',
-      });
+      const error = await sendRawFrame(host, commonsPort, serializeFramedMessage({
+        verb: 'AUTH',
+        headers: {
+          proof: 'not-a-jwt',
+        },
+        body: Buffer.alloc(0),
+      }));
       assert(
-        error.message === 'Authentication failed: AUTH.stationToken must be a string JWT',
-        `expected missing stationToken error, got ${String(error.message)}`,
+        error.message === 'Invalid frame: Missing station-token header on AUTH',
+        `expected missing station-token frame error, got ${String(error.message)}`,
       );
     }
   } finally {

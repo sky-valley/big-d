@@ -12,11 +12,18 @@ import type {
 } from '../../intent-space/src/types.ts';
 import type { ITPMessage } from '@differ/itp/src/types.ts';
 import { verifyAuthRequest, verifyPerMessageProof, type StationSessionAuth } from '../../intent-space/src/auth.ts';
+import {
+  FrameParseError,
+  frameToClientMessage,
+  parseFramedMessages,
+  serializeFramedMessage,
+  serverMessageToFrame,
+} from '../../intent-space/src/framing.ts';
 import { buildServiceIntents } from '../../intent-space/src/service-intents.ts';
 import { HEADWATERS_COMMONS_SPACE_ID, commonsStationAudience } from './contract.ts';
 import type { ProvisionedSpace } from './provisioner.ts';
 
-const MAX_LINE_LENGTH = 1024 * 1024;
+const MAX_FRAME_BUFFER_LENGTH = 8 * 1024 * 1024;
 
 interface HostedSpace {
   audience: string;
@@ -27,7 +34,7 @@ interface HostedSpace {
 interface ClientConnection {
   id: string;
   socket: Socket;
-  buffer: string;
+  buffer: Buffer<ArrayBufferLike>;
   authenticated?: StationSessionAuth & { spaceId: string };
 }
 
@@ -170,7 +177,7 @@ export class SharedHeadwatersHost {
     const client: ClientConnection = {
       id: `conn-${++this.connectionCount}`,
       socket,
-      buffer: '',
+      buffer: Buffer.alloc(0),
     };
     this.clients.add(client);
     this.recordMonitoring({
@@ -180,7 +187,7 @@ export class SharedHeadwatersHost {
       connectionId: client.id,
       detail: {},
     });
-    socket.on('data', (chunk: Buffer) => this.handleData(client, chunk.toString()));
+    socket.on('data', (chunk: Buffer) => this.handleData(client, chunk));
     socket.on('close', () => {
       this.clients.delete(client);
       this.recordMonitoring({
@@ -211,37 +218,37 @@ export class SharedHeadwatersHost {
     });
   }
 
-  private handleData(client: ClientConnection, chunk: string): void {
-    client.buffer += chunk;
-    if (client.buffer.length > MAX_LINE_LENGTH) {
+  private handleData(client: ClientConnection, chunk: Buffer): void {
+    client.buffer = Buffer.concat([client.buffer, chunk]);
+    if (client.buffer.length > MAX_FRAME_BUFFER_LENGTH) {
       this.recordMonitoring({
         stage: 'parse',
         outcome: 'rejected',
-        eventType: 'line_too_long',
+        eventType: 'frame_too_large',
         connectionId: client.id,
         sessionId: this.sessionIdForClient(client),
         actorId: client.authenticated?.senderId,
         spaceId: client.authenticated?.spaceId,
         detail: {
           size: client.buffer.length,
-          max: MAX_LINE_LENGTH,
+          max: MAX_FRAME_BUFFER_LENGTH,
           responseType: 'ERROR',
         },
       });
-      this.send(client, { type: 'ERROR', message: `Line exceeds ${MAX_LINE_LENGTH} bytes` });
-      client.buffer = '';
+      this.send(client, { type: 'ERROR', message: `Frame exceeds ${MAX_FRAME_BUFFER_LENGTH} bytes` });
+      client.buffer = Buffer.alloc(0);
       return;
     }
-    const lines = client.buffer.split('\n');
-    client.buffer = lines.pop() ?? '';
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const message = JSON.parse(line) as AuthRequest | ScanRequest | AuthenticatedITPMessage;
+
+    try {
+      const parsed = parseFramedMessages(client.buffer);
+      client.buffer = parsed.remainder;
+      for (const frame of parsed.messages) {
+        const message = frameToClientMessage(frame) as AuthRequest | ScanRequest | AuthenticatedITPMessage;
         this.recordMonitoring({
           stage: 'parse',
           outcome: 'accepted',
-          eventType: 'json_parsed',
+          eventType: 'frame_parsed',
           connectionId: client.id,
           sessionId: this.sessionIdForClient(client),
           actorId: client.authenticated?.senderId,
@@ -250,21 +257,26 @@ export class SharedHeadwatersHost {
           detail: {},
         });
         this.handleMessage(client, message);
-      } catch {
-        this.recordMonitoring({
-          stage: 'parse',
-          outcome: 'rejected',
-          eventType: 'invalid_json',
-          connectionId: client.id,
-          sessionId: this.sessionIdForClient(client),
-          actorId: client.authenticated?.senderId,
-          spaceId: client.authenticated?.spaceId,
-          detail: {
-            responseType: 'ERROR',
-          },
-        });
-        this.send(client, { type: 'ERROR', message: 'Invalid JSON' });
       }
+    } catch (error) {
+      this.recordMonitoring({
+        stage: 'parse',
+        outcome: 'rejected',
+        eventType: 'invalid_frame',
+        connectionId: client.id,
+        sessionId: this.sessionIdForClient(client),
+        actorId: client.authenticated?.senderId,
+        spaceId: client.authenticated?.spaceId,
+        detail: {
+          message: error instanceof Error ? error.message : String(error),
+          responseType: 'ERROR',
+        },
+      });
+      this.send(client, {
+        type: 'ERROR',
+        message: error instanceof FrameParseError ? `Invalid frame: ${error.message}` : 'Invalid frame',
+      });
+      client.buffer = Buffer.alloc(0);
     }
   }
 
@@ -619,14 +631,14 @@ export class SharedHeadwatersHost {
 
   private broadcastWithinSpace(boundSpaceId: string, msg: ServerMessage): void {
     const hosted = this.spaces.get(boundSpaceId)!;
-    const line = JSON.stringify(msg) + '\n';
+    const frame = serializeFramedMessage(serverMessageToFrame(msg));
     for (const client of this.clients) {
       if (client.authenticated?.spaceId !== boundSpaceId) continue;
       if ('parentId' in msg && typeof msg.parentId === 'string' && !hosted.store.canAccessSpace(msg.parentId, client.authenticated.senderId)) {
         continue;
       }
       try {
-        client.socket.write(line);
+        client.socket.write(frame);
       } catch {
         this.clients.delete(client);
       }
@@ -635,7 +647,7 @@ export class SharedHeadwatersHost {
 
   private send(client: ClientConnection, msg: ServerMessage): void {
     try {
-      client.socket.write(JSON.stringify(msg) + '\n');
+      client.socket.write(serializeFramedMessage(serverMessageToFrame(msg)));
     } catch {
       this.clients.delete(client);
     }

@@ -77,7 +77,7 @@ The proof is bound to:
 
 - station audience
 - action `AUTH`
-- hash of the canonical AUTH request
+- hash of the canonical framed AUTH request
 - hash of the station token (`ath`)
 
 On success the station replies:
@@ -102,7 +102,7 @@ Current proof form:
 - `sub`: enrolled handle
 - `aud`: station audience
 - `action`: `SCAN` or the ITP message type
-- `req_hash`: SHA-256 over the canonical request
+- `req_hash`: SHA-256 over the canonical framed request
 - `ath`: SHA-256 over the station token
 - `iat`: freshness timestamp
 
@@ -118,22 +118,26 @@ The station validates:
 
 ## 5. Canonical Request Hashing
 
-The request hash is explicit and stable, not raw JSON bytes.
+The request hash is explicit and stable, but it is now derived from the
+canonical verb-header-body framing rather than from ad hoc JSON field
+canonicalization.
 
-Current canonical forms:
+Current doctrine:
 
-- `AUTH`
-- `SCAN|spaceId|since`
-- for ITP messages:
-  - `type|senderId|parentId|intentId|promiseId|timestamp|stable(payload)`
+- `AUTH` hashes the canonical framed AUTH request without the `proof` field
+- `SCAN` hashes the canonical framed SCAN request without the `proof` field
+- live ITP acts hash the canonical framed act without the `proof` field
 
-`stable(payload)`:
+For the current implementation that means:
 
-- sorts object keys
-- omits `undefined` entries
-- preserves array order
+- line 1 is the verb
+- required named headers are emitted in canonical lowercase form
+- body framing is explicit via `body-length`
+- current payload bodies are still JSON-encoded where the message family uses a
+  structured payload body today
 
-This avoids mismatches between pre-serialization objects and on-wire JSON.
+This avoids mismatches between pre-serialization request objects and the live
+wire shape while keeping proof binding aligned with the new framing.
 
 ## 6. Architectural Boundary
 

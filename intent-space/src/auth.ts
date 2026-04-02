@@ -1,5 +1,6 @@
 import { createHash, createHmac, createPublicKey, createVerify, type JsonWebKey as CryptoJsonWebKey } from 'crypto';
 import type { AuthenticatedITPMessage, AuthRequest, ScanRequest } from './types.ts';
+import { requestProofHash } from './proof-input.ts';
 
 const STATION_PROOF_TYP = 'itp-pop+jwt';
 const STATION_TOKEN_TYP = 'itp+jwt';
@@ -90,52 +91,12 @@ function assertRecent(iat: number | undefined, nowSeconds: number, maxAgeSeconds
   }
 }
 
-function reqHash(value: unknown): string {
-  return createHash('sha256').update(canonicalRequest(value)).digest('base64url');
-}
-
 function jwkThumbprint(jwk: Record<string, unknown>): string {
   if (jwk.kty !== 'RSA' || typeof jwk.n !== 'string' || typeof jwk.e !== 'string') {
     throw new Error('Only RSA JWKs with n and e are supported');
   }
   const canonical = JSON.stringify({ e: jwk.e, kty: 'RSA', n: jwk.n });
   return createHash('sha256').update(canonical).digest('base64url');
-}
-
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
-  }
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, entry]) => entry !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`);
-    return `{${entries.join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function canonicalRequest(value: unknown): string {
-  if (!value || typeof value !== 'object') {
-    return stableStringify(value);
-  }
-  const record = value as Record<string, unknown>;
-  if (record.type === 'AUTH') {
-    return 'AUTH';
-  }
-  if (record.type === 'SCAN') {
-    return ['SCAN', String(record.spaceId ?? ''), String(record.since ?? 0)].join('|');
-  }
-  return [
-    String(record.type ?? ''),
-    String(record.senderId ?? ''),
-    String(record.parentId ?? ''),
-    String(record.intentId ?? ''),
-    String(record.promiseId ?? ''),
-    String(record.timestamp ?? ''),
-    stableStringify(record.payload ?? {}),
-  ].join('|');
 }
 
 function verifyRs256Jwt(parsed: ParsedJwt, expectedTyp: string): Record<string, unknown> {
@@ -216,7 +177,10 @@ export function verifyAuthRequest(
   if (proof.payload.action !== 'AUTH') {
     throw new Error('Station proof action must be AUTH');
   }
-  if (proof.payload.req_hash !== reqHash({ type: 'AUTH' })) {
+  if (proof.payload.req_hash !== requestProofHash({
+    type: 'AUTH',
+    stationToken: stationTokenRaw,
+  })) {
     throw new Error('Station proof req_hash mismatch');
   }
   if (proof.payload.ath !== createHash('sha256').update(stationTokenRaw).digest('base64url')) {
@@ -259,10 +223,9 @@ export function verifyPerMessageProof(
   }
   const requestSansProof = { ...request };
   delete (requestSansProof as Partial<typeof requestSansProof>).proof;
-  const canonical = canonicalRequest(requestSansProof);
-  const expectedReqHash = createHash('sha256').update(canonical).digest('base64url');
+  const expectedReqHash = requestProofHash(requestSansProof);
   if (parsed.payload.req_hash !== expectedReqHash) {
-    throw new Error(`Station proof req_hash mismatch (expected ${expectedReqHash}, got ${String(parsed.payload.req_hash)}; request ${canonical})`);
+    throw new Error(`Station proof req_hash mismatch (expected ${expectedReqHash}, got ${String(parsed.payload.req_hash)})`);
   }
   if (parsed.payload.ath !== createHash('sha256').update(session.stationToken).digest('base64url')) {
     throw new Error('Station proof ath mismatch');

@@ -2,6 +2,7 @@ import { createHash, generateKeyPairSync, randomUUID, sign } from 'crypto';
 import { join } from 'path';
 import { IntentSpaceClient } from '../../intent-space/src/client.ts';
 import { StationPrincipalRegistry } from '../../intent-space/src/principal-registry.ts';
+import { requestProofHash } from '../../intent-space/src/proof-input.ts';
 import type { StoredMessage } from '../../intent-space/src/types.ts';
 import { HeadwatersProvisioner } from './provisioner.ts';
 import { HeadwatersStewardState, type PersistedStewardRequest } from './steward-state.ts';
@@ -23,42 +24,6 @@ import { issueCommonsStationToken } from './welcome-mat.ts';
 
 function b64urlEncode(value: Buffer | string): string {
   return Buffer.from(value).toString('base64url');
-}
-
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
-  }
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, entry]) => entry !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`);
-    return `{${entries.join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function canonicalRequest(value: unknown): string {
-  if (!value || typeof value !== 'object') {
-    return stableStringify(value);
-  }
-  const record = value as Record<string, unknown>;
-  if (record.type === 'AUTH') {
-    return 'AUTH';
-  }
-  if (record.type === 'SCAN') {
-    return ['SCAN', String(record.spaceId ?? ''), String(record.since ?? 0)].join('|');
-  }
-  return [
-    String(record.type ?? ''),
-    String(record.senderId ?? ''),
-    String(record.parentId ?? ''),
-    String(record.intentId ?? ''),
-    String(record.promiseId ?? ''),
-    String(record.timestamp ?? ''),
-    stableStringify(record.payload ?? {}),
-  ].join('|');
 }
 
 function nowMs(): number {
@@ -168,7 +133,7 @@ function createStewardIdentity(authSecret: string): StewardIdentity {
         iat: Math.floor(Date.now() / 1000),
         ath: createHash('sha256').update(signup.station_token).digest('base64url'),
         action,
-        req_hash: createHash('sha256').update(canonicalRequest(request)).digest('base64url'),
+        req_hash: requestProofHash(request as Parameters<typeof requestProofHash>[0]),
       };
       const headerPart = b64urlEncode(Buffer.from(JSON.stringify(header), 'utf8'));
       const payloadPart = b64urlEncode(Buffer.from(JSON.stringify(payload), 'utf8'));

@@ -1,44 +1,9 @@
 import { createHash, generateKeyPairSync, randomUUID, sign } from 'crypto';
+import { requestProofHash } from '../../intent-space/src/proof-input.ts';
 import { headwatersOrigin } from './contract.ts';
 
 function b64urlEncode(value: Buffer | string): string {
   return Buffer.from(value).toString('base64url');
-}
-
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
-  }
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, entry]) => entry !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`);
-    return `{${entries.join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function canonicalRequest(value: unknown): string {
-  if (!value || typeof value !== 'object') {
-    return stableStringify(value);
-  }
-  const record = value as Record<string, unknown>;
-  if (record.type === 'AUTH') {
-    return 'AUTH';
-  }
-  if (record.type === 'SCAN') {
-    return ['SCAN', String(record.spaceId ?? ''), String(record.since ?? 0)].join('|');
-  }
-  return [
-    String(record.type ?? ''),
-    String(record.senderId ?? ''),
-    String(record.parentId ?? ''),
-    String(record.intentId ?? ''),
-    String(record.promiseId ?? ''),
-    String(record.timestamp ?? ''),
-    stableStringify(record.payload ?? {}),
-  ].join('|');
 }
 
 function signJwt(privateKeyPem: string, header: Record<string, unknown>, payload: Record<string, unknown>): string {
@@ -160,7 +125,7 @@ export async function enrollAgent(headwatersUrl: string, handle: string): Promis
         iat: Math.floor(Date.now() / 1000),
         ath: createHash('sha256').update(stationToken).digest('base64url'),
         action,
-        req_hash: createHash('sha256').update(canonicalRequest(request)).digest('base64url'),
+        req_hash: requestProofHash(request as Parameters<typeof requestProofHash>[0]),
       },
     ),
     buildProof: (action: string, request: Record<string, unknown>) => signJwt(
@@ -173,7 +138,7 @@ export async function enrollAgent(headwatersUrl: string, handle: string): Promis
         iat: Math.floor(Date.now() / 1000),
         ath: createHash('sha256').update(String(signupResponse.station_token)).digest('base64url'),
         action,
-        req_hash: createHash('sha256').update(canonicalRequest(request)).digest('base64url'),
+        req_hash: requestProofHash(request as Parameters<typeof requestProofHash>[0]),
       },
     ),
   };

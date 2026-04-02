@@ -143,7 +143,7 @@ export class IntentSpaceClient extends EventEmitter {
       const request: AuthRequest = {
         type: 'AUTH',
         stationToken,
-        proof: proofFactory('AUTH', requestShape),
+        proof: proofFactory('AUTH', { ...requestShape, stationToken }),
       };
 
       const handler = (msg: ServerMessage) => {
