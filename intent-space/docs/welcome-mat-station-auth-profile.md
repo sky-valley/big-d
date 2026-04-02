@@ -3,6 +3,15 @@
 This document defines the current phase-1 auth profile for intent-space
 stations.
 
+Current implementation note:
+
+- this document describes the current live auth expression
+- the planned post-NDJSON framing and auth transport-profile doctrine are
+  defined in
+  [`itp-verb-header-body-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/itp-verb-header-body-profile.md)
+- until that cutover lands, the JSON examples below remain the current live
+  wire shape
+
 It keeps the architecture split clean:
 
 - Welcome Mat is canonical for discovery and signup

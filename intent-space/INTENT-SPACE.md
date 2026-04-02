@@ -167,6 +167,13 @@ The `payload` column stores an opaque JSON blob. The space reads the address on 
 
 ## Wire Protocol
 
+Current implementation note:
+
+- the live station still uses NDJSON over stream transports today
+- the planned replacement framing is defined in
+  [`docs/itp-verb-header-body-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/itp-verb-header-body-profile.md)
+- this section describes the current live wire shape until that cutover lands
+
 NDJSON over a stream transport. One JSON object per line.
 
 Current implementation transports:
