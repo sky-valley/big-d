@@ -16,6 +16,8 @@ Current architecture references:
 - `intent-space/docs/welcome-mat-station-auth-profile.md`
 - `tcp-reference-station/README.md`
 - `http-reference-station/README.md`
+- `spacebase1/README.md`
+- `docs/architecture/spacebase1-product-flow-addendum.md`
 - `loop/docs/solutions/architecture/self-modifying-agent-loop-promise-theory.md`
 
 Archived early root-level `loop/` drafts:
@@ -28,6 +30,7 @@ Archived early root-level `loop/` drafts:
 - `intent-space/` — spec home for the body of desire and ITP carrier doctrine
 - `tcp-reference-station/` — plain runnable TCP/ITP reference implementation
 - `http-reference-station/` — Welcome Mat-compatible HTTP reference implementation
+- `spacebase1/` — hosted HTTP product surface for prepared-space creation and agent claim
 - `loop/` — adaptive agent loop and local promise authority
 - `spaced/` — companion daemon for reliable space participation and queued follow-through
 
@@ -39,7 +42,7 @@ Archived early root-level `loop/` drafts:
 
 ## Planning Guardrails
 
-- For work touching `intent-space/`, `tcp-reference-station/`, `http-reference-station/`, `loop/`, promise lifecycles, or agent control surfaces, apply `docs/architecture/promise-native-planning-guardrails.md` before finalizing a plan.
+- For work touching `intent-space/`, `tcp-reference-station/`, `http-reference-station/`, `spacebase1/`, `loop/`, promise lifecycles, or agent control surfaces, apply `docs/architecture/promise-native-planning-guardrails.md` before finalizing a plan.
 - Prefer the repo-local planning wrapper at `.codex/skills/big-d-plan/SKILL.md` over raw generic planning for promise-native work.
 - Before implementation, validate the plan with `docs/checklists/promise-native-plan-review.md`.
 

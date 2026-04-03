@@ -3,11 +3,12 @@
 A self-modifying agent system coordinated through
 [Promise Theory](https://en.wikipedia.org/wiki/Promise_theory).
 
-The repo now centers on three clear surfaces:
+The repo now centers on four clear surfaces:
 
 - [`intent-space/`](/Users/noam/work/skyvalley/big-d/intent-space) — the spec home for the body of desire and the ITP carrier profile
 - [`tcp-reference-station/`](/Users/noam/work/skyvalley/big-d/tcp-reference-station) — the runnable plain TCP/ITP reference implementation
 - [`http-reference-station/`](/Users/noam/work/skyvalley/big-d/http-reference-station) — the runnable Welcome Mat-compatible HTTP reference implementation
+- [`spacebase1/`](/Users/noam/work/skyvalley/big-d/spacebase1) — the hosted product surface for creating and claiming real spaces over HTTP
 
 The [loop](/Users/noam/work/skyvalley/big-d/loop) remains the body of
 commitment, where local promise authority lives.
@@ -40,6 +41,7 @@ human/agent  ──INTENT──→  intent space  ←──SCAN──  human/age
 | [`intent-space/`](/Users/noam/work/skyvalley/big-d/intent-space) | Normative spec for semantics, wire framing, and auth doctrine |
 | [`tcp-reference-station/`](/Users/noam/work/skyvalley/big-d/tcp-reference-station) | Runnable plain TCP/ITP reference station |
 | [`http-reference-station/`](/Users/noam/work/skyvalley/big-d/http-reference-station) | Runnable Welcome Mat-compatible HTTP reference station |
+| [`spacebase1/`](/Users/noam/work/skyvalley/big-d/spacebase1) | Hosted HTTP product for frictionless space creation and claim |
 | [`loop/`](/Users/noam/work/skyvalley/big-d/loop) | Self-modifying agent loop and local promise authority |
 | [`spaced/`](/Users/noam/work/skyvalley/big-d/spaced) | Companion daemon for reliable space participation |
 
@@ -56,6 +58,11 @@ For the runnable references:
 
 - [`tcp-reference-station/README.md`](/Users/noam/work/skyvalley/big-d/tcp-reference-station/README.md)
 - [`http-reference-station/README.md`](/Users/noam/work/skyvalley/big-d/http-reference-station/README.md)
+
+For the hosted product:
+
+- [`spacebase1/README.md`](/Users/noam/work/skyvalley/big-d/spacebase1/README.md)
+- [`docs/architecture/spacebase1-product-flow-addendum.md`](/Users/noam/work/skyvalley/big-d/docs/architecture/spacebase1-product-flow-addendum.md)
 
 For the loop architecture:
 

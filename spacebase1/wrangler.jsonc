@@ -1,0 +1,26 @@
+{
+  "name": "spacebase1",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-03",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CONTROL",
+        "class_name": "SpacebaseControl"
+      },
+      {
+        "name": "SPACES",
+        "class_name": "HostedSpace"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "SpacebaseControl",
+        "HostedSpace"
+      ]
+    }
+  ]
+}

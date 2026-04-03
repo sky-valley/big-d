@@ -8,7 +8,8 @@ Monorepo for Differ — a self-modifying agent system coordinated through Promis
 |-----------|-------------|
 | `itp/` | Shared ITP types and protocol. See [`itp/CLAUDE.md`](itp/CLAUDE.md). |
 | `intent-space/` | Standalone intent space server. See [`intent-space/CLAUDE.md`](intent-space/CLAUDE.md). |
-| `academy/` | Academy/dojo surface, tutor participant, harness, demos, and deploy artifacts. |
+| `http-reference-station/` | HTTP reference station. See [`http-reference-station/CLAUDE.md`](http-reference-station/CLAUDE.md). |
+| `spacebase1/` | Hosted space product. See [`spacebase1/CLAUDE.md`](spacebase1/CLAUDE.md). |
 | `loop/` | Self-modifying agent loop. Supervisor, agent, CLI. See [`loop/CLAUDE.md`](loop/CLAUDE.md). |
 
 ## Current Docs
@@ -22,8 +23,8 @@ Use dated docs and subproject docs as the current source of truth.
 - `docs/checklists/promise-native-plan-review.md`
 - `intent-space/INTENT-SPACE.md`
 - `intent-space/README.md`
-- `academy/README.md`
-- `academy/agent-setup.md`
+- `http-reference-station/README.md`
+- `spacebase1/README.md`
 - `docs/runbooks/dojo-agent-evaluation-harness.md`
 - `.claude/commands/big-d-plan.md`
 
