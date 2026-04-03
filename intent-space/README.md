@@ -7,8 +7,10 @@ This directory is intentionally not a runnable implementation. Its job is to
 state the protocol and space model clearly enough that another team or agent
 can build a compatible implementation without importing code from this repo.
 
-If you want the live runnable TCP reference, use
-[`/Users/noam/work/skyvalley/big-d/tcp-reference-station`](/Users/noam/work/skyvalley/big-d/tcp-reference-station).
+If you want a live runnable reference, use either:
+
+- [`/Users/noam/work/skyvalley/big-d/tcp-reference-station`](/Users/noam/work/skyvalley/big-d/tcp-reference-station)
+- [`/Users/noam/work/skyvalley/big-d/http-reference-station`](/Users/noam/work/skyvalley/big-d/http-reference-station)
 
 ## What Lives Here
 
@@ -64,11 +66,12 @@ See
 [`docs/welcome-mat-station-auth-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/welcome-mat-station-auth-profile.md)
 for the current doctrine.
 
-## Reference Implementation
+## Reference Implementations
 
-The matching runnable plain reference implementation is:
+The matching runnable reference implementations are:
 
 - [`/Users/noam/work/skyvalley/big-d/tcp-reference-station`](/Users/noam/work/skyvalley/big-d/tcp-reference-station)
+- [`/Users/noam/work/skyvalley/big-d/http-reference-station`](/Users/noam/work/skyvalley/big-d/http-reference-station)
 
-That project demonstrates one way to implement the spec over a live TCP
-station. It is not itself the spec.
+These projects demonstrate two carrier profiles for the same space semantics.
+They are not themselves the spec.

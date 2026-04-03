@@ -1,6 +1,6 @@
 # Promise-Native Plan Review
 
-Use this against any plan touching `intent-space/`, `tcp-reference-station/`, `loop/`, or any promise lifecycle.
+Use this against any plan touching `intent-space/`, `tcp-reference-station/`, `http-reference-station/`, `loop/`, or any promise lifecycle.
 
 ## Quick gate
 

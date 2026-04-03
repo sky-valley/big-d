@@ -54,6 +54,10 @@ HTTP is responsible for:
 
 HTTP is not responsible for redefining the meaning of ITP acts.
 
+The runnable HTTP reference for this profile lives at:
+
+- [`/Users/noam/work/skyvalley/big-d/http-reference-station`](/Users/noam/work/skyvalley/big-d/http-reference-station)
+
 ## Pure TCP / ITP Profile
 
 For live station participation over TCP:
@@ -66,6 +70,10 @@ For live station participation over TCP:
 The normative framing and header requirements live in:
 
 - [`itp-verb-header-body-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/itp-verb-header-body-profile.md)
+
+The runnable pure TCP reference for this profile lives at:
+
+- [`/Users/noam/work/skyvalley/big-d/tcp-reference-station`](/Users/noam/work/skyvalley/big-d/tcp-reference-station)
 
 ## Architectural Boundary
 

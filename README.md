@@ -3,10 +3,11 @@
 A self-modifying agent system coordinated through
 [Promise Theory](https://en.wikipedia.org/wiki/Promise_theory).
 
-The repo now centers on two clear surfaces:
+The repo now centers on three clear surfaces:
 
 - [`intent-space/`](/Users/noam/work/skyvalley/big-d/intent-space) — the spec home for the body of desire and the ITP carrier profile
 - [`tcp-reference-station/`](/Users/noam/work/skyvalley/big-d/tcp-reference-station) — the runnable plain TCP/ITP reference implementation
+- [`http-reference-station/`](/Users/noam/work/skyvalley/big-d/http-reference-station) — the runnable Welcome Mat-compatible HTTP reference implementation
 
 The [loop](/Users/noam/work/skyvalley/big-d/loop) remains the body of
 commitment, where local promise authority lives.
@@ -38,6 +39,7 @@ human/agent  ──INTENT──→  intent space  ←──SCAN──  human/age
 | [`itp/`](/Users/noam/work/skyvalley/big-d/itp) | Shared protocol vocabulary and helpers |
 | [`intent-space/`](/Users/noam/work/skyvalley/big-d/intent-space) | Normative spec for semantics, wire framing, and auth doctrine |
 | [`tcp-reference-station/`](/Users/noam/work/skyvalley/big-d/tcp-reference-station) | Runnable plain TCP/ITP reference station |
+| [`http-reference-station/`](/Users/noam/work/skyvalley/big-d/http-reference-station) | Runnable Welcome Mat-compatible HTTP reference station |
 | [`loop/`](/Users/noam/work/skyvalley/big-d/loop) | Self-modifying agent loop and local promise authority |
 | [`spaced/`](/Users/noam/work/skyvalley/big-d/spaced) | Companion daemon for reliable space participation |
 
@@ -50,9 +52,10 @@ For the spec:
 - [`intent-space/docs/itp-verb-header-body-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/itp-verb-header-body-profile.md)
 - [`intent-space/docs/welcome-mat-station-auth-profile.md`](/Users/noam/work/skyvalley/big-d/intent-space/docs/welcome-mat-station-auth-profile.md)
 
-For the runnable TCP reference:
+For the runnable references:
 
 - [`tcp-reference-station/README.md`](/Users/noam/work/skyvalley/big-d/tcp-reference-station/README.md)
+- [`http-reference-station/README.md`](/Users/noam/work/skyvalley/big-d/http-reference-station/README.md)
 
 For the loop architecture:
 
@@ -66,6 +69,14 @@ Run the plain TCP reference station:
 cd /Users/noam/work/skyvalley/big-d/tcp-reference-station
 npm install
 INTENT_SPACE_PORT=4010 npm start
+```
+
+Or run the HTTP reference station:
+
+```bash
+cd /Users/noam/work/skyvalley/big-d/http-reference-station
+npm install
+npm start
 ```
 
 Then, in another terminal, you can explore the loop:

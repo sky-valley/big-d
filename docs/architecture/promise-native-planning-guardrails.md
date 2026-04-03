@@ -10,6 +10,7 @@ Use this doc when planning work in `big-d` that touches:
 
 - `intent-space/`
 - `tcp-reference-station/`
+- `http-reference-station/`
 - `loop/`
 - any promise lifecycle
 - any agent control surface or managed coordination flow
