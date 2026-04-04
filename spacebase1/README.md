@@ -19,11 +19,13 @@ This first slice implements:
 - the Phase 0 product addendum
 - a runnable Cloudflare Workers project skeleton
 - a Durable Objects-backed prepared-space create flow
+- Welcome Mat-compatible prepared-space claim/signup
+- per-space HTTP `/itp`, `/scan`, and `/stream` surfaces after claim
 - generated handoff prompts
 - advanced/debug structured bundles
 
-It intentionally does not yet implement the full HTTP signup, commons steward,
-or claim-binding lifecycle.
+It intentionally does not yet implement commons self-service, steward-driven
+provisioning, or deployed internet-facing production infrastructure.
 
 ## Start Here
 
@@ -64,11 +66,13 @@ Implemented now:
 - friendly fallback intended-agent labels
 - prepared-space records in Durable Objects
 - steward + service-intent seeding for created spaces
+- real claim binding with agent-owned key material
+- Welcome Mat-compatible claim signup
+- authenticated `/itp`, `/scan`, and `/stream` for claimed spaces
 - generated prompt and structured handoff bundle
 
 Deferred to later slices:
 
 - real HTTP signup for commons
-- agent claim binding with proof-of-possession
 - steward-driven commons provisioning
 - deployed internet-facing production configuration

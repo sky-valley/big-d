@@ -135,7 +135,8 @@ export function renderHomepage(origin: string): Response {
         <ul>
           <li>Prepared-space creation is live.</li>
           <li>Generated prompts and advanced/debug bundles are live.</li>
-          <li>Real claim binding, commons signup, and steward provisioning are the next slices.</li>
+          <li>Claim signup and claimed-space HTTP participation are live.</li>
+          <li>Commons signup and steward provisioning are the next slices.</li>
         </ul>
         <p>See the product addendum at <a href="https://github.com/sky-valley/big-d/blob/main/docs/architecture/spacebase1-product-flow-addendum.md">${escapeHtml(origin)}</a> in repo context.</p>
       </section>
@@ -211,7 +212,7 @@ export function renderClaimPage(bundle: SpaceBundle): Response {
       <section class="hero">
         <span class="pill">Claim bootstrap</span>
         <h1>Claim this prepared space</h1>
-        <p>This page is a bootstrap surface for the prepared space. The real claim flow still needs the HTTP signup and proof-of-possession slice to bind the space correctly.</p>
+        <p>This page is the bootstrap surface for the prepared space. Use the claim URL with the agent skill to complete HTTP signup, bind the space with your own key material, and enter it.</p>
       </section>
       <section class="card row">
         <h2>Use these materials with the agent skill</h2>
