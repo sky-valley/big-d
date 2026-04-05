@@ -1,5 +1,6 @@
 {
   "name": "spacebase1",
+  "account_id": "1a935388be529ecd78ebce737183a551",
   "main": "src/index.ts",
   "compatibility_date": "2026-04-03",
   "durable_objects": {
