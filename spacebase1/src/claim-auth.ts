@@ -1,9 +1,8 @@
-import type { Env, HttpRequestAuth, SignupRequestBody, SignupResponse } from './types.ts';
+import type { HttpRequestAuth, SignupRequestBody, SignupResponse, StationSession } from './types.ts';
 
 export const WELCOME_MAT_PROTOCOL = 'welcome mat v1 (DPoP)';
 export const WELCOME_MAT_DPOP_ALGORITHM = 'RS256';
 export const WELCOME_MAT_MINIMUM_RSA_BITS = 4096;
-export const STATION_TOKEN_TYP = 'itp+jwt';
 export const STATION_TOKEN_TYPE = 'DPoP';
 export const STATION_TOKEN_SCOPE = 'intent-space:http-station';
 export const STATION_TOKEN_TTL_SECONDS = 60 * 60 * 12;
@@ -195,49 +194,12 @@ async function verifyRs256DetachedSignature(publicJwk: JsonWebKey, rawText: stri
   }
 }
 
-async function importHmacKey(secret: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'raw',
-    encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign', 'verify'],
-  );
-}
-
-async function signHs256Jwt(header: JwtHeader, payload: JwtPayload, secret: string): Promise<string> {
-  const signingInput = `${b64urlEncode(JSON.stringify(header))}.${b64urlEncode(JSON.stringify(payload))}`;
-  const key = await importHmacKey(secret);
-  const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(signingInput)));
-  return `${signingInput}.${b64urlEncode(signature)}`;
-}
-
-async function verifyHs256Jwt(raw: string, secret: string, expectedTyp: string): Promise<ParsedJwt> {
-  const parsed = parseJwt(raw);
-  if (parsed.header.typ !== expectedTyp) {
-    throw new Error(`Expected JWT typ ${expectedTyp}`);
-  }
-  if (parsed.header.alg !== 'HS256') {
-    throw new Error('Expected HS256 token');
-  }
-  const key = await importHmacKey(secret);
-  const valid = await crypto.subtle.verify('HMAC', key, parsed.signature, encoder.encode(parsed.signingInput));
-  if (!valid) {
-    throw new Error('Station token signature verification failed');
-  }
-  return parsed;
-}
-
 export function isSignupRequestBody(value: unknown): value is SignupRequestBody {
   if (!value || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
   return typeof record.tos_signature === 'string'
     && typeof record.access_token === 'string'
     && typeof record.handle === 'string';
-}
-
-export function authSecret(env: Env): string {
-  return env.SPACEBASE1_AUTH_SECRET ?? 'spacebase1-dev-secret';
 }
 
 export function claimWelcomeMarkdown(profile: ClaimProfile): string {
@@ -315,71 +277,55 @@ export async function validateClaimSignup(input: {
   return { handle: input.handle, jwk, jwkThumbprint: thumbprint };
 }
 
-export async function issueStationToken(
+function makeOpaqueStationToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return b64urlEncode(bytes);
+}
+
+export async function issueStationSession(
   handle: string,
   principalId: string,
   jwkThumb: string,
-  secret: string,
   profile: ClaimProfile,
   spaceId: string,
-): Promise<SignupResponse> {
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  const payload: JwtPayload = {
-    iss: profile.origin,
-    sub: principalId,
-    principal_id: principalId,
-    aud: profile.audience,
-    cnf: { jkt: jwkThumb },
-    scope: STATION_TOKEN_SCOPE,
-    iat: nowSeconds,
-    exp: nowSeconds + STATION_TOKEN_TTL_SECONDS,
-    jti: crypto.randomUUID(),
-  };
-  const stationToken = await signHs256Jwt(
-    { typ: STATION_TOKEN_TYP, alg: 'HS256' },
-    payload,
-    secret,
-  );
-  return {
-    station_token: stationToken,
-    token_type: STATION_TOKEN_TYPE,
+): Promise<{ signup: SignupResponse; session: StationSession; stationToken: string }> {
+  const issuedAt = new Date();
+  const expiresAt = new Date(issuedAt.getTime() + STATION_TOKEN_TTL_SECONDS * 1000);
+  const stationToken = makeOpaqueStationToken();
+  const session: StationSession = {
+    tokenHash: await sha256b64url(stationToken),
+    principalId,
     handle,
-    principal_id: principalId,
-    station_origin: profile.origin,
-    station_audience: profile.audience,
-    itp_endpoint: profile.itpUrl,
-    scan_endpoint: profile.scanUrl,
-    stream_endpoint: profile.streamUrl,
-    space_id: spaceId,
+    jkt: jwkThumb,
+    audience: profile.audience,
+    spaceId,
+    issuedAt: issuedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
   };
-}
-
-export async function verifyStationToken(raw: string, secret: string, audience: string): Promise<ParsedJwt> {
-  const parsed = await verifyHs256Jwt(raw, secret, STATION_TOKEN_TYP);
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  if (parsed.payload.aud !== audience) {
-    throw new Error('Station token aud does not match configured audience');
-  }
-  if (parsed.payload.scope !== STATION_TOKEN_SCOPE) {
-    throw new Error('Station token scope is invalid');
-  }
-  if (typeof parsed.payload.exp === 'number' && parsed.payload.exp < nowSeconds) {
-    throw new Error('Station token has expired');
-  }
-  if (typeof parsed.payload.sub !== 'string' || typeof parsed.payload.principal_id !== 'string') {
-    throw new Error('Station token missing subject information');
-  }
-  if (typeof parsed.payload.cnf?.jkt !== 'string') {
-    throw new Error('Station token missing cnf.jkt');
-  }
-  return parsed;
+  return {
+    stationToken,
+    session,
+    signup: {
+      station_token: stationToken,
+      token_type: STATION_TOKEN_TYPE,
+      handle,
+      principal_id: principalId,
+      station_origin: profile.origin,
+      station_audience: profile.audience,
+      itp_endpoint: profile.itpUrl,
+      scan_endpoint: profile.scanUrl,
+      stream_endpoint: profile.streamUrl,
+      space_id: spaceId,
+    },
+  };
 }
 
 export async function authenticateHttpRequest(
   request: Request,
   absoluteUrl: string,
-  authSecretValue: string,
   audience: string,
+  lookupSession: (tokenHash: string) => Promise<StationSession | null>,
 ): Promise<HttpRequestAuth> {
   const authorization = request.headers.get('authorization');
   if (!authorization) {
@@ -394,7 +340,17 @@ export async function authenticateHttpRequest(
     throw new Error('Missing DPoP header');
   }
 
-  const stationToken = await verifyStationToken(stationTokenRaw, authSecretValue, audience);
+  const tokenHash = await sha256b64url(stationTokenRaw);
+  const session = await lookupSession(tokenHash);
+  if (!session) {
+    throw new Error('Unknown station token');
+  }
+  if (session.audience !== audience) {
+    throw new Error('Station token aud does not match configured audience');
+  }
+  if (session.expiresAt < new Date().toISOString()) {
+    throw new Error('Station token has expired');
+  }
   const proof = parseJwt(proofRaw);
   const jwk = await verifyRs256Jwt(proof, 'dpop+jwt');
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -409,15 +365,15 @@ export async function authenticateHttpRequest(
   if (proof.payload.ath !== await sha256b64url(stationTokenRaw)) {
     throw new Error('DPoP ath mismatch');
   }
-  if (await jwkThumbprint(jwk) !== stationToken.payload.cnf?.jkt) {
+  if (await jwkThumbprint(jwk) !== session.jkt) {
     throw new Error('DPoP key does not match station token binding');
   }
 
   return {
-    senderId: stationToken.payload.sub as string,
-    principalId: stationToken.payload.principal_id as string,
+    senderId: session.principalId,
+    principalId: session.principalId,
     stationToken: stationTokenRaw,
-    jkt: stationToken.payload.cnf!.jkt as string,
+    jkt: session.jkt,
     audience,
   };
 }

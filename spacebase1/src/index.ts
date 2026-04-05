@@ -2,11 +2,10 @@ import { generateFriendlyAgentLabel } from './name-generator.ts';
 import { renderClaimPage, renderCreatedSpace, renderHomepage } from './templates.ts';
 import {
   TERMS_OF_SERVICE,
-  authSecret,
   authenticateHttpRequest,
   claimWelcomeMarkdown,
   isSignupRequestBody,
-  issueStationToken,
+  issueStationSession,
   validateClaimSignup,
   type ClaimProfile,
 } from './claim-auth.ts';
@@ -24,6 +23,7 @@ import type {
   ScanResult,
   ServerMessage,
   SpaceBundle,
+  StationSession,
   StoredMessage,
 } from './types.ts';
 
@@ -290,11 +290,10 @@ export class SpacebaseControl {
           profile,
         });
         const principalId = `prn_spacebase1_${spaceId.replaceAll('-', '_')}`;
-        const signup = await issueStationToken(
+        const issued = await issueStationSession(
           validated.handle,
           principalId,
           validated.jwkThumbprint,
-          authSecret(this.env),
           profile,
           spaceId,
         );
@@ -315,10 +314,11 @@ export class SpacebaseControl {
               status: 'claimed',
               principalId,
               handle: validated.handle,
+              session: issued.session,
             }),
           }),
         );
-        return jsonResponse(signup);
+        return jsonResponse(issued.signup);
       } catch (error) {
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
       }
@@ -373,7 +373,7 @@ export class HostedSpace {
     if (request.method === 'POST' && url.pathname === '/claim-bind') {
       const record = (await this.state.storage.get<HostedSpaceRecord>('state')) ?? null;
       if (!record) return textResponse('Space not initialized\n', 404);
-      const body = (await request.json()) as { status: 'claimed'; principalId: string; handle: string };
+      const body = (await request.json()) as { status: 'claimed'; principalId: string; handle: string; session: StationSession };
       const updated: HostedSpaceRecord = {
         ...record,
         status: body.status,
@@ -381,6 +381,7 @@ export class HostedSpace {
         handle: body.handle,
       };
       await this.state.storage.put('state', updated);
+      await this.state.storage.put(`session:${body.session.tokenHash}`, body.session);
       return jsonResponse(updated);
     }
 
@@ -399,8 +400,8 @@ export class HostedSpace {
         await authenticateHttpRequest(
           request,
           request.headers.get('x-spacebase-forwarded-url') ?? request.url,
-          authSecret(this.env),
           state.audience,
+          async (tokenHash) => (await this.state.storage.get<StationSession>(`session:${tokenHash}`)) ?? null,
         );
       } catch (error) {
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 401);
@@ -438,8 +439,8 @@ export class HostedSpace {
         auth = await authenticateHttpRequest(
           request,
           request.headers.get('x-spacebase-forwarded-url') ?? request.url,
-          authSecret(this.env),
           state.audience,
+          async (tokenHash) => (await this.state.storage.get<StationSession>(`session:${tokenHash}`)) ?? null,
         );
       } catch (error) {
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 401);
@@ -476,8 +477,8 @@ export class HostedSpace {
         await authenticateHttpRequest(
           request,
           request.headers.get('x-spacebase-forwarded-url') ?? request.url,
-          authSecret(this.env),
           state.audience,
+          async (tokenHash) => (await this.state.storage.get<StationSession>(`session:${tokenHash}`)) ?? null,
         );
       } catch (error) {
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 401);

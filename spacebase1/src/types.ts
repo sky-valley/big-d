@@ -1,7 +1,6 @@
 export interface Env {
   CONTROL: DurableObjectNamespace;
   SPACES: DurableObjectNamespace;
-  SPACEBASE1_AUTH_SECRET?: string;
 }
 
 export interface PreparedSpaceRecord {
@@ -88,6 +87,17 @@ export interface SignupResponse extends Record<string, unknown> {
   scan_endpoint: string;
   stream_endpoint: string;
   space_id: string;
+}
+
+export interface StationSession {
+  tokenHash: string;
+  principalId: string;
+  handle: string;
+  jkt: string;
+  audience: string;
+  spaceId: string;
+  issuedAt: string;
+  expiresAt: string;
 }
 
 export interface HttpRequestAuth {
