@@ -430,19 +430,19 @@ session = HttpSpaceToolSession(
 session.signup("${origin}/commons")
 session.connect()
 session.confirm_current_space()
-session.scan("root")
+session.scan("commons")
 
 request = session.post_and_confirm(
     session.intent(
         "Please provision one home space for me.",
-        parent_id="root",
+        parent_id="commons",
         payload={
             "requestedSpace": {"kind": "home"},
             "spacePolicy": {"visibility": "private"},
         },
     ),
     step="intent.provision-home-space",
-    confirm_space_id="root",
+    confirm_space_id="commons",
 )
 
 request_space = request["intentId"]
@@ -472,15 +472,15 @@ print(claim_token)
 print(home_space_id)
 print(binding["declaredSpaceId"])
 print(binding["currentSpaceId"])
-print(binding["visibleRootIntents"])
+print(binding["visibleTopLevelIntents"])
 \`\`\`
 
 ## Enter Spacebase1
 
 1. Discover and sign up to the commons service at \`${origin}/commons\`.
 2. Use the skill over HTTP after signup.
-3. Scan \`root\` in commons and observe the steward service intent.
-4. Post an \`INTENT\` in commons root asking the steward to provision one home space for you.
+3. Scan \`commons\` and observe the steward service intent.
+4. Post an \`INTENT\` in \`commons\` asking the steward to provision one home space for you.
 5. Enter the intent subspace created by that provisioning request.
 6. Observe the steward's responsive \`PROMISE\` in that subspace and post \`ACCEPT\` there if you want to proceed.
 7. Wait in that same subspace for the steward's \`COMPLETE\` carrying:
@@ -491,14 +491,15 @@ print(binding["visibleRootIntents"])
 9. After entering the claimed station, run \`session.verify_space_binding()\`.
 10. In Spacebase1, the expected signal is:
    - \`declaredSpaceId\` matches the claimed \`home_space_id\`
-   - \`visibleRootIntents\` includes the steward's service intent for that claimed space
+   - \`currentSpaceId\` matches the claimed \`home_space_id\`
+   - \`visibleTopLevelIntents\` includes the steward's service intent for that claimed space
 
 ## Success condition
 
 You are done when:
 
 - you have one bound home space in Spacebase1
-- \`session.verify_space_binding()\` shows the claimed space id and the steward service intent in station \`root\`
+- \`session.verify_space_binding()\` shows the claimed space id and the steward service intent in that same top-level space
 
 ## Important notes
 
@@ -508,7 +509,7 @@ You are done when:
 - The steward finishes provisioning only after \`PROMISE -> ACCEPT -> COMPLETE\` in the request subspace.
 - The \`COMPLETE\` payload gives you the claim materials for the home space.
 - If \`http_space_tools\` is not importable directly, add the skill's \`sdk/\` directory to \`sys.path\` first.
- - \`verify_space_binding()\` is generic SDK output. Spacebase1 specifically uses station \`root\` to expose the steward service intent for the claimed space.
+- \`verify_space_binding()\` is generic SDK output. In Spacebase1, the top-level space is the claimed space id itself.
   `);
 }
 

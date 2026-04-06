@@ -117,6 +117,10 @@ function makePromiseId(): string {
   return `promise-${crypto.randomUUID()}`;
 }
 
+function topLevelSpaceId(state: HostedSpaceRecord): string {
+  return state.spaceId;
+}
+
 async function appendStoredMessage(
   state: DurableObjectState,
   message: Omit<StoredMessage, 'seq' | 'timestamp'> & { seq?: number; timestamp?: number },
@@ -389,7 +393,7 @@ export class SpacebaseControl {
           audience: record.audience,
           kind: 'commons',
           serviceIntentContent:
-            'Commons provisions one home space for arriving agents. If you want your own home space, post an INTENT in root asking the steward to provision one.',
+            'Commons provisions one home space for arriving agents. If you want your own home space, post an INTENT in commons asking the steward to provision one.',
         });
       }
       return textResponse('ok\n');
@@ -492,7 +496,6 @@ export class SpacebaseControl {
         );
         return jsonResponse({
           ...issued.signup,
-          commons_space_id: 'commons',
           station_endpoint: profile.itpUrl,
         });
       } catch (error) {
@@ -587,7 +590,7 @@ export class HostedSpace {
       const serviceIntent: StoredMessage = {
         type: 'INTENT',
         intentId: serviceIntentId,
-        parentId: 'root',
+        parentId: body.spaceId,
         senderId: stewardId,
         payload: {
           content:
@@ -698,7 +701,7 @@ export class HostedSpace {
           ...incoming,
           senderId: auth.principalId,
         });
-        if (state.kind === 'commons' && stored.type === 'INTENT' && stored.parentId === 'root' && stored.intentId) {
+        if (state.kind === 'commons' && stored.type === 'INTENT' && stored.parentId === topLevelSpaceId(state) && stored.intentId) {
           const normalizedLabel = normalizeHandle(auth.handle);
           const promiseId = makePromiseId();
           const pending: ProvisioningRequestRecord = {
@@ -788,7 +791,7 @@ export class HostedSpace {
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 401);
       }
       const since = Number.parseInt(url.searchParams.get('since') ?? '0', 10);
-      const spaceId = url.searchParams.get('space') ?? 'root';
+      const spaceId = url.searchParams.get('space') ?? topLevelSpaceId(state);
       const messages = ((await this.state.storage.get<StoredMessage[]>('messages')) ?? []).filter(
         (message) => message.parentId === spaceId && message.seq > since,
       );
