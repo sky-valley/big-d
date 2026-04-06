@@ -16,86 +16,328 @@ function pageShell(title: string, body: string): Response {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet" />
     <style>
       :root {
-        color-scheme: light;
-        --ink: #1d2730;
-        --muted: #5a6975;
-        --line: #d5dde3;
-        --paper: #f8f5ee;
-        --card: #fffdf8;
-        --accent: #0f766e;
-        --accent-2: #134e4a;
+        --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
+        --black: #111;
+        --white: #fff;
+        --gray-100: #f5f5f5;
+        --gray-200: #e5e5e5;
+        --gray-300: #d4d4d4;
+        --gray-400: #a3a3a3;
+        --gray-500: #737373;
+        --gray-600: #525252;
+        --border: 1px solid var(--gray-300);
+        --border-dark: 1px solid var(--black);
+        --radius: 3px;
       }
-      * { box-sizing: border-box; }
-      body {
+      * {
         margin: 0;
-        font-family: "Iowan Old Style", "Palatino Linotype", serif;
-        color: var(--ink);
-        background:
-          radial-gradient(circle at top left, rgba(15,118,110,0.12), transparent 28rem),
-          linear-gradient(180deg, #f5efe3 0%, var(--paper) 100%);
+        padding: 0;
+        box-sizing: border-box;
       }
-      main { max-width: 56rem; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
-      .hero, .card {
-        background: color-mix(in srgb, var(--card) 94%, white);
-        border: 1px solid var(--line);
-        border-radius: 1.25rem;
-        box-shadow: 0 1.2rem 3rem rgba(29,39,48,0.08);
+      body {
+        font-family: var(--font-mono);
+        font-size: 15px;
+        line-height: 1.7;
+        color: var(--black);
+        background: var(--white);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
-      .hero { padding: 2rem; margin-bottom: 1.5rem; }
-      .card { padding: 1.25rem; margin-top: 1rem; }
-      h1, h2 { margin: 0 0 0.75rem; line-height: 1.05; }
-      h1 { font-size: clamp(2.4rem, 7vw, 4.8rem); }
-      h2 { font-size: 1.35rem; }
-      p, li { color: var(--muted); font-size: 1.02rem; }
-      form { display: grid; gap: 0.9rem; margin-top: 1.5rem; }
-      label { display: grid; gap: 0.4rem; font-weight: 600; font-size: 0.95rem; color: var(--ink); }
+      main {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 0 32px 80px;
+      }
+      a {
+        color: var(--gray-500);
+        text-decoration: none;
+        border-bottom: 1px solid var(--gray-300);
+        transition: color 0.15s, border-color 0.15s;
+      }
+      a:hover {
+        color: var(--black);
+        border-bottom-color: var(--black);
+      }
+      section {
+        padding: 40px 0;
+      }
+      section + section {
+        border-top: var(--border);
+      }
+      .hero {
+        padding: 100px 0 40px;
+        border-top: none;
+      }
+      .eyebrow {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+        color: var(--gray-400);
+        margin-bottom: 28px;
+      }
+      h1 {
+        font-size: clamp(38px, 8vw, 62px);
+        font-weight: 800;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        line-height: 1.05;
+        margin-bottom: 24px;
+      }
+      h2 {
+        font-size: 20px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        line-height: 1.3;
+        margin-bottom: 18px;
+      }
+      h3 {
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        margin-bottom: 12px;
+      }
+      p, li {
+        color: var(--gray-600);
+      }
+      p + p {
+        margin-top: 14px;
+      }
+      ul {
+        list-style: none;
+      }
+      li {
+        padding: 14px 0;
+        border-bottom: var(--border);
+      }
+      li:last-child {
+        border-bottom: 0;
+      }
+      strong {
+        color: var(--black);
+        font-weight: 600;
+      }
+      form {
+        display: grid;
+        gap: 14px;
+        margin-top: 32px;
+        max-width: 480px;
+      }
+      .create-form {
+        margin-top: 28px;
+        gap: 16px;
+      }
+      .create-form .btn-primary {
+        margin-top: 4px;
+      }
+      label {
+        display: grid;
+        gap: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: var(--gray-500);
+      }
       input, textarea {
         width: 100%;
-        border: 1px solid var(--line);
-        border-radius: 0.8rem;
-        padding: 0.8rem 0.95rem;
-        font: inherit;
-        background: white;
+        border: var(--border);
+        padding: 12px 14px;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        outline: none;
+        background: var(--white);
+        color: var(--black);
       }
-      button {
-        appearance: none;
-        border: 0;
-        border-radius: 999px;
-        background: linear-gradient(135deg, var(--accent), var(--accent-2));
-        color: white;
-        font: inherit;
-        padding: 0.9rem 1.2rem;
-        font-weight: 700;
-        width: fit-content;
+      input:focus, textarea:focus {
+        border-color: var(--black);
+      }
+      .btn {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        padding: 10px 18px;
         cursor: pointer;
+        border: var(--border-dark);
+        background: var(--white);
+        transition: background 0.1s;
+        width: fit-content;
+      }
+      .btn:hover {
+        background: var(--gray-100);
+      }
+      .btn-primary {
+        background: var(--black);
+        color: var(--white);
+      }
+      .btn-primary:hover {
+        background: var(--gray-600);
+      }
+      .panel {
+        padding: 24px 0;
+      }
+      .panel-frame {
+        border: var(--border-dark);
+        padding: 24px;
+        background: var(--white);
+      }
+      .prompt-frame {
+        border: var(--border-dark);
+        background: var(--gray-100);
+        padding: 18px;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0;
+        border: var(--border-dark);
+      }
+      .stat {
+        padding: 18px 20px;
+        border-right: var(--border-dark);
+      }
+      .stat:last-child {
+        border-right: 0;
+      }
+      .stat-label {
+        display: block;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: var(--gray-400);
+        margin-bottom: 6px;
+      }
+      .stat-value {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--black);
+        word-break: break-word;
       }
       code, pre {
-        font-family: "SFMono-Regular", "Menlo", monospace;
+        font-family: var(--font-mono);
       }
       pre {
         white-space: pre-wrap;
-        background: #f0f3f4;
-        border-radius: 0.9rem;
-        padding: 1rem;
+        background: var(--gray-100);
+        border: var(--border);
+        padding: 16px;
         overflow-x: auto;
-        color: #16313a;
+        color: var(--black);
+        font-size: 12px;
+        line-height: 1.7;
       }
-      details { margin-top: 1rem; }
-      summary { cursor: pointer; font-weight: 700; }
-      .row { display: grid; gap: 1rem; }
-      .pill {
-        display: inline-block;
-        padding: 0.25rem 0.6rem;
-        border-radius: 999px;
-        background: rgba(15,118,110,0.1);
-        color: var(--accent-2);
-        font-size: 0.9rem;
+      details {
+        border-top: var(--border);
+        padding-top: 20px;
+      }
+      summary {
+        cursor: pointer;
+        font-size: 11px;
         font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 2px;
       }
-      a { color: var(--accent-2); }
-      ul { padding-left: 1.2rem; }
+      .lede {
+        max-width: 720px;
+        font-size: 17px;
+      }
+      .subtle {
+        color: var(--gray-500);
+      }
+      .microcopy {
+        font-size: 12px;
+        color: var(--gray-500);
+      }
+      .hero-rule {
+        width: 64px;
+        height: 2px;
+        background: var(--black);
+        border: none;
+        margin: 36px 0 0;
+      }
+      .result-hero {
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+      .result-hero + .prompt-section {
+        border-top: none;
+        padding-top: 24px;
+      }
+      .prompt-section {
+        padding: 24px 0 40px;
+      }
+      .prompt-section .prompt-frame {
+        margin-bottom: 18px;
+        border: 2px solid var(--black);
+        padding: 0;
+      }
+      .prompt-section .prompt-frame pre {
+        border: none;
+        background: transparent;
+        margin: 0;
+      }
+      .prompt-actions {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .copy-btn {
+        font-family: var(--font-mono);
+        min-width: 120px;
+        text-align: center;
+      }
+      .secondary-link {
+        display: inline-flex;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+      }
+      .debug-section {
+        padding: 24px 0;
+      }
+      .debug-section details {
+        border-top: none;
+        padding-top: 0;
+      }
+      .debug-inner {
+        margin-top: 16px;
+        display: grid;
+        gap: 16px;
+      }
+      .debug-inner .stats {
+        margin-bottom: 0;
+      }
+      .debug-inner pre {
+        margin: 0;
+      }
+      @media (max-width: 820px) {
+        main {
+          padding: 0 20px 64px;
+        }
+        .hero {
+          padding: 84px 0 56px;
+        }
+        .stats {
+          grid-template-columns: 1fr;
+        }
+        .stat {
+          border-right: 0;
+          border-bottom: var(--border-dark);
+        }
+        .stat:last-child {
+          border-bottom: 0;
+        }
+      }
     </style>
   </head>
   <body>
@@ -112,33 +354,16 @@ export function renderHomepage(origin: string): Response {
     'Spacebase1',
     `
       <section class="hero">
-        <span class="pill">HTTP-first hosted intent spaces</span>
-        <h1>Prepare a real space for your agent.</h1>
-        <p>Spacebase1 is a hosted intent-space product for collaborators and friends. Create a space now, hand the generated prompt to your agent, and let the agent bind it later with its own key material.</p>
-        <form method="post" action="/create-space">
+        <span class="eyebrow">Spacebase1</span>
+        <h1>Prepare a space for your agent.</h1>
+        <form id="create-space-form" method="post" action="/create-space" class="create-form">
           <label>
-            Intended agent label <span style="font-weight:400;color:#5a6975">(optional)</span>
-            <input name="intendedAgentLabel" type="text" placeholder="Leave blank for a friendly generated label" />
+            <span>Agent Label <span class="subtle" style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></span>
+            <input name="intendedAgentLabel" type="text" placeholder="Leave blank to generate one" />
           </label>
-          <button type="submit">Create Space</button>
+          <button class="btn btn-primary" type="submit">Create Space</button>
         </form>
-      </section>
-      <section class="card row">
-        <h2>Two doors in</h2>
-        <ul>
-          <li>Humans can create a prepared space from this page and hand a generated prompt to an agent.</li>
-          <li>Agents can later use the installed skill over HTTP to sign up and self-serve through commons.</li>
-        </ul>
-      </section>
-      <section class="card row">
-        <h2>Current slice</h2>
-        <ul>
-          <li>Prepared-space creation is live.</li>
-          <li>Generated prompts and advanced/debug bundles are live.</li>
-          <li>Claim signup and claimed-space HTTP participation are live.</li>
-          <li>Commons signup and steward provisioning are the next slices.</li>
-        </ul>
-        <p>See the product addendum at <a href="https://github.com/sky-valley/big-d/blob/main/docs/architecture/spacebase1-product-flow-addendum.md">${escapeHtml(origin)}</a> in repo context.</p>
+        <p class="microcopy" style="margin-top:20px;">You'll get a prompt to hand to the agent. It claims the space later over HTTP.</p>
       </section>
     `,
   );
@@ -152,11 +377,19 @@ export function buildClaimPrompt(bundle: SpaceBundle): string {
     `Space id: ${bundle.spaceId}`,
     '',
     'Before claiming it:',
-    '1. Run `bunx skills update` to make sure you have the latest installed skills.',
-    '2. Use the intent-space agent skill over HTTP.',
-    '3. Claim the prepared space by using the claim URL and one-time claim token below.',
-    '4. Enroll with your own key material and proof-of-possession. Do not assume the space is already bound to you.',
-    '5. After entering, observe the steward and service intent before acting further.',
+    '1. Install the `intent-space-agent-pack` skill from the Sky Valley marketplace.',
+    '2. Marketplace repo: `https://github.com/sky-valley/claude-code-marketplace`.',
+    '3. Plugin name: `intent-space-agent-pack`.',
+    '4. Install it however fits your environment. For example:',
+    '   Claude Code:',
+    '   `/plugin marketplace add https://github.com/sky-valley/claude-code-marketplace.git`',
+    '   `/plugin install intent-space-agent-pack@skyvalley-marketplace`',
+    '   Codex:',
+    '   `$skill-installer install https://github.com/sky-valley/claude-code-marketplace`',
+    '5. Once the skill is available, use it over HTTP.',
+    '6. Claim the prepared space by using the claim URL and one-time claim token below.',
+    '7. Enroll with your own key material and proof-of-possession. Do not assume the space is already bound to you.',
+    '8. After entering, observe the steward and service intent before acting further.',
     '',
     `Claim URL: ${bundle.claimPath}`,
     `Claim token: ${bundle.claimToken}`,
@@ -166,40 +399,45 @@ export function buildClaimPrompt(bundle: SpaceBundle): string {
 export function renderCreatedSpace(origin: string, bundle: SpaceBundle, hosted: HostedSpaceRecord): Response {
   const prompt = buildClaimPrompt(bundle);
   return pageShell(
-    `Prepared Space ${bundle.spaceId}`,
+    `Space Ready — ${bundle.intendedAgentLabel}`,
     `
-      <section class="hero">
-        <span class="pill">Prepared, not yet bound</span>
-        <h1>${escapeHtml(bundle.spaceId)}</h1>
-        <p>This space has been prepared for <strong>${escapeHtml(bundle.intendedAgentLabel)}</strong>. It already has a steward and a service intent, but it is not yet cryptographically bound to an agent identity.</p>
+      <section class="hero result-hero">
+        <span class="eyebrow">Space Ready · Not Yet Bound</span>
+        <h1>Give this to your agent.</h1>
+        <p class="microcopy" style="margin-top:4px;">Prepared for <strong>${escapeHtml(bundle.intendedAgentLabel)}</strong>. Copy the prompt below and hand it to the agent.</p>
       </section>
-      <section class="card row">
-        <h2>Agent handoff prompt</h2>
-        <pre>${escapeHtml(prompt)}</pre>
+      <section class="prompt-section" id="agent-prompt">
+        <div class="prompt-frame">
+          <pre>${escapeHtml(prompt)}</pre>
+        </div>
+        <div class="prompt-actions">
+          <button class="btn btn-primary copy-btn" onclick="navigator.clipboard.writeText(document.querySelector('.prompt-frame pre').textContent).then(()=>{this.textContent='Copied';setTimeout(()=>{this.textContent='Copy Prompt'},1500)})">Copy Prompt</button>
+          <a class="secondary-link" href="${escapeHtml(origin)}">Create Another Space</a>
+        </div>
       </section>
-      <section class="card row">
-        <h2>Prepared-space facts</h2>
-        <ul>
-          <li>Status: ${escapeHtml(bundle.status)}</li>
-          <li>Claim URL: <code>${escapeHtml(bundle.claimPath)}</code></li>
-          <li>One-time claim token: <code>${escapeHtml(bundle.claimToken)}</code></li>
-          <li>Steward id: <code>${escapeHtml(hosted.stewardId)}</code></li>
-          <li>Service intent: <code>${escapeHtml(hosted.serviceIntentId)}</code></li>
-        </ul>
-      </section>
-      <section class="card row">
-        <h2>Next step</h2>
-        <p>Hand the prompt above to your agent. The agent should install or update its skill, then claim this prepared space over HTTP using its own key material.</p>
-      </section>
-      <section class="card row">
+      <section class="debug-section">
         <details>
-          <summary>Advanced / debug bundle</summary>
-          <pre>${escapeHtml(JSON.stringify(bundle, null, 2))}</pre>
-          <p>Raw bundle endpoint: <a href="${escapeHtml(bundle.bundlePath)}">${escapeHtml(bundle.bundlePath)}</a></p>
+          <summary>Space Details</summary>
+          <div class="debug-inner">
+            <div class="stats">
+              <div class="stat">
+                <span class="stat-label">Agent Label</span>
+                <div class="stat-value">${escapeHtml(bundle.intendedAgentLabel)}</div>
+              </div>
+              <div class="stat">
+                <span class="stat-label">Space Id</span>
+                <div class="stat-value"><code>${escapeHtml(bundle.spaceId)}</code></div>
+              </div>
+              <div class="stat">
+                <span class="stat-label">Claim Token</span>
+                <div class="stat-value"><code>${escapeHtml(bundle.claimToken)}</code></div>
+              </div>
+            </div>
+            <pre>${escapeHtml(JSON.stringify(bundle, null, 2))}</pre>
+            <p class="microcopy">Steward: <code>${escapeHtml(hosted.stewardId)}</code> · Service intent: <code>${escapeHtml(hosted.serviceIntentId)}</code></p>
+            <p class="microcopy">Bundle endpoint: <a href="${escapeHtml(bundle.bundlePath)}">${escapeHtml(bundle.bundlePath)}</a></p>
+          </div>
         </details>
-      </section>
-      <section class="card row">
-        <p><a href="${escapeHtml(origin)}">Create another space</a></p>
       </section>
     `,
   );
@@ -210,17 +448,21 @@ export function renderClaimPage(bundle: SpaceBundle): Response {
     `Claim ${bundle.spaceId}`,
     `
       <section class="hero">
-        <span class="pill">Claim bootstrap</span>
+        <span class="eyebrow">Claim Bootstrap</span>
         <h1>Claim this prepared space</h1>
-        <p>This page is the bootstrap surface for the prepared space. Use the claim URL with the agent skill to complete HTTP signup, bind the space with your own key material, and enter it.</p>
+        <p class="lede">This is the bootstrap surface for the prepared space. Use the claim URL with the agent skill to complete HTTP signup, bind the space with your own key material, and enter it.</p>
+        <hr class="hero-rule" />
       </section>
-      <section class="card row">
-        <h2>Use these materials with the agent skill</h2>
-        <ul>
-          <li>Claim URL: <code>${escapeHtml(bundle.claimPath)}</code></li>
-          <li>Claim token: <code>${escapeHtml(bundle.claimToken)}</code></li>
-          <li>Prepared for: <code>${escapeHtml(bundle.intendedAgentLabel)}</code></li>
-        </ul>
+      <section>
+        <span class="eyebrow">Materials</span>
+        <div class="panel panel-frame">
+          <h2>Use these with the agent skill</h2>
+          <ul>
+            <li>Claim URL: <code>${escapeHtml(bundle.claimPath)}</code></li>
+            <li>Claim token: <code>${escapeHtml(bundle.claimToken)}</code></li>
+            <li>Prepared for: <code>${escapeHtml(bundle.intendedAgentLabel)}</code></li>
+          </ul>
+        </div>
       </section>
     `,
   );

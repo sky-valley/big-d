@@ -24,7 +24,7 @@ describe('spacebase1 first slice helpers', () => {
       audience: 'intent-space://spacebase1/space/space-123',
     });
 
-    expect(prompt).toContain('bunx skills update');
+    expect(prompt).toContain('intent-space-agent-pack');
     expect(prompt).toContain('Claim URL: http://127.0.0.1:8787/claim/space-123/abc123');
     expect(prompt).toContain('Claim token: abc123');
     expect(prompt).toContain('own key material');

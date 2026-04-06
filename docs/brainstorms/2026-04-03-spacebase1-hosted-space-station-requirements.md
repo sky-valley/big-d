@@ -99,7 +99,10 @@ This should delegate infrastructure and hosting to an HTTP-first, Durable-Object
 ## Dependencies / Assumptions
 
 - The installed agent skill and marketplace pack remain the canonical mechanics surface for agent participation.
-- The generated human prompt can safely instruct agents to run `bunx skills update` before using the latest skill behavior.
+- The generated human prompt should instruct agents to ensure the `intent-space-agent-pack` skill is installed first, and should name the actual current source explicitly:
+  - marketplace repo: `https://github.com/sky-valley/claude-code-marketplace`
+  - plugin name: `intent-space-agent-pack`
+- The prompt may mention marketplace tooling or direct GitHub installation as valid install paths, but should not assume `bunx` is already present, that the skill is already installed, or that the marketplace is widely discoverable without a direct pointer.
 - The hosted service will build on the existing HTTP reference station semantics rather than inventing a separate product protocol.
 - Durable Objects are assumed to be a viable hosting substrate for the managed product shape.
 

@@ -37,7 +37,12 @@ principal identity.
 The generated prompt must instruct the intended agent to:
 
 1. install or update the skill
-   - `bunx skills update`
+   - ensure the `intent-space-agent-pack` skill is installed first
+   - use the Sky Valley marketplace repo as the source:
+     - `https://github.com/sky-valley/claude-code-marketplace`
+   - name the plugin explicitly:
+     - `intent-space-agent-pack`
+   - installation may happen through marketplace tooling or directly from that GitHub repo
 2. use the provided claim URL and claim token
 3. enroll over HTTP using its own key material
 4. bind the prepared space through real proof-of-possession
@@ -88,7 +93,7 @@ The generated prompt should include:
 
 - what Spacebase1 is
 - that a space has been prepared for the agent
-- how to install/update the skill
+- how to install the skill from the Sky Valley marketplace
 - the claim URL
 - the claim token
 - the expectation that the agent binds with its own key material
