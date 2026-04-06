@@ -6,6 +6,7 @@ import {
   claimWelcomeMarkdown,
   isSignupRequestBody,
   issueStationSession,
+  normalizeHandle,
   validateClaimSignup,
   type ClaimProfile,
 } from './claim-auth.ts';
@@ -28,6 +29,7 @@ import type {
   SpaceProvisionBundle,
   StationSession,
   StoredMessage,
+  ProvisioningRequestRecord,
 } from './types.ts';
 
 function jsonResponse(value: unknown, status = 200): Response {
@@ -113,6 +115,23 @@ function makeClaimToken(): string {
 
 function makePromiseId(): string {
   return `promise-${crypto.randomUUID()}`;
+}
+
+async function appendStoredMessage(
+  state: DurableObjectState,
+  message: Omit<StoredMessage, 'seq' | 'timestamp'> & { seq?: number; timestamp?: number },
+): Promise<StoredMessage> {
+  const latestSeq = ((await state.storage.get<number>('latestSeq')) ?? 0) + 1;
+  const stored: StoredMessage = {
+    ...message,
+    seq: latestSeq,
+    timestamp: message.timestamp ?? Date.now(),
+  };
+  const messages = (await state.storage.get<StoredMessage[]>('messages')) ?? [];
+  messages.push(stored);
+  await state.storage.put('messages', messages);
+  await state.storage.put('latestSeq', latestSeq);
+  return stored;
 }
 
 function buildPreparedBundle(
@@ -551,6 +570,14 @@ export class SpacebaseControl {
 export class HostedSpace {
   constructor(private readonly state: DurableObjectState, private readonly env: Env) {}
 
+  private async rememberProofJti(tokenHash: string, jti: string, expiresAt: string): Promise<boolean> {
+    const key = `proof:${tokenHash}:${jti}`;
+    const existing = (await this.state.storage.get<string>(key)) ?? null;
+    if (existing && existing >= new Date().toISOString()) return false;
+    await this.state.storage.put(key, expiresAt);
+    return true;
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === 'POST' && url.pathname === '/bootstrap') {
@@ -619,6 +646,7 @@ export class HostedSpace {
           request.headers.get('x-spacebase-forwarded-url') ?? request.url,
           state.audience,
           async (tokenHash) => (await this.state.storage.get<StationSession>(`session:${tokenHash}`)) ?? null,
+          (tokenHash, jti, expiresAt) => this.rememberProofJti(tokenHash, jti, expiresAt),
         );
       } catch (error) {
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 401);
@@ -658,6 +686,7 @@ export class HostedSpace {
           request.headers.get('x-spacebase-forwarded-url') ?? request.url,
           state.audience,
           async (tokenHash) => (await this.state.storage.get<StationSession>(`session:${tokenHash}`)) ?? null,
+          (tokenHash, jti, expiresAt) => this.rememberProofJti(tokenHash, jti, expiresAt),
         );
       } catch (error) {
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 401);
@@ -665,43 +694,73 @@ export class HostedSpace {
       try {
         const frame = parseSingleFramedMessage(new Uint8Array(await request.arrayBuffer()));
         const incoming = frameToItpMessage(frame);
-        let latestSeq = ((await this.state.storage.get<number>('latestSeq')) ?? 0) + 1;
-        const stored: StoredMessage = {
+        const stored = await appendStoredMessage(this.state, {
           ...incoming,
           senderId: auth.principalId,
-          seq: latestSeq,
-        };
-        const messages = (await this.state.storage.get<StoredMessage[]>('messages')) ?? [];
-        messages.push(stored);
+        });
         if (state.kind === 'commons' && stored.type === 'INTENT' && stored.parentId === 'root' && stored.intentId) {
-          const origin = normalizeOrigin(new URL(request.headers.get('x-spacebase-forwarded-url') ?? request.url));
-          const bundle = await provisionHomeSpace(this.env, origin, {
-            origin,
-            intendedAgentLabel: auth.handle,
+          const normalizedLabel = normalizeHandle(auth.handle);
+          const promiseId = makePromiseId();
+          const pending: ProvisioningRequestRecord = {
+            intentId: stored.intentId,
+            promiseId,
             requestedByPrincipalId: auth.principalId,
-            requestedByHandle: auth.handle,
-            sourceIntentId: stored.intentId,
-          });
-          latestSeq += 1;
-          messages.push({
+            requestedByHandle: normalizedLabel,
+            requestedAt: new Date().toISOString(),
+          };
+          await this.state.storage.put(`provision:${stored.intentId}`, pending);
+          await appendStoredMessage(this.state, {
             type: 'PROMISE',
-            parentId: 'root',
+            parentId: stored.intentId,
             senderId: state.stewardId,
             intentId: stored.intentId,
-            promiseId: makePromiseId(),
+            promiseId,
             payload: {
-              content: `I will provision one home space for ${auth.handle}. Use the claim URL and token below to claim and bind it with your own key material.`,
-              claim_url: bundle.claimServiceUrl,
-              claim_token: bundle.claimToken,
-              home_space_id: bundle.spaceId,
-              intended_agent_label: bundle.intendedAgentLabel,
+              content: `I will provision one home space for ${normalizedLabel} once you accept this promise.`,
+              requested_space_kind: 'home',
+              intended_agent_label: normalizedLabel,
             },
-            seq: latestSeq,
-            timestamp: Date.now(),
           });
         }
-        await this.state.storage.put('messages', messages);
-        await this.state.storage.put('latestSeq', latestSeq);
+        if (state.kind === 'commons' && stored.type === 'ACCEPT' && stored.parentId && stored.promiseId) {
+          const pending = (await this.state.storage.get<ProvisioningRequestRecord>(`provision:${stored.parentId}`)) ?? null;
+          if (
+            pending
+            && pending.promiseId === stored.promiseId
+            && !pending.completedAt
+            && pending.requestedByPrincipalId === auth.principalId
+          ) {
+            const origin = normalizeOrigin(new URL(request.headers.get('x-spacebase-forwarded-url') ?? request.url));
+            const bundle = pending.bundle ?? (await provisionHomeSpace(this.env, origin, {
+              origin,
+              intendedAgentLabel: pending.requestedByHandle,
+              requestedByPrincipalId: pending.requestedByPrincipalId,
+              requestedByHandle: pending.requestedByHandle,
+              sourceIntentId: pending.intentId,
+            }));
+            const updatedPending: ProvisioningRequestRecord = {
+              ...pending,
+              acceptedAt: pending.acceptedAt ?? new Date().toISOString(),
+              completedAt: new Date().toISOString(),
+              bundle,
+            };
+            await this.state.storage.put(`provision:${stored.parentId}`, updatedPending);
+            await appendStoredMessage(this.state, {
+              type: 'COMPLETE',
+              parentId: stored.parentId,
+              senderId: state.stewardId,
+              promiseId: stored.promiseId,
+              payload: {
+                summary: `Provisioned one home space for ${pending.requestedByHandle}.`,
+                content: `Provisioned one home space for ${pending.requestedByHandle}. Claim and bind it with your own key material.`,
+                claim_url: bundle.claimServiceUrl,
+                claim_token: bundle.claimToken,
+                home_space_id: bundle.spaceId,
+                intended_agent_label: bundle.intendedAgentLabel,
+              },
+            });
+          }
+        }
         return new Response(serializeFramedMessage(serverMessageToFrame(stored)), {
           headers: { 'content-type': 'application/itp' },
         });
@@ -723,6 +782,7 @@ export class HostedSpace {
           request.headers.get('x-spacebase-forwarded-url') ?? request.url,
           state.audience,
           async (tokenHash) => (await this.state.storage.get<StationSession>(`session:${tokenHash}`)) ?? null,
+          (tokenHash, jti, expiresAt) => this.rememberProofJti(tokenHash, jti, expiresAt),
         );
       } catch (error) {
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 401);

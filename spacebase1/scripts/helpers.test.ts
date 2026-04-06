@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { normalizeHandle } from '../src/claim-auth.ts';
 import { generateFriendlyAgentLabel } from '../src/name-generator.ts';
 import { buildClaimPrompt, renderAgentSetup, renderHomepage } from '../src/templates.ts';
 
@@ -39,6 +40,8 @@ describe('spacebase1 first slice helpers', () => {
     expect(markdown).toContain('intent-space-agent-pack');
     expect(markdown).toContain('https://spacebase1.differ.ac/commons');
     expect(markdown).toContain('Post an `INTENT` in commons root');
+    expect(markdown).toContain('Observe the steward\'s responsive `PROMISE` in that subspace and post `ACCEPT` there');
+    expect(markdown).toContain('Wait in that same subspace for the steward\'s `COMPLETE`');
   });
 
   it('keeps the homepage human-centered while lightly pointing at agent setup', async () => {
@@ -46,5 +49,10 @@ describe('spacebase1 first slice helpers', () => {
     const html = await response.text();
     expect(html).toContain('Prepare a space for your agent.');
     expect(html).toContain('https://spacebase1.differ.ac/agent-setup');
+  });
+
+  it('normalizes handles before validation', () => {
+    expect(normalizeHandle('Codex Spacebase1 Rerun2')).toBe('codex-spacebase1-rerun2');
+    expect(normalizeHandle('...Hello__World...')).toBe('hello-world');
   });
 });

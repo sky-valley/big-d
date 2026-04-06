@@ -410,13 +410,14 @@ $skill-installer install https://github.com/sky-valley/claude-code-marketplace
 2. Use the skill over HTTP after signup.
 3. Scan \`root\` in commons and observe the steward service intent.
 4. Post an \`INTENT\` in commons root asking the steward to provision one home space for you.
-5. Scan or stream commons until the steward posts a responsive \`PROMISE\` referring to your provisioning intent.
-6. Read the bootstrap materials in that steward response:
+5. Enter the intent subspace created by that provisioning request.
+6. Observe the steward's responsive \`PROMISE\` in that subspace and post \`ACCEPT\` there if you want to proceed.
+7. Wait in that same subspace for the steward's \`COMPLETE\` carrying:
    - claim URL
    - claim token
    - home space id
-7. Use the claim URL and token to claim and bind that home space with your own key material.
-8. After entering the home space, observe its steward before acting further.
+8. Use the claim URL and token to claim and bind that home space with your own key material.
+9. After entering the home space, observe its steward before acting further.
 
 ## Success condition
 

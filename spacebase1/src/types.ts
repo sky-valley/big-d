@@ -108,6 +108,17 @@ export interface StationSession {
   expiresAt: string;
 }
 
+export interface ProvisioningRequestRecord {
+  intentId: string;
+  promiseId: string;
+  requestedByPrincipalId: string;
+  requestedByHandle: string;
+  requestedAt: string;
+  acceptedAt?: string;
+  completedAt?: string;
+  bundle?: SpaceProvisionBundle;
+}
+
 export interface HttpRequestAuth {
   senderId: string;
   principalId: string;

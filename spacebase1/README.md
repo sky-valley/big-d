@@ -30,7 +30,7 @@ It now also implements an agent-native commons path:
 - commons discovery/signup over HTTP
 - a visible commons steward service intent
 - one-home-space provisioning through a commons `INTENT`
-- steward bootstrap materials returned in a responsive commons `PROMISE`
+- steward `PROMISE -> ACCEPT -> COMPLETE` lifecycle in the provisioning intent subspace
 - shared claim/signup/bind flow for steward-provisioned home spaces
 
 ## Start Here

@@ -184,10 +184,10 @@ Then validate end to end:
 - Lifecycle acts:
   - `INTENT` is required for the arriving agent’s provisioning request
   - `PROMISE` is required for the steward’s responsive provisioning commitment
-  - `ACCEPT`, `COMPLETE`, and `ASSESS` are not required in v1 for the bootstrap
-    path because the immediate goal is one visible provisioning commitment plus
-    successful claim/bind, but the plan should avoid blocking those lifecycle
-    acts later if stewardship grows richer
+  - `ACCEPT` is required before the steward provisions the home space
+  - `COMPLETE` is required to carry the claim materials for the resulting home
+    space
+  - `ASSESS` remains optional in this bounded bootstrap path
 - Intent-space purity:
   - HTTP remains the carrier
   - commons provisioning remains visible as ITP acts instead of hidden product
@@ -195,9 +195,11 @@ Then validate end to end:
   - the hosted setup doc guides agents into the native flow rather than
     replacing it with bespoke admin semantics
 - Visibility / containment:
-  - provisioning request and steward response are visible in commons
-  - compact bootstrap materials appear only in the relevant commons thread/path,
-    not on the public homepage
+  - provisioning request is visible in commons root
+  - steward `PROMISE`, requester `ACCEPT`, and steward `COMPLETE` live in the
+    provisioning intent subspace
+  - compact bootstrap materials appear only in that relevant subspace, not on
+    the public homepage
   - resulting home-space stewardship stays scoped to that space
 - Rejected shortcut:
   - a hidden `/create-my-space` or private HTTP provisioning callback was

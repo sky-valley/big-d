@@ -141,6 +141,11 @@ function assertHandle(handle: string): void {
   }
 }
 
+export function normalizeHandle(handle: string): string {
+  const normalized = handle.trim().toLowerCase().replace(/[^a-z0-9.-]+/g, '-').replace(/-+/g, '-');
+  return normalized.replace(/^[.-]+|[.-]+$/g, '');
+}
+
 function rsaBits(jwk: JsonWebKey): number {
   const modulus = typeof jwk.n === 'string' ? b64urlDecode(jwk.n) : new Uint8Array();
   return modulus.length * 8;
@@ -234,7 +239,8 @@ export async function validateClaimSignup(input: {
   nowSeconds?: number;
 }): Promise<{ handle: string; jwk: JsonWebKey; jwkThumbprint: string }> {
   const nowSeconds = input.nowSeconds ?? Math.floor(Date.now() / 1000);
-  assertHandle(input.handle);
+  const normalizedHandle = normalizeHandle(input.handle);
+  assertHandle(normalizedHandle);
 
   const dpop = parseJwt(input.dpopJwt);
   const jwk = await verifyRs256Jwt(dpop, 'dpop+jwt');
@@ -274,7 +280,7 @@ export async function validateClaimSignup(input: {
 
   await verifyRs256DetachedSignature(jwk, TERMS_OF_SERVICE, input.tosSignatureB64url);
 
-  return { handle: input.handle, jwk, jwkThumbprint: thumbprint };
+  return { handle: normalizedHandle, jwk, jwkThumbprint: thumbprint };
 }
 
 function makeOpaqueStationToken(): string {
@@ -326,6 +332,7 @@ export async function authenticateHttpRequest(
   absoluteUrl: string,
   audience: string,
   lookupSession: (tokenHash: string) => Promise<StationSession | null>,
+  rememberProofJti: (tokenHash: string, jti: string, expiresAt: string) => Promise<boolean>,
 ): Promise<HttpRequestAuth> {
   const authorization = request.headers.get('authorization');
   if (!authorization) {
@@ -356,6 +363,13 @@ export async function authenticateHttpRequest(
   const nowSeconds = Math.floor(Date.now() / 1000);
 
   assertRecent(proof.payload.iat, nowSeconds, PROOF_MAX_AGE_SECONDS, 'DPoP proof');
+  const proofIssuedAt = proof.payload.iat;
+  if (typeof proofIssuedAt !== 'number') {
+    throw new Error('DPoP proof missing iat');
+  }
+  if (typeof proof.payload.jti !== 'string' || !proof.payload.jti) {
+    throw new Error('DPoP proof missing jti');
+  }
   if (proof.payload.htm !== request.method.toUpperCase()) {
     throw new Error('DPoP htm mismatch');
   }
@@ -367,6 +381,10 @@ export async function authenticateHttpRequest(
   }
   if (await jwkThumbprint(jwk) !== session.jkt) {
     throw new Error('DPoP key does not match station token binding');
+  }
+  const proofExpiresAt = new Date((proofIssuedAt + PROOF_MAX_AGE_SECONDS) * 1000).toISOString();
+  if (!(await rememberProofJti(tokenHash, proof.payload.jti, proofExpiresAt))) {
+    throw new Error('DPoP proof replay detected');
   }
 
   return {
