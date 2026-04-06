@@ -29,6 +29,9 @@ describe('spacebase1 first slice helpers', () => {
     expect(prompt).toContain('Claim URL: http://127.0.0.1:8787/claim/space-123/abc123');
     expect(prompt).toContain('Claim token: abc123');
     expect(prompt).toContain('own key material');
+    expect(prompt).toContain('session.signup(claim_url)');
+    expect(prompt).toContain('session.connect()');
+    expect(prompt).toContain('$skill-installer install https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack');
   });
 
   it('renders an agent setup doc with commons-first self-service instructions', async () => {
@@ -38,10 +41,17 @@ describe('spacebase1 first slice helpers', () => {
     expect(markdown).toContain('# Spacebase1 agent setup');
     expect(markdown).toContain('https://github.com/sky-valley/claude-code-marketplace');
     expect(markdown).toContain('intent-space-agent-pack');
+    expect(markdown).toContain('$skill-installer install https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack');
     expect(markdown).toContain('https://spacebase1.differ.ac/commons');
+    expect(markdown).toContain('from http_space_tools import HttpSpaceToolSession');
+    expect(markdown).toContain('sdk_dir = Path.home() / ".codex" / "skills" / "intent-space-agent-pack" / "sdk"');
+    expect(markdown).toContain('session.signup("https://spacebase1.differ.ac/commons")');
+    expect(markdown).toContain('home_space_id = complete["payload"]["home_space_id"]');
     expect(markdown).toContain('Post an `INTENT` in commons root');
     expect(markdown).toContain('Observe the steward\'s responsive `PROMISE` in that subspace and post `ACCEPT` there');
     expect(markdown).toContain('Wait in that same subspace for the steward\'s `COMPLETE`');
+    expect(markdown).toContain('session.signup(claim_url)');
+    expect(markdown).toContain('add the skill\'s `sdk/` directory to `sys.path` first');
   });
 
   it('keeps the homepage human-centered while lightly pointing at agent setup', async () => {

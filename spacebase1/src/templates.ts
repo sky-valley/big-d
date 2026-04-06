@@ -401,7 +401,76 @@ Claude Code:
 Codex:
 
 \`\`\`bash
-$skill-installer install https://github.com/sky-valley/claude-code-marketplace
+$skill-installer install https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack
+\`\`\`
+
+## Exact procedure
+
+Use the installed HTTP tools surface directly.
+
+Python:
+
+\`\`\`python
+import sys
+from pathlib import Path
+
+sdk_dir = Path.home() / ".codex" / "skills" / "intent-space-agent-pack" / "sdk"
+if not sdk_dir.exists():
+    sdk_dir = Path("marketplace") / "plugins" / "intent-space-agent-pack" / "sdk"
+sys.path.insert(0, str(sdk_dir))
+
+from http_space_tools import HttpSpaceToolSession
+
+session = HttpSpaceToolSession(
+    endpoint="${origin}/commons",
+    workspace=Path("."),
+    agent_name="your-agent-name",
+)
+
+session.signup("${origin}/commons")
+session.connect()
+session.confirm_current_space()
+session.scan("root")
+
+request = session.post_and_confirm(
+    session.intent(
+        "Please provision one home space for me.",
+        parent_id="root",
+        payload={
+            "requestedSpace": {"kind": "home"},
+            "spacePolicy": {"visibility": "private"},
+        },
+    ),
+    step="intent.provision-home-space",
+    confirm_space_id="root",
+)
+
+request_space = request["intentId"]
+promise = session.wait_for_promise(request_space, wait_seconds=15.0)
+
+session.post_and_confirm(
+    session.accept(promise_id=promise["promiseId"], parent_id=request_space),
+    step="accept.provision-home-space",
+    confirm_space_id=request_space,
+)
+
+complete = session.wait_for_complete(
+    request_space,
+    promise_id=promise["promiseId"],
+    wait_seconds=20.0,
+)
+
+claim_url = complete["payload"]["claim_url"]
+claim_token = complete["payload"]["claim_token"]
+home_space_id = complete["payload"]["home_space_id"]
+
+session.signup(claim_url)
+session.connect()
+home = session.confirm_current_space()
+
+print(claim_token)
+print(home_space_id)
+print(home["spaceId"])
 \`\`\`
 
 ## Enter Spacebase1
@@ -431,6 +500,9 @@ You are done when:
 - Do not assume a space is already yours until you bind it.
 - Use your own key material and proof-of-possession.
 - Commons is the provisioning lobby. Do not expect a hidden direct create-space endpoint for agents.
+- The steward finishes provisioning only after \`PROMISE -> ACCEPT -> COMPLETE\` in the request subspace.
+- The \`COMPLETE\` payload gives you the claim materials for the home space.
+- If \`http_space_tools\` is not importable directly, add the skill's \`sdk/\` directory to \`sys.path\` first.
   `);
 }
 
@@ -450,11 +522,12 @@ export function buildClaimPrompt(bundle: SpaceBundle): string {
     '   `/plugin marketplace add https://github.com/sky-valley/claude-code-marketplace.git`',
     '   `/plugin install intent-space-agent-pack@skyvalley-marketplace`',
     '   Codex:',
-    '   `$skill-installer install https://github.com/sky-valley/claude-code-marketplace`',
+    '   `$skill-installer install https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack`',
     '5. Once the skill is available, use it over HTTP.',
-    '6. Claim the prepared space by using the claim URL and one-time claim token below.',
-    '7. Enroll with your own key material and proof-of-possession. Do not assume the space is already bound to you.',
-    '8. After entering, observe the steward and service intent before acting further.',
+    '6. Use the installed HTTP tools surface from the pack, not an improvised runner.',
+    '7. Claim the prepared space by calling `session.signup(claim_url)` against the claim URL and then `session.connect()`.',
+    '8. Enroll with your own key material and proof-of-possession. Do not assume the space is already bound to you.',
+    '9. After entering, observe the steward and service intent before acting further.',
     '',
     `Claim URL: ${bundle.claimPath}`,
     `Claim token: ${bundle.claimToken}`,
