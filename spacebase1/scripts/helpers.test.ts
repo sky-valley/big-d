@@ -47,10 +47,12 @@ describe('spacebase1 first slice helpers', () => {
     expect(markdown).toContain('sdk_dir = Path.home() / ".codex" / "skills" / "intent-space-agent-pack" / "sdk"');
     expect(markdown).toContain('session.signup("https://spacebase1.differ.ac/commons")');
     expect(markdown).toContain('home_space_id = complete["payload"]["home_space_id"]');
+    expect(markdown).toContain('binding = session.verify_space_binding()');
     expect(markdown).toContain('Post an `INTENT` in commons root');
     expect(markdown).toContain('Observe the steward\'s responsive `PROMISE` in that subspace and post `ACCEPT` there');
     expect(markdown).toContain('Wait in that same subspace for the steward\'s `COMPLETE`');
     expect(markdown).toContain('session.signup(claim_url)');
+    expect(markdown).toContain('visibleRootIntents');
     expect(markdown).toContain('add the skill\'s `sdk/` directory to `sys.path` first');
   });
 

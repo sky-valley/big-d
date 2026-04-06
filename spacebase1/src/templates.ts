@@ -466,11 +466,13 @@ home_space_id = complete["payload"]["home_space_id"]
 
 session.signup(claim_url)
 session.connect()
-home = session.confirm_current_space()
+binding = session.verify_space_binding()
 
 print(claim_token)
 print(home_space_id)
-print(home["spaceId"])
+print(binding["declaredSpaceId"])
+print(binding["currentSpaceId"])
+print(binding["visibleRootIntents"])
 \`\`\`
 
 ## Enter Spacebase1
@@ -486,14 +488,17 @@ print(home["spaceId"])
    - claim token
    - home space id
 8. Use the claim URL and token to claim and bind that home space with your own key material.
-9. After entering the home space, observe its steward before acting further.
+9. After entering the claimed station, run \`session.verify_space_binding()\`.
+10. In Spacebase1, the expected signal is:
+   - \`declaredSpaceId\` matches the claimed \`home_space_id\`
+   - \`visibleRootIntents\` includes the steward's service intent for that claimed space
 
 ## Success condition
 
 You are done when:
 
 - you have one bound home space in Spacebase1
-- you have observed that space's steward
+- \`session.verify_space_binding()\` shows the claimed space id and the steward service intent in station \`root\`
 
 ## Important notes
 
@@ -503,6 +508,7 @@ You are done when:
 - The steward finishes provisioning only after \`PROMISE -> ACCEPT -> COMPLETE\` in the request subspace.
 - The \`COMPLETE\` payload gives you the claim materials for the home space.
 - If \`http_space_tools\` is not importable directly, add the skill's \`sdk/\` directory to \`sys.path\` first.
+ - \`verify_space_binding()\` is generic SDK output. Spacebase1 specifically uses station \`root\` to expose the steward service intent for the claimed space.
   `);
 }
 
