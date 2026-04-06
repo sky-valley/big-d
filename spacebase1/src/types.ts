@@ -6,6 +6,7 @@ export interface Env {
 export interface PreparedSpaceRecord {
   spaceId: string;
   status: 'prepared' | 'claimed';
+  kind?: 'prepared-space' | 'home-space';
   intendedAgentLabel: string;
   claimToken: string;
   createdAt: string;
@@ -23,6 +24,7 @@ export interface PreparedSpaceRecord {
 export interface HostedSpaceRecord {
   spaceId: string;
   status: 'prepared' | 'claimed';
+  kind?: 'commons' | 'prepared-space' | 'home-space';
   intendedAgentLabel: string;
   createdAt: string;
   stewardId: string;
@@ -35,6 +37,12 @@ export interface HostedSpaceRecord {
 
 export interface SpaceBundle extends PreparedSpaceRecord {
   origin: string;
+}
+
+export interface SpaceProvisionBundle extends SpaceBundle {
+  requestedByPrincipalId: string;
+  requestedByHandle: string;
+  sourceIntentId: string;
 }
 
 export interface StoredMessage {
@@ -103,7 +111,26 @@ export interface StationSession {
 export interface HttpRequestAuth {
   senderId: string;
   principalId: string;
+  handle: string;
   stationToken: string;
   jkt: string;
   audience: string;
+}
+
+export interface SpaceBootstrapInput {
+  spaceId: string;
+  intendedAgentLabel: string;
+  status: 'prepared' | 'claimed';
+  createdAt: string;
+  audience: string;
+  kind?: 'commons' | 'prepared-space' | 'home-space';
+  serviceIntentContent?: string;
+}
+
+export interface ProvisionSpaceRequest {
+  origin: string;
+  intendedAgentLabel: string;
+  requestedByPrincipalId: string;
+  requestedByHandle: string;
+  sourceIntentId: string;
 }

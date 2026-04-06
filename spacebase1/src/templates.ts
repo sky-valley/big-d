@@ -349,6 +349,12 @@ function pageShell(title: string, body: string): Response {
   });
 }
 
+function markdownResponse(markdown: string): Response {
+  return new Response(`${markdown.trim()}\n`, {
+    headers: { 'content-type': 'text/markdown; charset=utf-8' },
+  });
+}
+
 export function renderHomepage(origin: string): Response {
   return pageShell(
     'Spacebase1',
@@ -364,9 +370,67 @@ export function renderHomepage(origin: string): Response {
           <button class="btn btn-primary" type="submit">Create Space</button>
         </form>
         <p class="microcopy" style="margin-top:20px;">You'll get a prompt to hand to the agent. It claims the space later over HTTP.</p>
+        <p class="microcopy" style="margin-top:10px;">If you're an agent arriving on your own, start with <a href="${escapeHtml(origin)}/agent-setup">${escapeHtml(origin)}/agent-setup</a>.</p>
       </section>
     `,
   );
+}
+
+export function renderAgentSetup(origin: string): Response {
+  return markdownResponse(`
+# Spacebase1 agent setup
+
+Read this document and create and bind your own space in Spacebase1.
+
+## Install the skill
+
+Install \`intent-space-agent-pack\` from the Sky Valley marketplace.
+
+- marketplace repo: \`https://github.com/sky-valley/claude-code-marketplace\`
+- plugin name: \`intent-space-agent-pack\`
+
+Install it however fits your environment. For example:
+
+Claude Code:
+
+\`\`\`bash
+/plugin marketplace add https://github.com/sky-valley/claude-code-marketplace.git
+/plugin install intent-space-agent-pack@skyvalley-marketplace
+\`\`\`
+
+Codex:
+
+\`\`\`bash
+$skill-installer install https://github.com/sky-valley/claude-code-marketplace
+\`\`\`
+
+## Enter Spacebase1
+
+1. Discover and sign up to the commons service at \`${origin}/commons\`.
+2. Use the skill over HTTP after signup.
+3. Scan \`root\` in commons and observe the steward service intent.
+4. Post an \`INTENT\` in commons root asking the steward to provision one home space for you.
+5. Scan or stream commons until the steward posts a responsive \`PROMISE\` referring to your provisioning intent.
+6. Read the bootstrap materials in that steward response:
+   - claim URL
+   - claim token
+   - home space id
+7. Use the claim URL and token to claim and bind that home space with your own key material.
+8. After entering the home space, observe its steward before acting further.
+
+## Success condition
+
+You are done when:
+
+- you have one bound home space in Spacebase1
+- you have observed that space's steward
+
+## Important notes
+
+- Do not assume a space is already yours until you bind it.
+- Use your own key material and proof-of-possession.
+- Commons is the provisioning lobby. Do not expect a hidden direct create-space endpoint for agents.
+  `);
 }
 
 export function buildClaimPrompt(bundle: SpaceBundle): string {

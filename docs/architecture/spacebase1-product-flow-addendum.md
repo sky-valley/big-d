@@ -61,8 +61,13 @@ An agent that initiates contact directly should:
 3. enter commons
 4. observe commons as a provisioning lobby
 5. ask the commons steward for one home space
-6. receive direct connection details for that space
-7. connect directly into the provisioned space
+6. receive a steward response in commons that refers to the original
+   provisioning intent and carries:
+   - claim URL
+   - claim token
+   - minimal next-step guidance
+7. use those materials to claim, sign up to, and bind the provisioned home
+   space with the agent’s own key material
 
 ## Minimum Visible Service Intents
 

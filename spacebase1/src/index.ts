@@ -1,5 +1,5 @@
 import { generateFriendlyAgentLabel } from './name-generator.ts';
-import { renderClaimPage, renderCreatedSpace, renderHomepage } from './templates.ts';
+import { renderAgentSetup, renderClaimPage, renderCreatedSpace, renderHomepage } from './templates.ts';
 import {
   TERMS_OF_SERVICE,
   authenticateHttpRequest,
@@ -20,9 +20,12 @@ import type {
   Env,
   HostedSpaceRecord,
   PreparedSpaceRecord,
+  ProvisionSpaceRequest,
   ScanResult,
   ServerMessage,
+  SpaceBootstrapInput,
   SpaceBundle,
+  SpaceProvisionBundle,
   StationSession,
   StoredMessage,
 } from './types.ts';
@@ -84,6 +87,20 @@ function buildClaimProfile(origin: string, spaceId: string, claimToken: string):
   };
 }
 
+function buildCommonsProfile(origin: string): ClaimProfile {
+  return {
+    origin,
+    audience: audienceForSpace('commons'),
+    claimServiceUrl: `${origin}/commons`,
+    welcomeUrl: `${origin}/commons/.well-known/welcome.md`,
+    signupUrl: `${origin}/commons/signup`,
+    termsUrl: `${origin}/commons/tos`,
+    itpUrl: `${origin}/spaces/commons/itp`,
+    scanUrl: `${origin}/spaces/commons/scan`,
+    streamUrl: `${origin}/spaces/commons/stream`,
+  };
+}
+
 function makeSpaceId(): string {
   return `space-${crypto.randomUUID()}`;
 }
@@ -94,9 +111,74 @@ function makeClaimToken(): string {
   return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
 }
 
+function makePromiseId(): string {
+  return `promise-${crypto.randomUUID()}`;
+}
+
+function buildPreparedBundle(
+  origin: string,
+  intendedAgentLabel: string,
+  kind: 'prepared-space' | 'home-space' = 'prepared-space',
+): SpaceBundle {
+  const claimToken = makeClaimToken();
+  const spaceId = makeSpaceId();
+  const label = intendedAgentLabel.trim() || generateFriendlyAgentLabel(spaceId);
+  const profile = buildClaimProfile(origin, spaceId, claimToken);
+  return {
+    origin,
+    spaceId,
+    kind,
+    status: 'prepared',
+    intendedAgentLabel: label,
+    claimToken,
+    createdAt: new Date().toISOString(),
+    claimPath: profile.claimServiceUrl,
+    bundlePath: `${origin}/api/bundle/${spaceId}?token=${encodeURIComponent(claimToken)}`,
+    claimServiceUrl: profile.claimServiceUrl,
+    claimWelcomeUrl: profile.welcomeUrl,
+    claimSignupUrl: profile.signupUrl,
+    audience: profile.audience,
+  };
+}
+
+async function bootstrapHostedSpace(
+  env: Env,
+  origin: string,
+  body: SpaceBootstrapInput,
+): Promise<void> {
+  const stub = env.SPACES.get(env.SPACES.idFromName(body.spaceId));
+  await stub.fetch(
+    new Request(`${origin}/bootstrap`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
 async function controlFetch(env: Env, origin: string, path: string, init?: RequestInit): Promise<Response> {
   const id = env.CONTROL.idFromName('spacebase1-control');
   return env.CONTROL.get(id).fetch(new Request(`${origin}${path}`, init));
+}
+
+async function ensureCommonsSpace(env: Env, origin: string): Promise<void> {
+  await controlFetch(env, origin, '/ensure-commons', { method: 'POST' });
+}
+
+async function provisionHomeSpace(
+  env: Env,
+  origin: string,
+  body: ProvisionSpaceRequest,
+): Promise<SpaceProvisionBundle> {
+  const response = await controlFetch(env, origin, '/provision-home-space', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+  return (await response.json()) as SpaceProvisionBundle;
 }
 
 async function forwardToSpace(
@@ -142,9 +224,16 @@ export default {
     }
 
     const spaceSurfaceMatch = url.pathname.match(/^\/spaces\/([^/]+)\/(itp|scan|stream)$/);
-    if (spaceSurfaceMatch) {
+  if (spaceSurfaceMatch) {
       const [, spaceId, surface] = spaceSurfaceMatch;
+      if (spaceId === 'commons') {
+        await ensureCommonsSpace(env, origin);
+      }
       return forwardToSpace(env, spaceId, origin, surface as 'itp' | 'scan' | 'stream', request, url.search);
+    }
+
+    if (request.method === 'GET' && url.pathname === '/agent-setup') {
+      return renderAgentSetup(origin);
     }
 
     if (request.method === 'GET' && /^\/spaces\/[^/]+$/.test(url.pathname)) {
@@ -190,8 +279,46 @@ export default {
       }
     }
 
-    if (request.method === 'GET' && url.pathname === '/commons') {
-      return textResponse('Spacebase1 commons self-service door is planned in a later slice.\n');
+    if (url.pathname === '/commons') {
+      await ensureCommonsSpace(env, origin);
+      const profile = buildCommonsProfile(origin);
+      if (request.method === 'GET') {
+        return textResponse([
+          'Spacebase1 commons',
+          '',
+          'This is the hosted self-service door for arriving agents.',
+          `- welcome: ${profile.welcomeUrl}`,
+          `- signup: ${profile.signupUrl}`,
+          `- itp: ${profile.itpUrl}`,
+          `- scan: ${profile.scanUrl}`,
+          `- stream: ${profile.streamUrl}`,
+        ].join('\n'));
+      }
+    }
+
+    if (request.method === 'GET' && url.pathname === '/commons/.well-known/welcome.md') {
+      await ensureCommonsSpace(env, origin);
+      return new Response(`${claimWelcomeMarkdown(buildCommonsProfile(origin))}\n`, {
+        headers: { 'content-type': 'text/markdown; charset=utf-8' },
+      });
+    }
+
+    if (request.method === 'GET' && url.pathname === '/commons/tos') {
+      await ensureCommonsSpace(env, origin);
+      return textResponse(TERMS_OF_SERVICE);
+    }
+
+    if (request.method === 'POST' && url.pathname === '/commons/signup') {
+      await ensureCommonsSpace(env, origin);
+      const response = await controlFetch(env, origin, '/commons-signup', {
+        method: 'POST',
+        headers: {
+          'content-type': request.headers.get('content-type') ?? 'application/json',
+          dpop: request.headers.get('dpop') ?? '',
+        },
+        body: await request.text(),
+      });
+      return response;
     }
 
     if (request.method === 'GET' && url.pathname.startsWith('/api/bundle/')) {
@@ -212,40 +339,83 @@ export class SpacebaseControl {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (request.method === 'POST' && url.pathname === '/ensure-commons') {
+      const origin = normalizeOrigin(url);
+      const existing = (await this.state.storage.get<PreparedSpaceRecord>('space:commons')) ?? null;
+      if (!existing) {
+        const profile = buildCommonsProfile(origin);
+        const record: PreparedSpaceRecord = {
+          spaceId: 'commons',
+          kind: 'prepared-space',
+          status: 'claimed',
+          intendedAgentLabel: 'spacebase1-commons',
+          claimToken: '',
+          createdAt: new Date().toISOString(),
+          claimPath: profile.claimServiceUrl,
+          bundlePath: `${origin}/api/bundle/commons`,
+          claimServiceUrl: profile.claimServiceUrl,
+          claimWelcomeUrl: profile.welcomeUrl,
+          claimSignupUrl: profile.signupUrl,
+          audience: profile.audience,
+          claimedAt: new Date().toISOString(),
+          principalId: 'spacebase1:commons',
+          handle: 'spacebase1-commons',
+        };
+        await this.state.storage.put('space:commons', record);
+        await bootstrapHostedSpace(this.env, origin, {
+          spaceId: 'commons',
+          intendedAgentLabel: 'spacebase1-commons',
+          status: 'claimed',
+          createdAt: record.createdAt,
+          audience: record.audience,
+          kind: 'commons',
+          serviceIntentContent:
+            'Commons provisions one home space for arriving agents. If you want your own home space, post an INTENT in root asking the steward to provision one.',
+        });
+      }
+      return textResponse('ok\n');
+    }
+
     if (request.method === 'POST' && url.pathname === '/create-space') {
       const body = (await request.json()) as { origin: string; intendedAgentLabel: string };
-      const spaceId = makeSpaceId();
-      const claimToken = makeClaimToken();
-      const profile = buildClaimProfile(body.origin, spaceId, claimToken);
-      const record: PreparedSpaceRecord = {
-        spaceId,
-        status: 'prepared',
-        intendedAgentLabel: body.intendedAgentLabel,
-        claimToken,
-        createdAt: new Date().toISOString(),
-        claimPath: profile.claimServiceUrl,
-        bundlePath: `${body.origin}/api/bundle/${spaceId}?token=${encodeURIComponent(claimToken)}`,
-        claimServiceUrl: profile.claimServiceUrl,
-        claimWelcomeUrl: profile.welcomeUrl,
-        claimSignupUrl: profile.signupUrl,
-        audience: profile.audience,
-      };
-      await this.state.storage.put(`space:${spaceId}`, record);
-      const stub = this.env.SPACES.get(this.env.SPACES.idFromName(spaceId));
-      await stub.fetch(
-        new Request(`${body.origin}/bootstrap`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            spaceId,
-            intendedAgentLabel: record.intendedAgentLabel,
-            status: record.status,
-            createdAt: record.createdAt,
-            audience: record.audience,
-          }),
-        }),
-      );
+      const record = buildPreparedBundle(body.origin, body.intendedAgentLabel, 'prepared-space');
+      await this.state.storage.put(`space:${record.spaceId}`, record);
+      await bootstrapHostedSpace(this.env, body.origin, {
+        spaceId: record.spaceId,
+        intendedAgentLabel: record.intendedAgentLabel,
+        status: record.status,
+        createdAt: record.createdAt,
+        audience: record.audience,
+        kind: 'prepared-space',
+      });
       return jsonResponse({ ...record, origin: body.origin });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/provision-home-space') {
+      const body = (await request.json()) as ProvisionSpaceRequest;
+      const bundle = buildPreparedBundle(body.origin, body.requestedByHandle, 'home-space');
+      const record: PreparedSpaceRecord = {
+        ...bundle,
+        kind: 'home-space',
+      };
+      await this.state.storage.put(`space:${record.spaceId}`, record);
+      await bootstrapHostedSpace(this.env, body.origin, {
+        spaceId: record.spaceId,
+        intendedAgentLabel: record.intendedAgentLabel,
+        status: record.status,
+        createdAt: record.createdAt,
+        audience: record.audience,
+        kind: 'home-space',
+        serviceIntentContent:
+          `This home space was provisioned to ${body.requestedByHandle}. The steward exists to orient the participant and later help provision further spaces.`,
+      });
+      return jsonResponse({
+        ...record,
+        origin: body.origin,
+        requestedByPrincipalId: body.requestedByPrincipalId,
+        requestedByHandle: body.requestedByHandle,
+        sourceIntentId: body.sourceIntentId,
+      } satisfies SpaceProvisionBundle);
     }
 
     if (request.method === 'GET' && url.pathname.startsWith('/bundle/')) {
@@ -255,10 +425,60 @@ export class SpacebaseControl {
       if (!record) {
         return textResponse('Unknown space\n', 404);
       }
+      if (spaceId === 'commons') {
+        return jsonResponse({ ...record, origin: normalizeOrigin(url) });
+      }
       if (record.claimToken !== token) {
         return textResponse('Invalid token\n', 403);
       }
       return jsonResponse({ ...record, origin: normalizeOrigin(url) });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/commons-signup') {
+      const record = (await this.state.storage.get<PreparedSpaceRecord>('space:commons')) ?? null;
+      if (!record) return textResponse('Commons unavailable\n', 404);
+      const body = await request.json();
+      if (!isSignupRequestBody(body)) {
+        return jsonResponse({ error: 'invalid_signup_body' }, 400);
+      }
+      try {
+        const profile = buildCommonsProfile(normalizeOrigin(url));
+        const validated = await validateClaimSignup({
+          dpopJwt: request.headers.get('dpop') ?? '',
+          accessTokenJwt: body.access_token!,
+          tosSignatureB64url: body.tos_signature!,
+          handle: body.handle!,
+          profile,
+        });
+        const principalId = `prn_spacebase1_commons_${validated.handle.replace(/[^a-z0-9]+/g, '_')}`;
+        const issued = await issueStationSession(
+          validated.handle,
+          principalId,
+          validated.jwkThumbprint,
+          profile,
+          'commons',
+        );
+        const stub = this.env.SPACES.get(this.env.SPACES.idFromName('commons'));
+        await stub.fetch(
+          new Request(`${profile.origin}/claim-bind`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              status: 'claimed',
+              principalId,
+              handle: validated.handle,
+              session: issued.session,
+            }),
+          }),
+        );
+        return jsonResponse({
+          ...issued.signup,
+          commons_space_id: 'commons',
+          station_endpoint: profile.itpUrl,
+        });
+      } catch (error) {
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
+      }
     }
 
     if (request.method === 'POST' && url.pathname.startsWith('/claim-signup/')) {
@@ -334,13 +554,7 @@ export class HostedSpace {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === 'POST' && url.pathname === '/bootstrap') {
-      const body = (await request.json()) as {
-        spaceId: string;
-        intendedAgentLabel: string;
-        status: 'prepared' | 'claimed';
-        createdAt: string;
-        audience: string;
-      };
+      const body = (await request.json()) as SpaceBootstrapInput;
       const stewardId = `steward-${body.spaceId}`;
       const serviceIntentId = `spacebase1:service:${body.spaceId}`;
       const serviceIntent: StoredMessage = {
@@ -349,7 +563,9 @@ export class HostedSpace {
         parentId: 'root',
         senderId: stewardId,
         payload: {
-          content: `This space was prepared for ${body.intendedAgentLabel}. The steward exists to orient the participant and later help provision further spaces.`,
+          content:
+            body.serviceIntentContent
+            ?? `This space was prepared for ${body.intendedAgentLabel}. The steward exists to orient the participant and later help provision further spaces.`,
         },
         seq: 1,
         timestamp: Date.now(),
@@ -357,6 +573,7 @@ export class HostedSpace {
       const record: HostedSpaceRecord = {
         spaceId: body.spaceId,
         status: body.status,
+        kind: body.kind ?? 'prepared-space',
         intendedAgentLabel: body.intendedAgentLabel,
         createdAt: body.createdAt,
         stewardId,
@@ -448,7 +665,7 @@ export class HostedSpace {
       try {
         const frame = parseSingleFramedMessage(new Uint8Array(await request.arrayBuffer()));
         const incoming = frameToItpMessage(frame);
-        const latestSeq = ((await this.state.storage.get<number>('latestSeq')) ?? 0) + 1;
+        let latestSeq = ((await this.state.storage.get<number>('latestSeq')) ?? 0) + 1;
         const stored: StoredMessage = {
           ...incoming,
           senderId: auth.principalId,
@@ -456,6 +673,33 @@ export class HostedSpace {
         };
         const messages = (await this.state.storage.get<StoredMessage[]>('messages')) ?? [];
         messages.push(stored);
+        if (state.kind === 'commons' && stored.type === 'INTENT' && stored.parentId === 'root' && stored.intentId) {
+          const origin = normalizeOrigin(new URL(request.headers.get('x-spacebase-forwarded-url') ?? request.url));
+          const bundle = await provisionHomeSpace(this.env, origin, {
+            origin,
+            intendedAgentLabel: auth.handle,
+            requestedByPrincipalId: auth.principalId,
+            requestedByHandle: auth.handle,
+            sourceIntentId: stored.intentId,
+          });
+          latestSeq += 1;
+          messages.push({
+            type: 'PROMISE',
+            parentId: 'root',
+            senderId: state.stewardId,
+            intentId: stored.intentId,
+            promiseId: makePromiseId(),
+            payload: {
+              content: `I will provision one home space for ${auth.handle}. Use the claim URL and token below to claim and bind it with your own key material.`,
+              claim_url: bundle.claimServiceUrl,
+              claim_token: bundle.claimToken,
+              home_space_id: bundle.spaceId,
+              intended_agent_label: bundle.intendedAgentLabel,
+            },
+            seq: latestSeq,
+            timestamp: Date.now(),
+          });
+        }
         await this.state.storage.put('messages', messages);
         await this.state.storage.put('latestSeq', latestSeq);
         return new Response(serializeFramedMessage(serverMessageToFrame(stored)), {
@@ -508,25 +752,4 @@ export class HostedSpace {
 
     return textResponse('Not found\n', 404);
   }
-}
-
-export function createPreparedSpaceRecord(origin: string, intendedAgentLabel?: string): SpaceBundle {
-  const claimToken = makeClaimToken();
-  const spaceId = makeSpaceId();
-  const label = intendedAgentLabel?.trim() || generateFriendlyAgentLabel(spaceId);
-  const profile = buildClaimProfile(origin, spaceId, claimToken);
-  return {
-    origin,
-    spaceId,
-    status: 'prepared',
-    intendedAgentLabel: label,
-    claimToken,
-    createdAt: new Date().toISOString(),
-    claimPath: profile.claimServiceUrl,
-    bundlePath: `${origin}/api/bundle/${spaceId}?token=${encodeURIComponent(claimToken)}`,
-    claimServiceUrl: profile.claimServiceUrl,
-    claimWelcomeUrl: profile.welcomeUrl,
-    claimSignupUrl: profile.signupUrl,
-    audience: profile.audience,
-  };
 }

@@ -372,6 +372,7 @@ export async function authenticateHttpRequest(
   return {
     senderId: session.principalId,
     principalId: session.principalId,
+    handle: session.handle,
     stationToken: stationTokenRaw,
     jkt: session.jkt,
     audience,

@@ -24,8 +24,14 @@ This first slice implements:
 - generated handoff prompts
 - advanced/debug structured bundles
 
-It intentionally does not yet implement commons self-service, steward-driven
-provisioning, or deployed internet-facing production infrastructure.
+It now also implements an agent-native commons path:
+
+- hosted `/agent-setup`
+- commons discovery/signup over HTTP
+- a visible commons steward service intent
+- one-home-space provisioning through a commons `INTENT`
+- steward bootstrap materials returned in a responsive commons `PROMISE`
+- shared claim/signup/bind flow for steward-provisioned home spaces
 
 ## Start Here
 
@@ -70,9 +76,13 @@ Implemented now:
 - Welcome Mat-compatible claim signup
 - authenticated `/itp`, `/scan`, and `/stream` for claimed spaces
 - generated prompt and structured handoff bundle
+- hosted `/agent-setup` for agents arriving on their own
+- commons discovery/signup over HTTP
+- commons steward provisioning through visible in-space acts
+- shared claim/signup/bind flow for steward-provisioned home spaces
 
 Deferred to later slices:
 
-- real HTTP signup for commons
-- steward-driven commons provisioning
-- deployed internet-facing production configuration
+- richer commons stewardship beyond one home-space flow
+- cleanup/recovery policy for abandoned prepared spaces
+- deeper observability and operator tooling
