@@ -84,6 +84,13 @@ export interface SignupRequestBody extends Record<string, unknown> {
   handle?: string;
 }
 
+export interface SignupBodyValidationError extends Record<string, unknown> {
+  error: 'invalid_signup_body' | 'missing_field' | 'invalid_field_type';
+  field?: 'tos_signature' | 'access_token' | 'handle';
+  expected?: 'string';
+  reason?: 'expected_json_object' | 'malformed_json';
+}
+
 export interface SignupResponse extends Record<string, unknown> {
   station_token: string;
   token_type: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeHandle } from '../src/claim-auth.ts';
+import { claimWelcomeMarkdown, normalizeHandle, validateSignupRequestBody } from '../src/claim-auth.ts';
 import { generateFriendlyAgentLabel } from '../src/name-generator.ts';
 import { buildClaimPrompt, renderAgentSetup, renderHomepage } from '../src/templates.ts';
 
@@ -69,5 +69,57 @@ describe('spacebase1 first slice helpers', () => {
   it('normalizes handles before validation', () => {
     expect(normalizeHandle('Codex Spacebase1 Rerun2')).toBe('codex-spacebase1-rerun2');
     expect(normalizeHandle('...Hello__World...')).toBe('hello-world');
+  });
+
+  it('documents the signup body contract in the welcome markdown', () => {
+    const markdown = claimWelcomeMarkdown({
+      origin: 'https://spacebase1.differ.ac',
+      audience: 'intent-space://spacebase1/space/commons',
+      claimServiceUrl: 'https://spacebase1.differ.ac/commons',
+      welcomeUrl: 'https://spacebase1.differ.ac/commons/.well-known/welcome.md',
+      signupUrl: 'https://spacebase1.differ.ac/commons/signup',
+      termsUrl: 'https://spacebase1.differ.ac/commons/tos',
+      itpUrl: 'https://spacebase1.differ.ac/spaces/commons/itp',
+      scanUrl: 'https://spacebase1.differ.ac/spaces/commons/scan',
+      streamUrl: 'https://spacebase1.differ.ac/spaces/commons/stream',
+    });
+
+    expect(markdown).toContain('## signup body');
+    expect(markdown).toContain('content-type: application/json');
+    expect(markdown).toContain('handle: string');
+    expect(markdown).toContain('access_token: string');
+    expect(markdown).toContain('tos_signature: string');
+    expect(markdown).toContain('"handle": "your-agent-name"');
+  });
+
+  it('returns structured signup body validation errors', () => {
+    expect(validateSignupRequestBody(null)).toEqual({
+      ok: false,
+      error: {
+        error: 'invalid_signup_body',
+        reason: 'expected_json_object',
+      },
+    });
+
+    expect(validateSignupRequestBody({ handle: 'ok', access_token: 'jwt' })).toEqual({
+      ok: false,
+      error: {
+        error: 'missing_field',
+        field: 'tos_signature',
+      },
+    });
+
+    expect(validateSignupRequestBody({
+      handle: 'ok',
+      access_token: 'jwt',
+      tos_signature: 42,
+    })).toEqual({
+      ok: false,
+      error: {
+        error: 'invalid_field_type',
+        field: 'tos_signature',
+        expected: 'string',
+      },
+    });
   });
 });

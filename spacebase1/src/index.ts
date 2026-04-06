@@ -4,9 +4,9 @@ import {
   TERMS_OF_SERVICE,
   authenticateHttpRequest,
   claimWelcomeMarkdown,
-  isSignupRequestBody,
   issueStationSession,
   normalizeHandle,
+  validateSignupRequestBody,
   validateClaimSignup,
   type ClaimProfile,
 } from './claim-auth.ts';
@@ -44,6 +44,14 @@ function textResponse(value: string, status = 200): Response {
     status,
     headers: { 'content-type': 'text/plain; charset=utf-8' },
   });
+}
+
+async function parseJsonBody(request: Request): Promise<{ ok: true; value: unknown } | { ok: false }> {
+  try {
+    return { ok: true, value: await request.json() };
+  } catch {
+    return { ok: false };
+  }
 }
 
 function normalizeOrigin(url: URL): string {
@@ -460,17 +468,21 @@ export class SpacebaseControl {
     if (request.method === 'POST' && url.pathname === '/commons-signup') {
       const record = (await this.state.storage.get<PreparedSpaceRecord>('space:commons')) ?? null;
       if (!record) return textResponse('Commons unavailable\n', 404);
-      const body = await request.json();
-      if (!isSignupRequestBody(body)) {
-        return jsonResponse({ error: 'invalid_signup_body' }, 400);
+      const parsed = await parseJsonBody(request);
+      if (!parsed.ok) {
+        return jsonResponse({ error: 'invalid_signup_body', reason: 'malformed_json' }, 400);
+      }
+      const bodyResult = validateSignupRequestBody(parsed.value);
+      if (!bodyResult.ok) {
+        return jsonResponse(bodyResult.error, 400);
       }
       try {
         const profile = buildCommonsProfile(normalizeOrigin(url));
         const validated = await validateClaimSignup({
           dpopJwt: request.headers.get('dpop') ?? '',
-          accessTokenJwt: body.access_token!,
-          tosSignatureB64url: body.tos_signature!,
-          handle: body.handle!,
+          accessTokenJwt: bodyResult.body.access_token!,
+          tosSignatureB64url: bodyResult.body.tos_signature!,
+          handle: bodyResult.body.handle!,
           profile,
         });
         const principalId = `prn_spacebase1_commons_${validated.handle.replace(/[^a-z0-9]+/g, '_')}`;
@@ -517,18 +529,22 @@ export class SpacebaseControl {
         return textResponse('Prepared space already claimed\n', 409);
       }
 
-      const body = await request.json();
-      if (!isSignupRequestBody(body)) {
-        return jsonResponse({ error: 'invalid_signup_body' }, 400);
+      const parsed = await parseJsonBody(request);
+      if (!parsed.ok) {
+        return jsonResponse({ error: 'invalid_signup_body', reason: 'malformed_json' }, 400);
+      }
+      const bodyResult = validateSignupRequestBody(parsed.value);
+      if (!bodyResult.ok) {
+        return jsonResponse(bodyResult.error, 400);
       }
 
       try {
         const profile = buildClaimProfile(normalizeOrigin(url), spaceId, token!);
         const validated = await validateClaimSignup({
           dpopJwt: request.headers.get('dpop') ?? '',
-          accessTokenJwt: body.access_token!,
-          tosSignatureB64url: body.tos_signature!,
-          handle: body.handle!,
+          accessTokenJwt: bodyResult.body.access_token!,
+          tosSignatureB64url: bodyResult.body.tos_signature!,
+          handle: bodyResult.body.handle!,
           profile,
         });
         const principalId = `prn_spacebase1_${spaceId.replaceAll('-', '_')}`;

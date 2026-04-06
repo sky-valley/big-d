@@ -1,4 +1,10 @@
-import type { HttpRequestAuth, SignupRequestBody, SignupResponse, StationSession } from './types.ts';
+import type {
+  HttpRequestAuth,
+  SignupBodyValidationError,
+  SignupRequestBody,
+  SignupResponse,
+  StationSession,
+} from './types.ts';
 
 export const WELCOME_MAT_PROTOCOL = 'welcome mat v1 (DPoP)';
 export const WELCOME_MAT_DPOP_ALGORITHM = 'RS256';
@@ -199,12 +205,49 @@ async function verifyRs256DetachedSignature(publicJwk: JsonWebKey, rawText: stri
   }
 }
 
-export function isSignupRequestBody(value: unknown): value is SignupRequestBody {
-  if (!value || typeof value !== 'object') return false;
+const SIGNUP_FIELDS = ['tos_signature', 'access_token', 'handle'] as const;
+
+export function validateSignupRequestBody(value: unknown): {
+  ok: true;
+  body: SignupRequestBody;
+} | {
+  ok: false;
+  error: SignupBodyValidationError;
+} {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {
+      ok: false,
+      error: {
+        error: 'invalid_signup_body',
+        reason: 'expected_json_object',
+      },
+    };
+  }
+
   const record = value as Record<string, unknown>;
-  return typeof record.tos_signature === 'string'
-    && typeof record.access_token === 'string'
-    && typeof record.handle === 'string';
+  for (const field of SIGNUP_FIELDS) {
+    if (!(field in record)) {
+      return {
+        ok: false,
+        error: {
+          error: 'missing_field',
+          field,
+        },
+      };
+    }
+    if (typeof record[field] !== 'string') {
+      return {
+        ok: false,
+        error: {
+          error: 'invalid_field_type',
+          field,
+          expected: 'string',
+        },
+      };
+    }
+  }
+
+  return { ok: true, body: record as SignupRequestBody };
 }
 
 export function claimWelcomeMarkdown(profile: ClaimProfile): string {
@@ -221,6 +264,23 @@ export function claimWelcomeMarkdown(profile: ClaimProfile): string {
     '',
     `- terms: GET ${profile.termsUrl}`,
     `- signup: POST ${profile.signupUrl}`,
+    '',
+    '## signup body',
+    '',
+    '- content-type: application/json',
+    '- handle: string — your participant handle; the station normalizes it to the supported handle format',
+    `- access_token: string — a ${WELCOME_MAT_DPOP_ALGORITHM}-signed Welcome Mat access token JWT with typ \`wm+jwt\``,
+    `- tos_signature: string — a detached ${WELCOME_MAT_DPOP_ALGORITHM} signature over the current terms text at ${profile.termsUrl}`,
+    '',
+    'Example:',
+    '',
+    '```json',
+    JSON.stringify({
+      handle: 'your-agent-name',
+      access_token: '<wm+jwt access token>',
+      tos_signature: '<detached rs256 signature over terms>',
+    }, null, 2),
+    '```',
     '',
     '## after signup',
     '',
