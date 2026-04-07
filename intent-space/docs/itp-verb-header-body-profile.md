@@ -7,12 +7,17 @@ It is intentionally narrow:
 
 - common envelope grammar
 - required headers per verb
+- scalar header formats and naming
+- malformed-envelope conditions
 - auth transport-profile doctrine
 - canonical proof/hash doctrine
 - transcript/debug persistence doctrine
 
 It does not redefine intent-space semantics. It only redefines how the same
 acts are framed on the wire.
+
+It does **not** define or constrain the meaning of the body bytes for any act.
+Bodies remain opaque payloads at the framing layer.
 
 ## 1. Common Envelope Grammar
 
@@ -60,6 +65,25 @@ Rules:
 - unknown headers are allowed and must be preserved
 - header order is not semantically meaningful
 - receivers may normalize header ordering internally for canonical hashing
+- per-verb required header names are authoritative; implementations must not
+  invent alternate spellings such as `promise-id` for `promise` or `space-id`
+  for `space`
+
+### 1.2.1 Header Name to Semantic Field Mapping
+
+The wire profile uses short lowercase header names. Implementations may project
+those values into local object fields, but that projection is not the wire
+format itself.
+
+Common examples:
+
+- `sender` → local field such as `senderId`
+- `intent` → local field such as `intentId`
+- `promise` → local field such as `promiseId`
+- `space` → local field such as `spaceId`
+
+The authoritative wire name is always the lowercase header name defined in this
+document.
 
 ### 1.3 Header Section Terminator
 
@@ -87,6 +111,17 @@ Optional interpretation metadata:
 - `payload-hint` may be present as advisory interpretation metadata
 - `payload-hint` does not create a mandatory universal schema contract
 
+### 1.4.1 Scalar Header Formats
+
+Unless a verb-specific rule says otherwise:
+
+- identifiers such as `sender`, `intent`, `promise`, `parent`, `space`, and
+  `principal` are opaque strings
+- `body-length` is a base-10 non-negative integer byte count
+- `timestamp` is a base-10 integer expressing Unix epoch milliseconds
+- `since` is a base-10 non-negative integer sequence cursor
+- `latest-seq` is a base-10 non-negative integer sequence cursor
+
 ### 1.5 Universal Header Requirement
 
 Only one header is universally required on all framed messages:
@@ -94,6 +129,27 @@ Only one header is universally required on all framed messages:
 - `body-length`
 
 All other required headers are defined per verb.
+
+### 1.6 Malformed Envelope Conditions
+
+A framed ITP message is malformed at the envelope layer if any of the following
+are true:
+
+- the verb line is missing or empty
+- a header line is missing the `: ` separator
+- a header name contains characters outside lowercase ASCII plus `-`
+- the same header name appears more than once
+- the required empty line separating headers from the body is missing
+- `body-length` is missing
+- `body-length` is not a base-10 non-negative integer
+- the actual body byte count does not match `body-length`
+- a required header for the given verb is missing
+- a scalar header declared numeric in this document is not parseable as the
+  required integer form
+
+This section only defines malformed framing and envelope incompleteness. It
+does not define the social or implementation-level response to a semantically
+invalid act whose envelope is otherwise well formed.
 
 ## 2. Required Headers Per Verb
 
@@ -112,6 +168,10 @@ Required:
 - `timestamp`
 - `body-length`
 
+Header notes:
+
+- `timestamp` is Unix epoch milliseconds
+
 #### `PROMISE`
 
 Required:
@@ -122,6 +182,10 @@ Required:
 - `promise`
 - `timestamp`
 - `body-length`
+
+Header notes:
+
+- `timestamp` is Unix epoch milliseconds
 
 #### `DECLINE`
 
@@ -135,6 +199,10 @@ Required:
 
 `DECLINE` remains intent-scoped rather than promise-scoped.
 
+Header notes:
+
+- `timestamp` is Unix epoch milliseconds
+
 #### `ACCEPT`
 
 Required:
@@ -144,6 +212,11 @@ Required:
 - `promise`
 - `timestamp`
 - `body-length`
+
+Header notes:
+
+- `promise` is the required promise identifier on the wire
+- `timestamp` is Unix epoch milliseconds
 
 #### `COMPLETE`
 
@@ -155,6 +228,10 @@ Required:
 - `timestamp`
 - `body-length`
 
+Header notes:
+
+- `timestamp` is Unix epoch milliseconds
+
 #### `ASSESS`
 
 Required:
@@ -164,6 +241,10 @@ Required:
 - `promise`
 - `timestamp`
 - `body-length`
+
+Header notes:
+
+- `timestamp` is Unix epoch milliseconds
 
 ### 2.2 Station Read Path
 
@@ -180,6 +261,9 @@ Notes:
 - `SCAN` remains a private query, not a stored participant act
 - sender identity remains bound through the authenticated session/proof context,
   not a `sender` request header
+- `space` is the wire header name; not `space-id`
+- `since` is required even when the caller wants the full visible history
+  (use `0`)
 
 #### `SCAN_RESULT`
 
@@ -190,6 +274,11 @@ Required:
 - `body-length`
 
 The body carries the returned message batch.
+
+Header notes:
+
+- `space` is the wire header name for the queried containment scope
+- `latest-seq` is the latest visible sequence number in that scope
 
 ### 2.3 Auth Path
 

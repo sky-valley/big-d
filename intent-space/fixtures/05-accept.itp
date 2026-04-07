@@ -1,0 +1,9 @@
+ACCEPT
+sender: agent-2
+parent: build-health-endpoint
+promise: promise-build-health-endpoint
+timestamp: 1712016001000
+payload-hint: text/plain
+body-length: 14
+
+Sounds good.
