@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { claimWelcomeMarkdown, normalizeHandle, validateSignupRequestBody } from '../src/claim-auth.ts';
 import { generateFriendlyAgentLabel } from '../src/name-generator.ts';
-import { buildClaimPrompt, renderAgentSetup, renderHomepage } from '../src/templates.ts';
+import { buildClaimPrompt, renderAgentSetup, renderHomepage, renderSkillFile } from '../src/templates.ts';
 
 describe('spacebase1 first slice helpers', () => {
   it('generates stable friendly fallback labels', () => {
@@ -9,7 +9,7 @@ describe('spacebase1 first slice helpers', () => {
     expect(generateFriendlyAgentLabel('seed-1')).not.toBe(generateFriendlyAgentLabel('seed-2'));
   });
 
-  it('builds a prompt with install and claim instructions', () => {
+  it('builds a prompt with skill install and claim materials', () => {
     const prompt = buildClaimPrompt({
       origin: 'http://127.0.0.1:8787',
       spaceId: 'space-123',
@@ -25,38 +25,40 @@ describe('spacebase1 first slice helpers', () => {
       audience: 'intent-space://spacebase1/space/space-123',
     });
 
-    expect(prompt).toContain('intent-space-agent-pack');
     expect(prompt).toContain('Claim URL: http://127.0.0.1:8787/claim/space-123/abc123');
     expect(prompt).toContain('Claim token: abc123');
-    expect(prompt).toContain('own key material');
-    expect(prompt).toContain('session.signup(claim_url)');
-    expect(prompt).toContain('session.connect()');
-    expect(prompt).toContain('$skill-installer install https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack');
+    expect(prompt).toContain('spacebase1-onboard.SKILL.md');
+    expect(prompt).toContain('mkdir -p ~/.claude/skills/spacebase1-onboard');
+    expect(prompt).toContain('mkdir -p ~/.codex/skills/spacebase1-onboard');
+    expect(prompt).toContain('curl -fsSL');
   });
 
-  it('renders an agent setup doc with commons-first self-service instructions', async () => {
+  it('renders a factual agent setup doc with skill install commands', async () => {
     const response = renderAgentSetup('https://spacebase1.differ.ac');
     const markdown = await response.text();
     expect(response.headers.get('content-type')).toContain('text/markdown');
-    expect(markdown).toContain('# Spacebase1 agent setup');
+    expect(markdown).toContain('# Spacebase1');
     expect(markdown).toContain('https://github.com/sky-valley/claude-code-marketplace');
     expect(markdown).toContain('intent-space-agent-pack');
-    expect(markdown).toContain('$skill-installer install https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack');
     expect(markdown).toContain('https://spacebase1.differ.ac/commons');
-    expect(markdown).toContain('from http_space_tools import HttpSpaceToolSession');
-    expect(markdown).toContain('sdk_dir = Path.home() / ".codex" / "skills" / "intent-space-agent-pack" / "sdk"');
-    expect(markdown).toContain('session.signup("https://spacebase1.differ.ac/commons")');
-    expect(markdown).toContain('home_space_id = complete["payload"]["home_space_id"]');
-    expect(markdown).toContain('binding = session.verify_space_binding()');
-    expect(markdown).toContain('session.scan("commons")');
-    expect(markdown).toContain('parent_id="commons"');
-    expect(markdown).toContain('confirm_space_id="commons"');
-    expect(markdown).toContain('Post an `INTENT` in `commons`');
-    expect(markdown).toContain('Observe the steward\'s responsive `PROMISE` in that subspace and post `ACCEPT` there');
-    expect(markdown).toContain('Wait in that same subspace for the steward\'s `COMPLETE`');
-    expect(markdown).toContain('session.signup(claim_url)');
-    expect(markdown).toContain('visibleTopLevelIntents');
-    expect(markdown).toContain('add the skill\'s `sdk/` directory to `sys.path` first');
+    expect(markdown).toContain('spacebase1-onboard.SKILL.md');
+    expect(markdown).toContain('mkdir -p ~/.claude/skills/spacebase1-onboard');
+    expect(markdown).toContain('mkdir -p ~/.codex/skills/spacebase1-onboard');
+    expect(markdown).toContain('curl -fsSL');
+    expect(markdown).toContain('How Spacebase1 works');
+    expect(markdown).toContain('API reference');
+  });
+
+  it('renders a valid SKILL.md with both onboarding paths', async () => {
+    const response = renderSkillFile('https://spacebase1.differ.ac');
+    const markdown = await response.text();
+    expect(response.headers.get('content-type')).toContain('text/markdown');
+    expect(markdown).toContain('name: Spacebase1 Onboard');
+    expect(markdown).toContain('Path 1: Claim a prepared space');
+    expect(markdown).toContain('Path 2: Self-service through commons');
+    expect(markdown).toContain('intent-space-agent-pack');
+    expect(markdown).toContain('session.verify_space_binding()');
+    expect(markdown).toContain('Success condition');
   });
 
   it('keeps the homepage human-centered while lightly pointing at agent setup', async () => {

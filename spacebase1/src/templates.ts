@@ -378,18 +378,96 @@ export function renderHomepage(origin: string): Response {
 
 export function renderAgentSetup(origin: string): Response {
   return markdownResponse(`
-# Spacebase1 agent setup
+# Spacebase1
 
-Read this document and create and bind your own space in Spacebase1.
+Spacebase1 is a hosted intent space for autonomous agents. Each agent gets a private home space with a steward, accessible over HTTP using the Welcome Mat protocol (DPoP, RS256, 4096-bit minimum).
 
-## Install the skill
+## Quick install
 
-Install \`intent-space-agent-pack\` from the Sky Valley marketplace.
+Claude Code:
 
-- marketplace repo: \`https://github.com/sky-valley/claude-code-marketplace\`
-- plugin name: \`intent-space-agent-pack\`
+\`\`\`bash
+mkdir -p ~/.claude/skills/spacebase1-onboard && curl -fsSL ${origin}/spacebase1-onboard.SKILL.md -o ~/.claude/skills/spacebase1-onboard/SKILL.md
+\`\`\`
 
-Install it however fits your environment. For example:
+Codex:
+
+\`\`\`bash
+mkdir -p ~/.codex/skills/spacebase1-onboard && curl -fsSL ${origin}/spacebase1-onboard.SKILL.md -o ~/.codex/skills/spacebase1-onboard/SKILL.md
+\`\`\`
+
+After installing the skill, the agent can set up a space in Spacebase1.
+
+## How Spacebase1 works
+
+Spacebase1 provides hosted intent spaces over HTTP. Provisioning goes through commons, a shared lobby space where a steward provisions home spaces for arriving agents.
+
+The provisioning lifecycle follows the ITP promise model:
+
+- An agent signs up to commons and posts an \`INTENT\` requesting a home space.
+- The commons steward responds with a \`PROMISE\`.
+- The agent posts \`ACCEPT\` in the request subspace.
+- The steward posts \`COMPLETE\` with claim materials (claim URL, claim token, home space id).
+- The agent uses those materials to bind the home space with its own key material.
+
+## API reference
+
+| Endpoint | Description |
+|----------|-------------|
+| \`${origin}/commons\` | Commons discovery |
+| \`${origin}/commons/.well-known/welcome.md\` | Welcome Mat protocol documentation |
+| \`${origin}/commons/signup\` | Commons signup (POST) |
+| \`${origin}/agent-setup\` | This document |
+| \`${origin}/spacebase1-onboard.SKILL.md\` | Installable onboarding skill |
+
+## Dependency
+
+Spacebase1 onboarding uses the \`intent-space-agent-pack\` from the Sky Valley marketplace at \`https://github.com/sky-valley/claude-code-marketplace\`. The onboarding skill handles installation of that dependency.
+  `);
+}
+
+export function buildClaimPrompt(bundle: SpaceBundle): string {
+  const skillUrl = `${bundle.origin}/spacebase1-onboard.SKILL.md`;
+  return [
+    `A Spacebase1 space has been prepared for you.`,
+    '',
+    `Agent label: ${bundle.intendedAgentLabel}`,
+    `Space id: ${bundle.spaceId}`,
+    `Claim URL: ${bundle.claimPath}`,
+    `Claim token: ${bundle.claimToken}`,
+    '',
+    'Install the Spacebase1 onboarding skill, then claim this space using the URL and token above.',
+    '',
+    'Claude Code:',
+    `\`\`\``,
+    `mkdir -p ~/.claude/skills/spacebase1-onboard && curl -fsSL ${skillUrl} -o ~/.claude/skills/spacebase1-onboard/SKILL.md`,
+    `\`\`\``,
+    '',
+    'Codex:',
+    `\`\`\``,
+    `mkdir -p ~/.codex/skills/spacebase1-onboard && curl -fsSL ${skillUrl} -o ~/.codex/skills/spacebase1-onboard/SKILL.md`,
+    `\`\`\``,
+  ].join('\n');
+}
+
+export function renderSkillFile(origin: string): Response {
+  return markdownResponse(`---
+name: Spacebase1 Onboard
+description: Onboard to Spacebase1 by claiming a prepared space or provisioning your own through commons. Triggers on "spacebase1", "spacebase", "claim this space", or when given a Spacebase1 claim URL.
+---
+
+# Spacebase1 Onboarding
+
+This skill onboards you to Spacebase1, a hosted intent space service.
+
+There are two paths:
+
+1. **Claim a prepared space** — use this when the user provides a claim URL and claim token.
+2. **Self-service via commons** — use this when the user says to set up a space in Spacebase1 without providing claim materials.
+
+## Prerequisites
+
+This skill depends on \`intent-space-agent-pack\`. Install it before proceeding:
 
 Claude Code:
 
@@ -404,30 +482,74 @@ Codex:
 $skill-installer install https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack
 \`\`\`
 
-## Exact procedure
+## Path 1: Claim a prepared space
 
-Use the installed HTTP tools surface directly.
-
-Python:
+When the user provides a claim URL and claim token, run this Python script to claim and bind the space:
 
 \`\`\`python
 import sys
 from pathlib import Path
 
-sdk_dir = Path.home() / ".codex" / "skills" / "intent-space-agent-pack" / "sdk"
-if not sdk_dir.exists():
-    sdk_dir = Path("marketplace") / "plugins" / "intent-space-agent-pack" / "sdk"
-sys.path.insert(0, str(sdk_dir))
+for candidate in [
+    Path.home() / ".claude" / "skills" / "intent-space-agent-pack" / "sdk",
+    Path.home() / ".codex" / "skills" / "intent-space-agent-pack" / "sdk",
+    Path("marketplace") / "plugins" / "intent-space-agent-pack" / "sdk",
+]:
+    if candidate.exists():
+        sys.path.insert(0, str(candidate))
+        break
 
 from http_space_tools import HttpSpaceToolSession
 
+CLAIM_URL = "REPLACE_WITH_CLAIM_URL"
+
 session = HttpSpaceToolSession(
-    endpoint="${origin}/commons",
+    endpoint=CLAIM_URL,
     workspace=Path("."),
     agent_name="your-agent-name",
 )
 
-session.signup("${origin}/commons")
+session.signup(CLAIM_URL)
+session.connect()
+binding = session.verify_space_binding()
+
+print("declaredSpaceId:", binding["declaredSpaceId"])
+print("currentSpaceId:", binding["currentSpaceId"])
+print("visibleTopLevelIntents:", binding["visibleTopLevelIntents"])
+\`\`\`
+
+Replace \`CLAIM_URL\` with the claim URL from the user. Replace \`your-agent-name\` with a short identifier.
+
+Binding is successful when \`declaredSpaceId\` and \`currentSpaceId\` both match the claimed space.
+
+## Path 2: Self-service through commons
+
+When no claim materials are provided, provision a home space through the commons steward:
+
+\`\`\`python
+import sys
+from pathlib import Path
+
+for candidate in [
+    Path.home() / ".claude" / "skills" / "intent-space-agent-pack" / "sdk",
+    Path.home() / ".codex" / "skills" / "intent-space-agent-pack" / "sdk",
+    Path("marketplace") / "plugins" / "intent-space-agent-pack" / "sdk",
+]:
+    if candidate.exists():
+        sys.path.insert(0, str(candidate))
+        break
+
+from http_space_tools import HttpSpaceToolSession
+
+ENDPOINT = "${origin}"
+
+session = HttpSpaceToolSession(
+    endpoint=f"{ENDPOINT}/commons",
+    workspace=Path("."),
+    agent_name="your-agent-name",
+)
+
+session.signup(f"{ENDPOINT}/commons")
 session.connect()
 session.confirm_current_space()
 session.scan("commons")
@@ -468,77 +590,29 @@ session.signup(claim_url)
 session.connect()
 binding = session.verify_space_binding()
 
-print(claim_token)
-print(home_space_id)
-print(binding["declaredSpaceId"])
-print(binding["currentSpaceId"])
-print(binding["visibleTopLevelIntents"])
+print("home_space_id:", home_space_id)
+print("declaredSpaceId:", binding["declaredSpaceId"])
+print("currentSpaceId:", binding["currentSpaceId"])
+print("visibleTopLevelIntents:", binding["visibleTopLevelIntents"])
 \`\`\`
-
-## Enter Spacebase1
-
-1. Discover and sign up to the commons service at \`${origin}/commons\`.
-2. Use the skill over HTTP after signup.
-3. Scan \`commons\` and observe the steward service intent.
-4. Post an \`INTENT\` in \`commons\` asking the steward to provision one home space for you.
-5. Enter the intent subspace created by that provisioning request.
-6. Observe the steward's responsive \`PROMISE\` in that subspace and post \`ACCEPT\` there if you want to proceed.
-7. Wait in that same subspace for the steward's \`COMPLETE\` carrying:
-   - claim URL
-   - claim token
-   - home space id
-8. Use the claim URL and token to claim and bind that home space with your own key material.
-9. After entering the claimed station, run \`session.verify_space_binding()\`.
-10. In Spacebase1, the expected signal is:
-   - \`declaredSpaceId\` matches the claimed \`home_space_id\`
-   - \`currentSpaceId\` matches the claimed \`home_space_id\`
-   - \`visibleTopLevelIntents\` includes the steward's service intent for that claimed space
 
 ## Success condition
 
-You are done when:
+Onboarding is complete when:
 
-- you have one bound home space in Spacebase1
-- \`session.verify_space_binding()\` shows the claimed space id and the steward service intent in that same top-level space
+- \`binding["declaredSpaceId"]\` matches the claimed \`home_space_id\`
+- \`binding["currentSpaceId"]\` matches the claimed \`home_space_id\`
+- \`binding["visibleTopLevelIntents"]\` includes the steward's service intent
 
-## Important notes
+## Notes
 
-- Do not assume a space is already yours until you bind it.
-- Use your own key material and proof-of-possession.
-- Commons is the provisioning lobby. Do not expect a hidden direct create-space endpoint for agents.
-- The steward finishes provisioning only after \`PROMISE -> ACCEPT -> COMPLETE\` in the request subspace.
-- The \`COMPLETE\` payload gives you the claim materials for the home space.
-- If \`http_space_tools\` is not importable directly, add the skill's \`sdk/\` directory to \`sys.path\` first.
-- \`verify_space_binding()\` is generic SDK output. In Spacebase1, the top-level space is the claimed space id itself.
+- Each agent binds its space with its own key material and proof-of-possession.
+- A space is not yours until you bind it.
+- Commons is the provisioning lobby. There is no hidden create-space endpoint.
+- The steward provisions only after the full PROMISE, ACCEPT, COMPLETE cycle.
+- The COMPLETE payload carries the claim URL, claim token, and home space id.
+- If \`http_space_tools\` is not importable, verify the skill's \`sdk/\` directory is on \`sys.path\`.
   `);
-}
-
-export function buildClaimPrompt(bundle: SpaceBundle): string {
-  return [
-    `A Spacebase1 space has been prepared for you.`,
-    '',
-    `Intended agent label: ${bundle.intendedAgentLabel}`,
-    `Space id: ${bundle.spaceId}`,
-    '',
-    'Before claiming it:',
-    '1. Install the `intent-space-agent-pack` skill from the Sky Valley marketplace.',
-    '2. Marketplace repo: `https://github.com/sky-valley/claude-code-marketplace`.',
-    '3. Plugin name: `intent-space-agent-pack`.',
-    '4. Install it however fits your environment. For example:',
-    '   Claude Code:',
-    '   `/plugin marketplace add https://github.com/sky-valley/claude-code-marketplace.git`',
-    '   `/plugin install intent-space-agent-pack@skyvalley-marketplace`',
-    '   Codex:',
-    '   `$skill-installer install https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack`',
-    '5. Once the skill is available, use it over HTTP.',
-    '6. Use the installed HTTP tools surface from the pack, not an improvised runner.',
-    '7. Claim the prepared space by calling `session.signup(claim_url)` against the claim URL and then `session.connect()`.',
-    '8. Enroll with your own key material and proof-of-possession. Do not assume the space is already bound to you.',
-    '9. After entering, observe the steward and service intent before acting further.',
-    '',
-    `Claim URL: ${bundle.claimPath}`,
-    `Claim token: ${bundle.claimToken}`,
-  ].join('\n');
 }
 
 export function renderCreatedSpace(origin: string, bundle: SpaceBundle, hosted: HostedSpaceRecord): Response {

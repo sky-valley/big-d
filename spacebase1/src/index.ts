@@ -1,5 +1,5 @@
 import { generateFriendlyAgentLabel } from './name-generator.ts';
-import { renderAgentSetup, renderClaimPage, renderCreatedSpace, renderHomepage } from './templates.ts';
+import { renderAgentSetup, renderClaimPage, renderCreatedSpace, renderHomepage, renderSkillFile } from './templates.ts';
 import {
   TERMS_OF_SERVICE,
   authenticateHttpRequest,
@@ -265,6 +265,10 @@ export default {
 
     if (request.method === 'GET' && url.pathname === '/agent-setup') {
       return renderAgentSetup(origin);
+    }
+
+    if (request.method === 'GET' && url.pathname === '/spacebase1-onboard.SKILL.md') {
+      return renderSkillFile(origin);
     }
 
     if (request.method === 'GET' && /^\/spaces\/[^/]+$/.test(url.pathname)) {
