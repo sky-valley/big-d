@@ -696,11 +696,13 @@ test('Monitoring records auth failure');
 }
 
 // --- Test 19: monitoring records denied private-space scan ---
-test('Monitoring records denied private-space scan');
+test('Monitoring records shared private-space peer access and outsider denial');
 {
   const owner = new IntentSpaceClient(socketPath);
+  const peer = new IntentSpaceClient(socketPath);
   const outsider = new IntentSpaceClient(socketPath);
   await connectAuthenticated(owner, 'private-owner');
+  await connectAuthenticated(peer, 'private-peer');
   await connectAuthenticated(outsider, 'private-outsider');
   await new Promise((r) => setTimeout(r, 50));
 
@@ -710,12 +712,22 @@ test('Monitoring records denied private-space scan');
     content: 'private workspace',
     spacePolicy: {
       visibility: 'private',
-      participants: ['private-owner'],
+      participants: ['private-owner', 'private-peer'],
     },
   };
   owner.post(privateIntent);
   await new Promise((r) => setTimeout(r, 100));
 
+  const privateFollowup = createIntent('private-owner', 'private followup');
+  privateFollowup.intentId = 'private-space-1-followup';
+  privateFollowup.parentId = 'private-space-1';
+  privateFollowup.payload = {
+    content: 'visible only to named participants',
+  };
+  owner.post(privateFollowup);
+  await new Promise((r) => setTimeout(r, 100));
+
+  const peerMessages = await peer.scan('private-space-1');
   let denied = false;
   try {
     await outsider.scan('private-space-1');
@@ -724,6 +736,10 @@ test('Monitoring records denied private-space scan');
   }
 
   const scanFailedEvent = latestMonitoringEvent('scan_failed');
+  assert(
+    peerMessages.some((message: any) => message.intentId === 'private-space-1-followup'),
+    'Expected named peer to access a follow-up act in the shared private space',
+  );
   assert(denied, 'Expected outsider scan to be denied');
   assert(
     scanFailedEvent
@@ -733,6 +749,7 @@ test('Monitoring records denied private-space scan');
   );
 
   owner.disconnect();
+  peer.disconnect();
   outsider.disconnect();
 }
 

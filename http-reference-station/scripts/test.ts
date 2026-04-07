@@ -8,6 +8,7 @@ import { HttpReferenceStation } from '../src/server.ts';
 import { TERMS_OF_SERVICE, sha256b64url } from '../src/welcome-mat.ts';
 
 const testDir = mkdtempSync(join(tmpdir(), 'http-reference-station-test-'));
+const dbPath = join(testDir, 'http-reference-station.db');
 const authSecret = 'intent-space-dev-secret';
 
 let pass = 0;
@@ -98,6 +99,7 @@ const station = new HttpReferenceStation({
   host: '127.0.0.1',
   port: 0,
   dataDir: testDir,
+  dbPath,
   authSecret,
 });
 await station.start();
@@ -117,6 +119,49 @@ async function postSignup(handle: string, identity: HttpIdentity): Promise<any> 
     }),
   });
   return await response.json();
+}
+
+async function postItp(signupResponse: any, identityValue: HttpIdentity, message: ReturnType<typeof createIntent>): Promise<any> {
+  const itpUrl = `${station.origin}/itp`;
+  const response = await fetch(itpUrl, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/itp',
+      authorization: `DPoP ${signupResponse.station_token}`,
+      dpop: makeDpopProof(identityValue, 'POST', itpUrl, signupResponse.station_token),
+    },
+    body: serializeFramedMessage(itpMessageToFrame(message)),
+  });
+  const body = Buffer.from(await response.arrayBuffer());
+  return {
+    status: response.status,
+    parsed: frameToServerMessage((await import('../src/framing.ts')).parseSingleFramedMessage(body)),
+  };
+}
+
+async function scanSpace(signupResponse: any, identityValue: HttpIdentity, spaceId: string): Promise<any> {
+  const scanUrl = `${station.origin}/scan`;
+  const response = await fetch(scanUrl, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/itp',
+      authorization: `DPoP ${signupResponse.station_token}`,
+      dpop: makeDpopProof(identityValue, 'POST', scanUrl, signupResponse.station_token),
+    },
+    body: serializeFramedMessage({
+      verb: 'SCAN',
+      headers: {
+        space: spaceId,
+        since: '0',
+      },
+      body: Buffer.alloc(0),
+    }),
+  });
+  const body = Buffer.from(await response.arrayBuffer());
+  return {
+    status: response.status,
+    parsed: frameToServerMessage((await import('../src/framing.ts')).parseSingleFramedMessage(body)),
+  };
 }
 
 // --- Test 1: discovery works ---
@@ -246,7 +291,73 @@ test('framing rejects ACCEPT with promise-id instead of promise');
   );
 }
 
-// --- Test 7: /stream emits framed stored acts ---
+// --- Test 7: shared private spaces admit named peers and deny outsiders ---
+test('private shared space admits named peers and denies outsiders');
+{
+  const peerIdentity = makeIdentity();
+  const outsiderIdentity = makeIdentity();
+  const peerSignup = await postSignup('peer-http', peerIdentity);
+  const outsiderSignup = await postSignup('outsider-http', outsiderIdentity);
+
+  const sharedIntent = createIntent(signup.principal_id, 'create shared room');
+  sharedIntent.intentId = 'http-private-shared-1';
+  sharedIntent.payload = {
+    content: 'shared private room',
+    spacePolicy: {
+      visibility: 'private',
+      participants: [signup.principal_id, peerSignup.principal_id],
+    },
+  };
+
+  const posted = await postItp(signup, identity, sharedIntent);
+  assert(posted.status === 200 && posted.parsed.type === 'INTENT', 'Expected shared private intent to post successfully');
+  if (posted.parsed.type === 'INTENT') {
+    assert(
+      posted.parsed.senderId === signup.principal_id,
+      `Expected shared private post sender to match requester principal, got ${posted.parsed.senderId} vs ${signup.principal_id}`,
+    );
+  }
+  const storedPolicy = (station as any).store.getSpacePolicy('http-private-shared-1');
+  assert(
+    Array.isArray(storedPolicy?.participants) && storedPolicy.participants.includes(signup.principal_id) && storedPolicy.participants.includes(peerSignup.principal_id),
+    `Expected shared private policy to be stored for requester=${signup.principal_id} peer=${peerSignup.principal_id}, got ${JSON.stringify(storedPolicy)}`,
+  );
+
+  const sharedFollowup = createIntent(signup.principal_id, 'shared followup');
+  sharedFollowup.intentId = 'http-private-shared-1-followup';
+  sharedFollowup.parentId = 'http-private-shared-1';
+  sharedFollowup.payload = {
+    content: 'visible only to named participants',
+  };
+  const followupPosted = await postItp(signup, identity, sharedFollowup);
+  assert(
+    followupPosted.status === 200 && followupPosted.parsed.type === 'INTENT',
+    `Expected follow-up act inside private shared space, got status=${followupPosted.status} parsed=${JSON.stringify(followupPosted.parsed)}`,
+  );
+
+  const peerScan = await scanSpace(peerSignup, peerIdentity, 'http-private-shared-1');
+  assert(
+    peerScan.status === 200 && peerScan.parsed.type === 'SCAN_RESULT',
+    `Expected named peer to scan shared private space, got status=${peerScan.status} parsed=${JSON.stringify(peerScan.parsed)}`,
+  );
+  if (peerScan.parsed.type === 'SCAN_RESULT') {
+    assert(
+      peerScan.parsed.messages.some((message) => message.intentId === 'http-private-shared-1-followup'),
+      'Expected peer scan to include a follow-up act inside the shared private space',
+    );
+  }
+
+  const outsiderScan = await scanSpace(outsiderSignup, outsiderIdentity, 'http-private-shared-1');
+  assert(outsiderScan.status === 401 && outsiderScan.parsed.type === 'ERROR', 'Expected outsider scan to be rejected');
+  if (outsiderScan.parsed.type === 'ERROR') {
+    assert(
+      outsiderScan.parsed.message.includes('Access denied to space http-private-shared-1'),
+      `Expected outsider denial message, got: ${outsiderScan.parsed.message}`,
+    );
+  }
+}
+
+// --- Test 8: /stream emits framed stored acts ---
 test('/stream emits framed stored acts over SSE');
 {
   const streamUrl = `${station.origin}/stream?space=root&since=${latestSeq}`;

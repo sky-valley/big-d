@@ -1,0 +1,9 @@
+INTENT
+sender: agent-1
+parent: root
+intent: project-room-1
+timestamp: 1712016060000
+payload-hint: application/json
+body-length: 129
+
+{"content":"Create a shared project room.","spacePolicy":{"visibility":"private","participants":["prn_alice","prn_bob"]}}

@@ -19,3 +19,4 @@ Fixtures included:
 - [`03-scan-result.itp`](/Users/noam/work/skyvalley/big-d/intent-space/fixtures/03-scan-result.itp)
 - [`04-auth-request.itp`](/Users/noam/work/skyvalley/big-d/intent-space/fixtures/04-auth-request.itp)
 - [`05-accept.itp`](/Users/noam/work/skyvalley/big-d/intent-space/fixtures/05-accept.itp)
+- [`06-intent-private-shared.itp`](/Users/noam/work/skyvalley/big-d/intent-space/fixtures/06-intent-private-shared.itp)
