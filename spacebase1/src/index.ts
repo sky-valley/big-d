@@ -25,6 +25,7 @@ import {
   type PrincipalHomeRecord as SharedPrincipalHomeRecord,
   type SharedSpaceDeliveryObligation as SharedSpaceDeliveryObligationRecord,
 } from './shared-spaces.ts';
+import { syncSharedSpaceInvitations } from './shared-space-delivery.ts';
 import type {
   Env,
   HostedSpaceRecord,
@@ -856,50 +857,33 @@ export class HostedSpace {
   }
 
   private async syncPendingInvitations(origin: string, state: HostedSpaceRecord): Promise<void> {
-    if (state.kind !== 'home-space' || !state.principalId) return;
-    const response = await controlFetch(this.env, origin, '/pending-shared-space-deliveries', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        principalId: state.principalId,
-        homeSpaceId: state.spaceId,
-      }),
-    });
-    if (!response.ok) return;
-    const obligations = (await response.json()) as SharedSpaceDeliveryObligationRecord[];
-    if (obligations.length === 0) return;
-
-    const messages = (await this.state.storage.get<StoredMessage[]>('messages')) ?? [];
-    const seenIntentIds = new Set(messages.map((message) => message.intentId).filter((value): value is string => typeof value === 'string'));
-
-    for (const obligation of obligations) {
-      if (seenIntentIds.has(obligation.invitationIntentId)) {
-        await controlFetch(this.env, origin, '/mark-shared-space-delivery', {
+    await syncSharedSpaceInvitations(state, {
+      listObligations: async () => {
+        if (!state.principalId) return [];
+        const response = await controlFetch(this.env, origin, '/pending-shared-space-deliveries', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            obligationId: obligation.obligationId,
-            deliveredAt: new Date().toISOString(),
+            principalId: state.principalId,
+            homeSpaceId: state.spaceId,
           }),
         });
-        continue;
-      }
-      await appendStoredMessage(this.state, {
-        type: 'INTENT',
-        intentId: obligation.invitationIntentId,
-        parentId: topLevelSpaceId(state),
-        senderId: state.stewardId,
-        payload: buildSharedSpaceInvitationPayload(obligation),
-      });
-      await controlFetch(this.env, origin, '/mark-shared-space-delivery', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          obligationId: obligation.obligationId,
-          deliveredAt: new Date().toISOString(),
-        }),
-      });
-    }
+        if (!response.ok) return [];
+        return (await response.json()) as SharedSpaceDeliveryObligationRecord[];
+      },
+      loadMessages: async () => (await this.state.storage.get<StoredMessage[]>('messages')) ?? [],
+      appendInvitation: async (message) => {
+        await appendStoredMessage(this.state, message);
+      },
+      markDelivered: async (obligationId, deliveredAt) => {
+        await controlFetch(this.env, origin, '/mark-shared-space-delivery', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ obligationId, deliveredAt }),
+        });
+      },
+      nowIso: () => new Date().toISOString(),
+    });
   }
 
   async fetch(request: Request): Promise<Response> {
