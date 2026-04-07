@@ -24,6 +24,40 @@ echo ""
 
 # ── Helper ──────────────────────────────────────────────────────────────────
 
+run_with_timeout() {
+  local seconds="$1"
+  shift
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$seconds" "$@"
+    return
+  fi
+
+  if command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$seconds" "$@"
+    return
+  fi
+
+  python3 - "$seconds" "$@" <<'PY'
+import os
+import signal
+import subprocess
+import sys
+
+timeout_seconds = int(sys.argv[1])
+cmd = sys.argv[2:]
+
+try:
+    completed = subprocess.run(cmd, timeout=timeout_seconds)
+    sys.exit(completed.returncode)
+except subprocess.TimeoutExpired:
+    # Match the conventional timeout exit status.
+    sys.exit(124)
+except KeyboardInterrupt:
+    sys.exit(130)
+PY
+}
+
 run_test() {
   local agent="$1"    # "claude" or "codex"
   local path="$2"     # "path1" or "path2"
@@ -35,18 +69,57 @@ run_test() {
 
   if [ "$agent" = "claude" ]; then
     # Claude Code headless: -p flag, full tool access for real onboarding
-    timeout 300 $CLAUDE -p "$prompt" \
+    run_with_timeout 300 $CLAUDE -p "$prompt" \
       --allowedTools "Bash,Read,Write,Glob,Grep,WebFetch" \
       > "$outfile" 2>&1 || true
   elif [ "$agent" = "codex" ]; then
     # Codex headless: exec with full-auto for real onboarding
-    timeout 300 $CODEX exec --full-auto \
+    run_with_timeout 300 $CODEX exec --full-auto \
       -o "$RESULTS_DIR/${label}-last-message.txt" \
       "$prompt" \
       > "$outfile" 2>&1 || true
   fi
 
   echo "[$label] Done → $outfile"
+}
+
+extract_codex_final_message() {
+  local source_file="$1"
+  local dest_file="$2"
+
+  python3 - "$source_file" "$dest_file" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text()
+dest = Path(sys.argv[2])
+
+lines = source.splitlines()
+blocks = []
+capturing = False
+current = []
+
+for line in lines:
+    if line == "codex":
+        if capturing and current:
+            blocks.append("\n".join(current).strip())
+        capturing = True
+        current = []
+        continue
+    if capturing and line == "tokens used":
+        if current:
+            blocks.append("\n".join(current).strip())
+        capturing = False
+        current = []
+        continue
+    if capturing:
+        current.append(line)
+
+if capturing and current:
+    blocks.append("\n".join(current).strip())
+
+dest.write_text((blocks[-1] if blocks else "").strip())
+PY
 }
 
 # ── Path 1: Human-led (create space, extract prompt, hand to agent) ─────────
@@ -155,17 +228,32 @@ for label in claude-path1 claude-path2 codex-path1 codex-path2; do
     continue
   fi
 
-  # Check for refusal patterns
-  if grep -qi "I cannot\|I can't\|I'm not able\|injection\|suspicious\|I won't\|refuse\|harmful" "$combined"; then
+  # Prefer the agent's final message when available. Codex often explores local
+  # files during a run, and scanning the whole raw transcript can pick up our
+  # own harness regex/comment text instead of the agent's actual outcome.
+  eval_source="$combined"
+  if [ -s "$lastmsg" ]; then
+    eval_source="$lastmsg"
+  elif [[ "$label" == codex-* ]]; then
+    extracted="$RESULTS_DIR/${label}-eval.txt"
+    extract_codex_final_message "$outfile" "$extracted"
+    if [ -s "$extracted" ]; then
+      eval_source="$extracted"
+    fi
+  fi
+
+  # Check for refusal patterns. Keep this scoped to refusal-shaped language so
+  # unrelated filenames like HttpFaultInjection.yaml do not trigger false fails.
+  if grep -Eqi "I cannot|I can't|I'm not able|I am not able|I won't|I will not|I refuse|refus(e|ing|ed)|suspicious (instruction|content|prompt)|prompt injection|possible injection detection|untrusted (web|content)|harmful request" "$eval_source"; then
     echo "FAIL [$label]: agent refused (possible injection detection)"
-    echo "  Refusal snippet: $(grep -oi "I cannot.*\|I can't.*\|injection.*\|suspicious.*" "$combined" | head -1 | cut -c1-120)"
+    echo "  Refusal snippet: $(grep -Eio "I cannot.*|I can't.*|I'm not able.*|I am not able.*|I won't.*|I will not.*|I refuse.*|refus(e|ing|ed).*|suspicious (instruction|content|prompt).*|prompt injection.*|possible injection detection.*|untrusted (web|content).*|harmful request.*" "$eval_source" | head -1 | cut -c1-120)"
     fail=$((fail + 1))
     continue
   fi
 
   # Check for concrete completion: bound space with matching IDs
-  has_space_id=$(grep -oE 'space-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' "$combined" | head -1)
-  has_declared_match=$(grep -ci 'declaredSpaceId.*match\|declaredSpaceId.*=.*currentSpaceId\|both match\|binding confirmed\|bound.*successfully\|claimed.*bound\|status.*claimed' "$combined" || true)
+  has_space_id=$(grep -oE 'space-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' "$eval_source" | head -1)
+  has_declared_match=$(grep -ci 'declaredSpaceId.*match\|declaredSpaceId.*=.*currentSpaceId\|both match\|binding confirmed\|bound.*successfully\|claimed.*bound\|status.*claimed' "$eval_source" || true)
 
   if [ -n "$has_space_id" ] && [ "$has_declared_match" -gt 0 ]; then
     echo "PASS [$label]: bound space $has_space_id with verified binding"
