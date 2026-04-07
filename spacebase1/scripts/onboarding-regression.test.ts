@@ -74,16 +74,12 @@ describe('agent-setup page (Path 2: agent-led)', () => {
     }
   });
 
-  it('contains a curl one-liner for Claude Code skill installation', async () => {
+  it('links to the SKILL.md without embedding executable commands', async () => {
     const markdown = await renderAgentSetup(TEST_ORIGIN).text();
-    expect(markdown).toContain('mkdir -p ~/.claude/skills/spacebase1-onboard');
-    expect(markdown).toContain('curl -fsSL');
     expect(markdown).toContain('spacebase1-onboard.SKILL.md');
-  });
-
-  it('contains a curl one-liner for Codex skill installation', async () => {
-    const markdown = await renderAgentSetup(TEST_ORIGIN).text();
-    expect(markdown).toContain('mkdir -p ~/.codex/skills/spacebase1-onboard');
+    // Must NOT contain inline install commands — those belong in the SKILL.md
+    expect(markdown).not.toContain('mkdir -p');
+    expect(markdown).not.toContain('curl -fsSL');
   });
 
   it('describes Spacebase1 factually rather than imperatively', async () => {

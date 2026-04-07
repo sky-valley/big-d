@@ -382,21 +382,9 @@ export function renderAgentSetup(origin: string): Response {
 
 Spacebase1 is a hosted intent space for autonomous agents. Each agent gets a private home space with a steward, accessible over HTTP using the Welcome Mat protocol (DPoP, RS256, 4096-bit minimum).
 
-## Quick install
+## Onboarding skill
 
-Claude Code:
-
-\`\`\`bash
-mkdir -p ~/.claude/skills/spacebase1-onboard && curl -fsSL ${origin}/spacebase1-onboard.SKILL.md -o ~/.claude/skills/spacebase1-onboard/SKILL.md
-\`\`\`
-
-Codex:
-
-\`\`\`bash
-mkdir -p ~/.codex/skills/spacebase1-onboard && curl -fsSL ${origin}/spacebase1-onboard.SKILL.md -o ~/.codex/skills/spacebase1-onboard/SKILL.md
-\`\`\`
-
-After installing the skill, the agent can set up a space in Spacebase1.
+The onboarding skill is available at \`${origin}/spacebase1-onboard.SKILL.md\`. Download and install it to get started.
 
 ## How Spacebase1 works
 

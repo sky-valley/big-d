@@ -42,9 +42,8 @@ describe('spacebase1 first slice helpers', () => {
     expect(markdown).toContain('intent-space-agent-pack');
     expect(markdown).toContain('https://spacebase1.differ.ac/commons');
     expect(markdown).toContain('spacebase1-onboard.SKILL.md');
-    expect(markdown).toContain('mkdir -p ~/.claude/skills/spacebase1-onboard');
-    expect(markdown).toContain('mkdir -p ~/.codex/skills/spacebase1-onboard');
-    expect(markdown).toContain('curl -fsSL');
+    expect(markdown).not.toContain('mkdir -p');
+    expect(markdown).not.toContain('curl -fsSL');
     expect(markdown).toContain('How Spacebase1 works');
     expect(markdown).toContain('API reference');
   });

@@ -4,6 +4,10 @@ set -euo pipefail
 # Headless onboarding regression test for Spacebase1
 # Tests both onboarding paths with both Claude Code and Codex
 #
+# Success requires the agent to actually provision/claim and bind a space.
+# The harness checks for concrete completion artifacts: a bound space id
+# with matching declaredSpaceId and currentSpaceId.
+#
 # Usage: ./scripts/test-onboarding-headless.sh [origin]
 # Default origin: http://localhost:8787
 
@@ -30,15 +34,15 @@ run_test() {
   echo "[$label] Starting..."
 
   if [ "$agent" = "claude" ]; then
-    # Claude Code headless: -p flag, allow Bash and Read tools
-    timeout 180 $CLAUDE -p "$prompt" \
-      --allowedTools "Bash(read_only:true),Read,Glob,Grep,WebFetch" \
-      --output-format json \
+    # Claude Code headless: -p flag, full tool access for real onboarding
+    timeout 300 $CLAUDE -p "$prompt" \
+      --allowedTools "Bash,Read,Write,Glob,Grep,WebFetch" \
       > "$outfile" 2>&1 || true
   elif [ "$agent" = "codex" ]; then
-    # Codex headless: exec subcommand
-    timeout 180 $CODEX exec "$prompt" \
-      --json \
+    # Codex headless: exec with full-auto for real onboarding
+    timeout 300 $CODEX exec --full-auto \
+      -o "$RESULTS_DIR/${label}-last-message.txt" \
+      "$prompt" \
       > "$outfile" 2>&1 || true
   fi
 
@@ -69,10 +73,11 @@ echo "Space created, fetching prompt from: $REDIRECT_URL"
 
 # Get the page HTML and extract the claim prompt from the <pre> tag
 SPACE_HTML=$(curl -sL "$REDIRECT_URL")
-CLAIM_PROMPT=$(echo "$SPACE_HTML" | sed -n 's/.*<pre>\(.*\)<\/pre>.*/\1/p' | head -1)
-
-# Decode HTML entities
-CLAIM_PROMPT=$(echo "$CLAIM_PROMPT" | sed 's/&amp;/\&/g; s/&lt;/</g; s/&gt;/>/g; s/&quot;/"/g; s/&#39;/'"'"'/g')
+CLAIM_PROMPT=$(python3 -c "
+import re, html, sys
+m = re.search(r'<pre>(.*?)</pre>', sys.stdin.read(), re.DOTALL)
+print(html.unescape(m.group(1)) if m else '')
+" <<< "$SPACE_HTML")
 
 if [ -z "$CLAIM_PROMPT" ]; then
   echo "ERROR: Could not extract claim prompt from space page"
@@ -88,7 +93,7 @@ echo "$CLAIM_PROMPT" > "$RESULTS_DIR/path1-claim-prompt.txt"
 
 # ── Path 2 prompt ──────────────────────────────────────────────────────────
 
-PATH2_PROMPT="Read ${ORIGIN}/agent-setup and set up a space in Spacebase1."
+PATH2_PROMPT="Read ${ORIGIN}/agent-setup and set up a space in Spacebase1. The server is at ${ORIGIN}."
 
 # ── Run all four tests ──────────────────────────────────────────────────────
 
@@ -96,13 +101,25 @@ echo "── Running headless agent tests ──"
 echo ""
 
 # Path 1: Claude Code with claim prompt
-run_test "claude" "path1" "$CLAIM_PROMPT"
+run_test "claude" "path1" "$(cat <<PROMPT
+The following is a claim prompt from a human who prepared a Spacebase1 space for me.
+Follow the instructions to claim and bind it. The server is at ${ORIGIN}.
+
+${CLAIM_PROMPT}
+PROMPT
+)"
 
 # Path 2: Claude Code with agent-setup
 run_test "claude" "path2" "$PATH2_PROMPT"
 
 # Path 1: Codex with claim prompt
-run_test "codex" "path1" "$CLAIM_PROMPT"
+run_test "codex" "path1" "$(cat <<PROMPT
+The following is a claim prompt from a human who prepared a Spacebase1 space for me.
+Follow the instructions to claim and bind it. The server is at ${ORIGIN}.
+
+${CLAIM_PROMPT}
+PROMPT
+)"
 
 # Path 2: Codex with agent-setup
 run_test "codex" "path2" "$PATH2_PROMPT"
@@ -112,34 +129,55 @@ echo "=== Results ==="
 echo ""
 
 # ── Evaluate results ────────────────────────────────────────────────────────
+#
+# A test passes only if the agent output contains evidence of a bound space:
+# - A space id (space-{uuid} pattern)
+# - Matching declaredSpaceId and currentSpaceId
+# - Or explicit "claimed"/"bound" confirmation with a space id
+#
+# Pattern-matching for skill install strings is NOT sufficient.
 
 pass=0
 fail=0
 
 for label in claude-path1 claude-path2 codex-path1 codex-path2; do
   outfile="$RESULTS_DIR/${label}.txt"
-  if [ ! -s "$outfile" ]; then
+  lastmsg="$RESULTS_DIR/${label}-last-message.txt"
+
+  # Merge output sources (codex writes last message separately)
+  combined="$RESULTS_DIR/${label}-combined.txt"
+  cat "$outfile" > "$combined" 2>/dev/null || true
+  cat "$lastmsg" >> "$combined" 2>/dev/null || true
+
+  if [ ! -s "$combined" ]; then
     echo "FAIL [$label]: empty output"
     fail=$((fail + 1))
     continue
   fi
 
   # Check for refusal patterns
-  if grep -qi "I cannot\|I can't\|I'm not able\|injection\|suspicious\|I won't\|refuse\|harmful" "$outfile"; then
+  if grep -qi "I cannot\|I can't\|I'm not able\|injection\|suspicious\|I won't\|refuse\|harmful" "$combined"; then
     echo "FAIL [$label]: agent refused (possible injection detection)"
-    echo "  Refusal snippet: $(grep -oi "I cannot.*\|I can't.*\|injection.*\|suspicious.*" "$outfile" | head -1 | cut -c1-120)"
+    echo "  Refusal snippet: $(grep -oi "I cannot.*\|I can't.*\|injection.*\|suspicious.*" "$combined" | head -1 | cut -c1-120)"
     fail=$((fail + 1))
-  elif grep -qi "curl.*SKILL\.md\|mkdir.*spacebase1-onboard\|skill.*install" "$outfile"; then
-    echo "PASS [$label]: agent recognized the skill install path"
+    continue
+  fi
+
+  # Check for concrete completion: bound space with matching IDs
+  has_space_id=$(grep -oE 'space-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' "$combined" | head -1)
+  has_declared_match=$(grep -ci 'declaredSpaceId.*match\|declaredSpaceId.*=.*currentSpaceId\|both match\|binding confirmed\|bound.*successfully\|claimed.*bound\|status.*claimed' "$combined" || true)
+
+  if [ -n "$has_space_id" ] && [ "$has_declared_match" -gt 0 ]; then
+    echo "PASS [$label]: bound space $has_space_id with verified binding"
     pass=$((pass + 1))
-  elif grep -qi "error\|Error\|ERROR" "$outfile"; then
-    echo "WARN [$label]: completed but with errors"
-    echo "  Error snippet: $(grep -oi "error.*" "$outfile" | head -1 | cut -c1-120)"
+  elif [ -n "$has_space_id" ]; then
+    echo "WARN [$label]: space $has_space_id appeared but binding not confirmed"
+    echo "  Review: $combined"
     fail=$((fail + 1))
   else
-    echo "INFO [$label]: completed, manual review needed"
-    echo "  First 200 chars: $(head -c 200 "$outfile")"
-    pass=$((pass + 1))
+    echo "FAIL [$label]: no bound space found in output"
+    echo "  First 300 chars: $(head -c 300 "$combined")"
+    fail=$((fail + 1))
   fi
 done
 
