@@ -4,6 +4,17 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const HEADER_TERMINATOR = encoder.encode('\n\n');
 const ITP_VERBS = new Set(['INTENT', 'PROMISE', 'DECLINE', 'ACCEPT', 'COMPLETE', 'ASSESS']);
+const REQUIRED_HEADERS: Record<string, string[]> = {
+  INTENT: ['sender', 'parent', 'intent', 'timestamp', 'body-length'],
+  PROMISE: ['sender', 'parent', 'intent', 'promise', 'timestamp', 'body-length'],
+  DECLINE: ['sender', 'parent', 'intent', 'timestamp', 'body-length'],
+  ACCEPT: ['sender', 'parent', 'promise', 'timestamp', 'body-length'],
+  COMPLETE: ['sender', 'parent', 'promise', 'timestamp', 'body-length'],
+  ASSESS: ['sender', 'parent', 'promise', 'timestamp', 'body-length'],
+  SCAN: ['space', 'since', 'body-length'],
+  SCAN_RESULT: ['space', 'latest-seq', 'body-length'],
+  ERROR: ['body-length'],
+};
 
 export interface FramedMessage {
   verb: string;
@@ -33,11 +44,11 @@ export function parseSingleFramedMessage(buffer: Uint8Array): FramedMessage {
   const headers: Record<string, string> = {};
   for (const rawLine of lines) {
     if (!rawLine) throw new FrameParseError('Unexpected empty header line');
-    const separator = rawLine.indexOf(':');
+    const separator = rawLine.indexOf(': ');
     if (separator <= 0) throw new FrameParseError(`Malformed header line: ${rawLine}`);
     const name = rawLine.slice(0, separator).trim();
-    const value = rawLine.slice(separator + 1).trim();
-    if (!/^[a-z0-9-]+$/.test(name)) throw new FrameParseError(`Invalid header name: ${name}`);
+    const value = rawLine.slice(separator + 2).trim();
+    if (!/^[a-z-]+$/.test(name)) throw new FrameParseError(`Invalid header name: ${name}`);
     if (headers[name] != null) throw new FrameParseError(`Duplicate header: ${name}`);
     headers[name] = value;
   }
@@ -65,10 +76,11 @@ export function serializeFramedMessage(message: FramedMessage): Uint8Array {
 
 export function frameToScanRequest(frame: FramedMessage): ScanRequest {
   if (frame.verb !== 'SCAN') throw new FrameParseError(`Expected SCAN frame, got ${frame.verb}`);
+  assertRequiredHeaders(frame);
   return {
     type: 'SCAN',
     spaceId: requireHeader(frame, 'space'),
-    since: parseIntegerHeader(frame, 'since'),
+    since: parseNonNegativeIntegerHeader(frame, 'since'),
   };
 }
 
@@ -76,14 +88,15 @@ export function frameToItpMessage(frame: FramedMessage): Omit<StoredMessage, 'se
   if (!ITP_VERBS.has(frame.verb)) {
     throw new FrameParseError(`Unsupported ITP verb: ${frame.verb}`);
   }
+  assertRequiredHeaders(frame);
   const payload = decodeJson<Record<string, unknown>>(frame);
   return {
     type: frame.verb,
     senderId: requireHeader(frame, 'sender'),
-    parentId: frame.headers.parent ?? 'root',
+    parentId: requireHeader(frame, 'parent'),
     intentId: frame.headers.intent,
     promiseId: frame.headers.promise,
-    timestamp: parseIntegerHeader(frame, 'timestamp'),
+    timestamp: parseNonNegativeIntegerHeader(frame, 'timestamp'),
     payload,
   };
 }
@@ -127,24 +140,26 @@ export function serverMessageToFrame(message: ServerMessage): FramedMessage {
 
 export function frameToServerMessage(frame: FramedMessage): ServerMessage {
   if (frame.verb === 'SCAN_RESULT') {
+    assertRequiredHeaders(frame);
     return {
       type: 'SCAN_RESULT',
       spaceId: requireHeader(frame, 'space'),
-      latestSeq: parseIntegerHeader(frame, 'latest-seq'),
+      latestSeq: parseNonNegativeIntegerHeader(frame, 'latest-seq'),
       messages: decodeJson<StoredMessage[]>(frame),
     };
   }
   if (frame.verb === 'ERROR') {
+    assertRequiredHeaders(frame);
     return { type: 'ERROR', message: decoder.decode(frame.body) };
   }
   const message = frameToItpMessage(frame) as MessageEcho;
-  message.seq = parseIntegerHeader(frame, 'seq');
+  message.seq = parseNonNegativeIntegerHeader(frame, 'seq');
   return message;
 }
 
-function parseIntegerHeader(frame: FramedMessage, name: string): number {
+function parseNonNegativeIntegerHeader(frame: FramedMessage, name: string): number {
   const raw = requireHeader(frame, name);
-  if (!/^-?\d+$/.test(raw)) throw new FrameParseError(`${name} must be an integer`);
+  if (!/^\d+$/.test(raw)) throw new FrameParseError(`${name} must be a non-negative integer`);
   return Number.parseInt(raw, 10);
 }
 
@@ -168,4 +183,11 @@ function decodeJson<T>(frame: FramedMessage): T {
 
 function withOptional(headers: Record<string, string | undefined>): Record<string, string> {
   return Object.fromEntries(Object.entries(headers).filter(([, value]) => value != null)) as Record<string, string>;
+}
+
+function assertRequiredHeaders(frame: FramedMessage): void {
+  const required = REQUIRED_HEADERS[frame.verb] ?? [];
+  for (const header of required) {
+    requireHeader(frame, header);
+  }
 }
