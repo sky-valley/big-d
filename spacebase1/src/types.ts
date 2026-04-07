@@ -24,13 +24,14 @@ export interface PreparedSpaceRecord {
 export interface HostedSpaceRecord {
   spaceId: string;
   status: 'prepared' | 'claimed';
-  kind?: 'commons' | 'prepared-space' | 'home-space';
+  kind?: 'commons' | 'prepared-space' | 'home-space' | 'shared-space';
   intendedAgentLabel: string;
   createdAt: string;
   stewardId: string;
   serviceIntentId: string;
   serviceIntentContent: string;
   audience: string;
+  participantPrincipalIds?: string[];
   handle?: string;
   principalId?: string;
 }
@@ -160,8 +161,9 @@ export interface SpaceBootstrapInput {
   status: 'prepared' | 'claimed';
   createdAt: string;
   audience: string;
-  kind?: 'commons' | 'prepared-space' | 'home-space';
+  kind?: 'commons' | 'prepared-space' | 'home-space' | 'shared-space';
   serviceIntentContent?: string;
+  participantPrincipalIds?: string[];
 }
 
 export interface ProvisionSpaceRequest {
@@ -170,4 +172,65 @@ export interface ProvisionSpaceRequest {
   requestedByPrincipalId: string;
   requestedByHandle: string;
   sourceIntentId: string;
+}
+
+export interface PrincipalHomeRecord {
+  principalId: string;
+  handle: string;
+  homeSpaceId: string;
+  jkt: string;
+}
+
+export interface SharedSpaceAccessMaterial {
+  stationToken: string;
+  audience: string;
+  itpEndpoint: string;
+  scanEndpoint: string;
+  streamEndpoint: string;
+  spaceId: string;
+}
+
+export interface SharedSpaceDeliveryObligation {
+  obligationId: string;
+  sharedSpaceId: string;
+  participantPrincipalId: string;
+  participantHandle: string;
+  homeSpaceId: string;
+  requesterPrincipalId: string;
+  participantPrincipalIds: string[];
+  invitationIntentId: string;
+  access: SharedSpaceAccessMaterial;
+  deliveredAt?: string;
+}
+
+export interface SharedSpaceRecord {
+  spaceId: string;
+  status: 'claimed';
+  kind: 'shared-space';
+  createdAt: string;
+  requestedByPrincipalId: string;
+  requestedByHandle: string;
+  sourceIntentId: string;
+  participantPrincipalIds: string[];
+  audience: string;
+}
+
+export interface SharedSpaceProvisionBundle {
+  origin: string;
+  sharedSpaceId: string;
+  participantPrincipalIds: string[];
+  requesterPrincipalId: string;
+  invitationCount: number;
+}
+
+export interface SharedSpaceRequestRecord {
+  intentId: string;
+  promiseId: string;
+  requestedByPrincipalId: string;
+  requestedByHandle: string;
+  participantPrincipalIds: string[];
+  requestedAt: string;
+  acceptedAt?: string;
+  completedAt?: string;
+  bundle?: SharedSpaceProvisionBundle;
 }

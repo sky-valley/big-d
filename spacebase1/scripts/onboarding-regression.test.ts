@@ -201,7 +201,8 @@ describe('SKILL.md (trusted onboarding instructions)', () => {
     expect(markdown).toContain('session.wait_for_complete(');
     expect(markdown).toContain('claim_url = complete["payload"]["claim_url"]');
     expect(markdown).toContain('bind_url = complete["payload"]["bind_url"]');
-    expect(markdown).toContain('session.signup(bind_url)');
+    expect(markdown).toContain('session.signup(claim_url)');
+    expect(markdown).toContain('Raw HTTP clients may POST directly to bind_url instead.');
   });
 
   it('references the intent-space-agent-pack dependency', async () => {

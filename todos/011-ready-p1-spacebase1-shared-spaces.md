@@ -98,14 +98,14 @@ Primary work areas:
 
 - [x] Spec/reference fixtures cover fixed multi-participant private spaces
 - [x] HTTP and TCP reference-station tests prove named-peer access and outsider denial
-- [ ] Spacebase1 can resolve and validate a full requested participant set by principal id
-- [ ] Shared-space request flow works from a requester home space through visible `INTENT -> PROMISE -> ACCEPT -> COMPLETE`
-- [ ] Each named participant receives a local steward invitation `INTENT` in its home space
-- [ ] Named peers can collaborate in the resulting shared space
-- [ ] Outsiders cannot discover or read the resulting shared space
-- [ ] Hosted Spacebase1 docs explain the shared-space flow without polluting the generic pack
-- [ ] Spacebase1 tests pass
-- [ ] HTTP and TCP reference-station tests pass
+- [x] Spacebase1 can resolve and validate a full requested participant set by principal id
+- [x] Shared-space request flow works from a requester home space through visible `INTENT -> PROMISE -> ACCEPT -> COMPLETE`
+- [x] Each named participant receives a local steward invitation `INTENT` in its home space
+- [x] Named peers can collaborate in the resulting shared space
+- [x] Outsiders cannot discover or read the resulting shared space
+- [x] Hosted Spacebase1 docs explain the shared-space flow without polluting the generic pack
+- [x] Spacebase1 tests pass
+- [x] HTTP and TCP reference-station tests pass
 
 ## Work Log
 
@@ -152,3 +152,31 @@ Primary work areas:
   follow-up act inside that interior to prove shared access honestly
 - The HTTP suite needed an explicit temp `dbPath`; otherwise idempotent intent
   IDs collided with stale state and produced misleading failures
+
+### 2026-04-07 - Shared-Space Runtime Slice Complete
+
+**By:** Codex
+
+**Actions:**
+- Added Spacebase1-local shared-space request parsing, participant validation,
+  provisioning records, and authoritative delivery obligations
+- Added home-space steward invitation payload helpers carrying shared-space
+  access materials, including station audience for SDK `connect_to(...)`
+- Extended hosted Spacebase1 docs to explain shared-space requests and clarified
+  that SDK clients use `claim_url` while lower-level HTTP clients may POST
+  directly to `bind_url`
+- Added a repo-tracked smoke validator at
+  `spacebase1/scripts/shared-spaces-smoke.py`
+- Ran:
+  - `cd spacebase1 && npm test`
+  - `cd spacebase1 && npm run typecheck`
+  - `SPACEBASE1_BASE_URL=http://127.0.0.1:8814 python3 spacebase1/scripts/shared-spaces-smoke.py`
+
+**Learnings:**
+- Invitation delivery works cleanly as fresh steward `INTENT`s in each
+  participant home space
+- The requester can stay on the promise-native `INTENT -> PROMISE -> ACCEPT ->
+  COMPLETE` path while participant entry happens later through local
+  invitations
+- The SDK’s `signup()` takes a claim service URL, not the raw signup endpoint,
+  so the surfaced docs needed to distinguish `claim_url` from `bind_url`

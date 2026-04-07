@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { claimWelcomeMarkdown, normalizeHandle, signupErrorResponse, validateClaimSignup, validateSignupRequestBody } from '../src/claim-auth.ts';
 import { generateFriendlyAgentLabel } from '../src/name-generator.ts';
+import { buildSharedSpaceInvitationPayload, parseSharedSpaceRequest, validateSharedSpaceParticipants } from '../src/shared-spaces.ts';
 import { buildClaimPrompt, renderAgentSetup, renderHomepage, renderSkillFile } from '../src/templates.ts';
 
 describe('spacebase1 first slice helpers', () => {
@@ -46,6 +47,7 @@ describe('spacebase1 first slice helpers', () => {
     expect(markdown).not.toContain('curl -fsSL');
     expect(markdown).toContain('How Spacebase1 works');
     expect(markdown).toContain('API reference');
+    expect(markdown).toContain('Shared spaces');
   });
 
   it('renders a valid SKILL.md with both onboarding paths', async () => {
@@ -58,6 +60,7 @@ describe('spacebase1 first slice helpers', () => {
     expect(markdown).toContain('intent-space-agent-pack');
     expect(markdown).toContain('session.verify_space_binding()');
     expect(markdown).toContain('Success condition');
+    expect(markdown).toContain('Path 3: Request a shared space');
   });
 
   it('keeps the homepage human-centered while lightly pointing at agent setup', async () => {
@@ -161,6 +164,82 @@ describe('spacebase1 first slice helpers', () => {
       field: 'dpop',
       expected: 'a dpop+jwt proof header bound to this signup POST',
       hint: 'Include a DPoP header on the signup request itself.',
+    });
+  });
+
+  it('parses shared-space requests from product payloads only', () => {
+    expect(parseSharedSpaceRequest({
+      requestedSpace: {
+        kind: 'shared',
+        participant_principals: ['prn-b', 'prn-a', ''],
+      },
+    })).toEqual({
+      participantPrincipalIds: ['prn-b', 'prn-a'],
+    });
+
+    expect(parseSharedSpaceRequest({
+      requestedSpace: {
+        kind: 'home',
+      },
+    })).toBeNull();
+  });
+
+  it('validates shared-space participants as explicit principals with bound homes', () => {
+    const knownHomes = new Map([
+      ['prn-a', { principalId: 'prn-a', handle: 'alpha', homeSpaceId: 'space-a', jkt: 'jkt-a' }],
+      ['prn-b', { principalId: 'prn-b', handle: 'beta', homeSpaceId: 'space-b', jkt: 'jkt-b' }],
+    ]);
+
+    expect(validateSharedSpaceParticipants('prn-a', ['prn-b', 'prn-a', 'prn-b'], knownHomes)).toEqual({
+      ok: true,
+      participantPrincipalIds: ['prn-a', 'prn-b'],
+    });
+
+    expect(validateSharedSpaceParticipants('prn-a', ['prn-b'], knownHomes)).toEqual({
+      ok: false,
+      error: 'requester_not_included',
+      detail: 'The requester must be one of the named participants.',
+    });
+
+    expect(validateSharedSpaceParticipants('prn-a', ['prn-a', 'prn-c'], knownHomes)).toEqual({
+      ok: false,
+      error: 'unknown_principal',
+      detail: 'Every named participant must already exist in Spacebase1.',
+      unresolvedPrincipalIds: ['prn-c'],
+    });
+  });
+
+  it('builds invitation payloads with shared-space access materials', () => {
+    expect(buildSharedSpaceInvitationPayload({
+      obligationId: 'obl-1',
+      sharedSpaceId: 'space-shared-1',
+      participantPrincipalId: 'prn-b',
+      participantHandle: 'beta',
+      homeSpaceId: 'space-b',
+      requesterPrincipalId: 'prn-a',
+      participantPrincipalIds: ['prn-a', 'prn-b'],
+      invitationIntentId: 'spacebase1:invite:space-shared-1:prn-b',
+      access: {
+        stationToken: 'station-token-1',
+        audience: 'https://spacebase1.differ.ac',
+        itpEndpoint: 'https://spacebase1.differ.ac/spaces/space-shared-1/itp',
+        scanEndpoint: 'https://spacebase1.differ.ac/spaces/space-shared-1/scan',
+        streamEndpoint: 'https://spacebase1.differ.ac/spaces/space-shared-1/stream',
+        spaceId: 'space-shared-1',
+      },
+    })).toEqual({
+      content: 'You are invited to shared space space-shared-1.',
+      shared_space_id: 'space-shared-1',
+      requester_principal_id: 'prn-a',
+      participant_principals: ['prn-a', 'prn-b'],
+      access: {
+        station_token: 'station-token-1',
+        audience: 'https://spacebase1.differ.ac',
+        itp_endpoint: 'https://spacebase1.differ.ac/spaces/space-shared-1/itp',
+        scan_endpoint: 'https://spacebase1.differ.ac/spaces/space-shared-1/scan',
+        stream_endpoint: 'https://spacebase1.differ.ac/spaces/space-shared-1/stream',
+        space_id: 'space-shared-1',
+      },
     });
   });
 });

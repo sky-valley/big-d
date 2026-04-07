@@ -18,13 +18,25 @@ import {
   serializeFramedMessage,
   serverMessageToFrame,
 } from './framing.ts';
+import {
+  buildSharedSpaceInvitationPayload,
+  parseSharedSpaceRequest,
+  validateSharedSpaceParticipants,
+  type PrincipalHomeRecord as SharedPrincipalHomeRecord,
+  type SharedSpaceDeliveryObligation as SharedSpaceDeliveryObligationRecord,
+} from './shared-spaces.ts';
 import type {
   Env,
   HostedSpaceRecord,
+  PrincipalHomeRecord,
   PreparedSpaceRecord,
   ProvisionSpaceRequest,
   ScanResult,
   ServerMessage,
+  SharedSpaceDeliveryObligation,
+  SharedSpaceProvisionBundle,
+  SharedSpaceRecord,
+  SharedSpaceRequestRecord,
   SpaceBootstrapInput,
   SpaceBundle,
   SpaceProvisionBundle,
@@ -112,6 +124,20 @@ function buildCommonsProfile(origin: string): ClaimProfile {
   };
 }
 
+function buildParticipationProfile(origin: string, spaceId: string): ClaimProfile {
+  return {
+    origin,
+    audience: audienceForSpace(spaceId),
+    claimServiceUrl: `${origin}/spaces/${spaceId}`,
+    welcomeUrl: `${origin}/spaces/${spaceId}/.well-known/welcome.md`,
+    signupUrl: `${origin}/spaces/${spaceId}/signup`,
+    termsUrl: `${origin}/spaces/${spaceId}/tos`,
+    itpUrl: `${origin}/spaces/${spaceId}/itp`,
+    scanUrl: `${origin}/spaces/${spaceId}/scan`,
+    streamUrl: `${origin}/spaces/${spaceId}/stream`,
+  };
+}
+
 function makeSpaceId(): string {
   return `space-${crypto.randomUUID()}`;
 }
@@ -124,6 +150,14 @@ function makeClaimToken(): string {
 
 function makePromiseId(): string {
   return `promise-${crypto.randomUUID()}`;
+}
+
+function makeObligationId(sharedSpaceId: string, participantPrincipalId: string): string {
+  return `obligation:${sharedSpaceId}:${participantPrincipalId}`;
+}
+
+function makeInvitationIntentId(sharedSpaceId: string, participantPrincipalId: string): string {
+  return `spacebase1:invite:${sharedSpaceId}:${participantPrincipalId}`;
 }
 
 function topLevelSpaceId(state: HostedSpaceRecord): string {
@@ -211,6 +245,66 @@ async function provisionHomeSpace(
     throw new Error(await response.text());
   }
   return (await response.json()) as SpaceProvisionBundle;
+}
+
+async function validateSharedSpaceRequest(
+  env: Env,
+  origin: string,
+  requesterPrincipalId: string,
+  participantPrincipalIds: string[],
+): Promise<{
+  ok: true;
+  participantPrincipalIds: string[];
+  homes: PrincipalHomeRecord[];
+} | {
+  ok: false;
+  error: string;
+  detail?: string;
+  unresolvedPrincipalIds?: string[];
+}> {
+  const response = await controlFetch(env, origin, '/validate-shared-space-request', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ requesterPrincipalId, participantPrincipalIds }),
+  });
+  return (await response.json()) as
+    | { ok: true; participantPrincipalIds: string[]; homes: PrincipalHomeRecord[] }
+    | { ok: false; error: string; detail?: string; unresolvedPrincipalIds?: string[] };
+}
+
+async function provisionSharedSpace(
+  env: Env,
+  origin: string,
+  body: {
+    requestedByPrincipalId: string;
+    requestedByHandle: string;
+    sourceIntentId: string;
+    participantPrincipalIds: string[];
+  },
+): Promise<SharedSpaceProvisionBundle> {
+  const response = await controlFetch(env, origin, '/provision-shared-space', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ origin, ...body }),
+  });
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+  return (await response.json()) as SharedSpaceProvisionBundle;
+}
+
+async function triggerHomeInvitationSync(
+  env: Env,
+  origin: string,
+  homeSpaceId: string,
+): Promise<void> {
+  const stub = env.SPACES.get(env.SPACES.idFromName(homeSpaceId));
+  await stub.fetch(
+    new Request(`${origin}/sync-deliveries`, {
+      method: 'POST',
+      headers: { 'x-spacebase-forwarded-url': `${origin}/spaces/${homeSpaceId}/sync-deliveries` },
+    }),
+  );
 }
 
 async function forwardToSpace(
@@ -454,6 +548,157 @@ export class SpacebaseControl {
       } satisfies SpaceProvisionBundle);
     }
 
+    if (request.method === 'POST' && url.pathname === '/validate-shared-space-request') {
+      const body = (await request.json()) as {
+        requesterPrincipalId: string;
+        participantPrincipalIds: string[];
+      };
+      const homes = await this.state.storage.list<PrincipalHomeRecord>({ prefix: 'home:' });
+      const knownHomes = new Map<string, PrincipalHomeRecord>(
+        Array.from(homes.values()).map((home) => [home.principalId, home]),
+      );
+      const validation = validateSharedSpaceParticipants(
+        body.requesterPrincipalId,
+        body.participantPrincipalIds,
+        knownHomes,
+      );
+      if (!validation.ok) {
+        return jsonResponse(validation, 400);
+      }
+      return jsonResponse({
+        ok: true,
+        participantPrincipalIds: validation.participantPrincipalIds,
+        homes: validation.participantPrincipalIds.map((principalId) => knownHomes.get(principalId)!),
+      });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/provision-shared-space') {
+      const body = (await request.json()) as {
+        origin: string;
+        requestedByPrincipalId: string;
+        requestedByHandle: string;
+        sourceIntentId: string;
+        participantPrincipalIds: string[];
+      };
+      const homes = await this.state.storage.list<PrincipalHomeRecord>({ prefix: 'home:' });
+      const knownHomes = new Map<string, PrincipalHomeRecord>(
+        Array.from(homes.values()).map((home) => [home.principalId, home]),
+      );
+      const validation = validateSharedSpaceParticipants(
+        body.requestedByPrincipalId,
+        body.participantPrincipalIds,
+        knownHomes,
+      );
+      if (!validation.ok) {
+        return jsonResponse(validation, 400);
+      }
+
+      const sharedSpaceId = makeSpaceId();
+      const createdAt = new Date().toISOString();
+      const profile = buildParticipationProfile(body.origin, sharedSpaceId);
+      const participants = validation.participantPrincipalIds.map((principalId) => knownHomes.get(principalId)!);
+      const record: SharedSpaceRecord = {
+        spaceId: sharedSpaceId,
+        status: 'claimed',
+        kind: 'shared-space',
+        createdAt,
+        requestedByPrincipalId: body.requestedByPrincipalId,
+        requestedByHandle: body.requestedByHandle,
+        sourceIntentId: body.sourceIntentId,
+        participantPrincipalIds: validation.participantPrincipalIds,
+        audience: profile.audience,
+      };
+      await this.state.storage.put(`shared-space:${sharedSpaceId}`, record);
+      await bootstrapHostedSpace(this.env, body.origin, {
+        spaceId: sharedSpaceId,
+        intendedAgentLabel: `shared-${validation.participantPrincipalIds.length}-peer-space`,
+        status: 'claimed',
+        createdAt,
+        audience: profile.audience,
+        kind: 'shared-space',
+        participantPrincipalIds: validation.participantPrincipalIds,
+        serviceIntentContent:
+          `This shared space exists for ${validation.participantPrincipalIds.length} named peers. The steward exists to orient the participants and help with follow-on provisioning.`,
+      });
+
+      for (const participant of participants) {
+        const issued = await issueStationSession(
+          participant.handle,
+          participant.principalId,
+          participant.jkt,
+          profile,
+          sharedSpaceId,
+        );
+        const sharedStub = this.env.SPACES.get(this.env.SPACES.idFromName(sharedSpaceId));
+        await sharedStub.fetch(
+          new Request(`${body.origin}/register-session`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              principalId: participant.principalId,
+              handle: participant.handle,
+              session: issued.session,
+            }),
+          }),
+        );
+        const obligation: SharedSpaceDeliveryObligation = {
+          obligationId: makeObligationId(sharedSpaceId, participant.principalId),
+          sharedSpaceId,
+          participantPrincipalId: participant.principalId,
+          participantHandle: participant.handle,
+          homeSpaceId: participant.homeSpaceId,
+          requesterPrincipalId: body.requestedByPrincipalId,
+          participantPrincipalIds: validation.participantPrincipalIds,
+          invitationIntentId: makeInvitationIntentId(sharedSpaceId, participant.principalId),
+          access: {
+            stationToken: issued.stationToken,
+            audience: issued.signup.station_audience,
+            itpEndpoint: issued.signup.itp_endpoint,
+            scanEndpoint: issued.signup.scan_endpoint,
+            streamEndpoint: issued.signup.stream_endpoint,
+            spaceId: sharedSpaceId,
+          },
+        };
+        await this.state.storage.put(`shared-delivery:${obligation.obligationId}`, obligation);
+        await triggerHomeInvitationSync(this.env, body.origin, participant.homeSpaceId);
+      }
+
+      return jsonResponse({
+        origin: body.origin,
+        sharedSpaceId,
+        participantPrincipalIds: validation.participantPrincipalIds,
+        requesterPrincipalId: body.requestedByPrincipalId,
+        invitationCount: validation.participantPrincipalIds.length,
+      } satisfies SharedSpaceProvisionBundle);
+    }
+
+    if (request.method === 'POST' && url.pathname === '/pending-shared-space-deliveries') {
+      const body = (await request.json()) as {
+        principalId: string;
+        homeSpaceId: string;
+      };
+      const deliveries = await this.state.storage.list<SharedSpaceDeliveryObligation>({ prefix: 'shared-delivery:' });
+      const pending = Array.from(deliveries.values()).filter((delivery) =>
+        delivery.participantPrincipalId === body.principalId
+        && delivery.homeSpaceId === body.homeSpaceId
+        && !delivery.deliveredAt,
+      );
+      return jsonResponse(pending);
+    }
+
+    if (request.method === 'POST' && url.pathname === '/mark-shared-space-delivery') {
+      const body = (await request.json()) as { obligationId: string; deliveredAt: string };
+      const existing = (await this.state.storage.get<SharedSpaceDeliveryObligation>(`shared-delivery:${body.obligationId}`)) ?? null;
+      if (!existing) {
+        return textResponse('Unknown delivery obligation\n', 404);
+      }
+      await this.state.storage.put(`shared-delivery:${body.obligationId}`, {
+        ...existing,
+        deliveredAt: body.deliveredAt,
+      });
+      return textResponse('ok\n');
+    }
+
     if (request.method === 'GET' && url.pathname.startsWith('/bundle/')) {
       const spaceId = url.pathname.slice('/bundle/'.length);
       const token = url.searchParams.get('token');
@@ -568,6 +813,14 @@ export class SpacebaseControl {
           handle: validated.handle,
         };
         await this.state.storage.put(`space:${spaceId}`, claimedRecord);
+        if (record.kind === 'home-space') {
+          await this.state.storage.put(`home:${principalId}`, {
+            principalId,
+            handle: validated.handle,
+            homeSpaceId: spaceId,
+            jkt: issued.session.jkt,
+          } satisfies SharedPrincipalHomeRecord);
+        }
         const stub = this.env.SPACES.get(this.env.SPACES.idFromName(spaceId));
         await stub.fetch(
           new Request(`${profile.origin}/claim-bind`, {
@@ -602,6 +855,53 @@ export class HostedSpace {
     return true;
   }
 
+  private async syncPendingInvitations(origin: string, state: HostedSpaceRecord): Promise<void> {
+    if (state.kind !== 'home-space' || !state.principalId) return;
+    const response = await controlFetch(this.env, origin, '/pending-shared-space-deliveries', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        principalId: state.principalId,
+        homeSpaceId: state.spaceId,
+      }),
+    });
+    if (!response.ok) return;
+    const obligations = (await response.json()) as SharedSpaceDeliveryObligationRecord[];
+    if (obligations.length === 0) return;
+
+    const messages = (await this.state.storage.get<StoredMessage[]>('messages')) ?? [];
+    const seenIntentIds = new Set(messages.map((message) => message.intentId).filter((value): value is string => typeof value === 'string'));
+
+    for (const obligation of obligations) {
+      if (seenIntentIds.has(obligation.invitationIntentId)) {
+        await controlFetch(this.env, origin, '/mark-shared-space-delivery', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            obligationId: obligation.obligationId,
+            deliveredAt: new Date().toISOString(),
+          }),
+        });
+        continue;
+      }
+      await appendStoredMessage(this.state, {
+        type: 'INTENT',
+        intentId: obligation.invitationIntentId,
+        parentId: topLevelSpaceId(state),
+        senderId: state.stewardId,
+        payload: buildSharedSpaceInvitationPayload(obligation),
+      });
+      await controlFetch(this.env, origin, '/mark-shared-space-delivery', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          obligationId: obligation.obligationId,
+          deliveredAt: new Date().toISOString(),
+        }),
+      });
+    }
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === 'POST' && url.pathname === '/bootstrap') {
@@ -631,6 +931,7 @@ export class HostedSpace {
         serviceIntentId,
         serviceIntentContent: String(serviceIntent.payload.content),
         audience: body.audience,
+        participantPrincipalIds: body.participantPrincipalIds,
       };
       await this.state.storage.put('state', record);
       await this.state.storage.put('messages', [serviceIntent]);
@@ -642,15 +943,42 @@ export class HostedSpace {
       const record = (await this.state.storage.get<HostedSpaceRecord>('state')) ?? null;
       if (!record) return textResponse('Space not initialized\n', 404);
       const body = (await request.json()) as { status: 'claimed'; principalId: string; handle: string; session: StationSession };
+      const updated: HostedSpaceRecord = record.kind === 'shared-space'
+        ? {
+            ...record,
+            status: body.status,
+            participantPrincipalIds: Array.from(new Set([...(record.participantPrincipalIds ?? []), body.principalId])),
+          }
+        : {
+            ...record,
+            status: body.status,
+            principalId: body.principalId,
+            handle: body.handle,
+          };
+      await this.state.storage.put('state', updated);
+      await this.state.storage.put(`session:${body.session.tokenHash}`, body.session);
+      return jsonResponse(updated);
+    }
+
+    if (request.method === 'POST' && url.pathname === '/register-session') {
+      const record = (await this.state.storage.get<HostedSpaceRecord>('state')) ?? null;
+      if (!record) return textResponse('Space not initialized\n', 404);
+      const body = (await request.json()) as { principalId: string; handle: string; session: StationSession };
       const updated: HostedSpaceRecord = {
         ...record,
-        status: body.status,
-        principalId: body.principalId,
-        handle: body.handle,
+        participantPrincipalIds: Array.from(new Set([...(record.participantPrincipalIds ?? []), body.principalId])),
       };
       await this.state.storage.put('state', updated);
       await this.state.storage.put(`session:${body.session.tokenHash}`, body.session);
       return jsonResponse(updated);
+    }
+
+    if (request.method === 'POST' && url.pathname === '/sync-deliveries') {
+      const state = (await this.state.storage.get<HostedSpaceRecord>('state')) ?? null;
+      if (!state) return textResponse('Space not initialized\n', 404);
+      const origin = normalizeOrigin(new URL(request.headers.get('x-spacebase-forwarded-url') ?? request.url));
+      await this.syncPendingInvitations(origin, state);
+      return textResponse('ok\n');
     }
 
     if (request.method === 'GET' && url.pathname === '/state') {
@@ -664,6 +992,8 @@ export class HostedSpace {
     if (url.pathname === '/scan' && request.method === 'POST') {
       const state = (await this.state.storage.get<HostedSpaceRecord>('state')) ?? null;
       if (!state) return textResponse('Space not initialized\n', 404);
+      const origin = normalizeOrigin(new URL(request.headers.get('x-spacebase-forwarded-url') ?? request.url));
+      await this.syncPendingInvitations(origin, state);
       try {
         await authenticateHttpRequest(
           request,
@@ -703,6 +1033,8 @@ export class HostedSpace {
     if (url.pathname === '/itp' && request.method === 'POST') {
       const state = (await this.state.storage.get<HostedSpaceRecord>('state')) ?? null;
       if (!state) return textResponse('Space not initialized\n', 404);
+      const origin = normalizeOrigin(new URL(request.headers.get('x-spacebase-forwarded-url') ?? request.url));
+      await this.syncPendingInvitations(origin, state);
       let auth;
       try {
         auth = await authenticateHttpRequest(
@@ -754,8 +1086,8 @@ export class HostedSpace {
             && !pending.completedAt
             && pending.requestedByPrincipalId === auth.principalId
           ) {
-            const origin = normalizeOrigin(new URL(request.headers.get('x-spacebase-forwarded-url') ?? request.url));
-            const bundle = pending.bundle ?? (await provisionHomeSpace(this.env, origin, {
+          const origin = normalizeOrigin(new URL(request.headers.get('x-spacebase-forwarded-url') ?? request.url));
+          const bundle = pending.bundle ?? (await provisionHomeSpace(this.env, origin, {
               origin,
               intendedAgentLabel: pending.requestedByHandle,
               requestedByPrincipalId: pending.requestedByPrincipalId,
@@ -788,6 +1120,91 @@ export class HostedSpace {
             });
           }
         }
+        if (state.kind === 'home-space' && stored.type === 'INTENT' && stored.parentId === topLevelSpaceId(state) && stored.intentId && auth.principalId === state.principalId) {
+          const sharedRequest = parseSharedSpaceRequest(stored.payload);
+          if (sharedRequest) {
+            const validation = await validateSharedSpaceRequest(
+              this.env,
+              origin,
+              auth.principalId,
+              sharedRequest.participantPrincipalIds,
+            );
+            if (!validation.ok) {
+              await appendStoredMessage(this.state, {
+                type: 'DECLINE',
+                parentId: stored.intentId,
+                intentId: stored.intentId,
+                senderId: state.stewardId,
+                payload: {
+                  reason: validation.detail ?? validation.error,
+                  error: validation.error,
+                  unresolved_principals: validation.unresolvedPrincipalIds ?? [],
+                },
+              });
+            } else {
+              const promiseId = makePromiseId();
+              const pending: SharedSpaceRequestRecord = {
+                intentId: stored.intentId,
+                promiseId,
+                requestedByPrincipalId: auth.principalId,
+                requestedByHandle: auth.handle,
+                participantPrincipalIds: validation.participantPrincipalIds,
+                requestedAt: new Date().toISOString(),
+              };
+              await this.state.storage.put(`shared-provision:${stored.intentId}`, pending);
+              await appendStoredMessage(this.state, {
+                type: 'PROMISE',
+                parentId: stored.intentId,
+                senderId: state.stewardId,
+                intentId: stored.intentId,
+                promiseId,
+                payload: {
+                  content: `I will provision one shared space for ${validation.participantPrincipalIds.length} peers once you accept this promise.`,
+                  requested_space_kind: 'shared',
+                  participant_principals: validation.participantPrincipalIds,
+                  participant_count: validation.participantPrincipalIds.length,
+                },
+              });
+            }
+          }
+        }
+        if (state.kind === 'home-space' && stored.type === 'ACCEPT' && stored.parentId && stored.promiseId && auth.principalId === state.principalId) {
+          const pending = (await this.state.storage.get<SharedSpaceRequestRecord>(`shared-provision:${stored.parentId}`)) ?? null;
+          if (
+            pending
+            && pending.promiseId === stored.promiseId
+            && !pending.completedAt
+            && pending.requestedByPrincipalId === auth.principalId
+          ) {
+            const bundle = await provisionSharedSpace(this.env, origin, {
+              requestedByPrincipalId: pending.requestedByPrincipalId,
+              requestedByHandle: pending.requestedByHandle,
+              sourceIntentId: pending.intentId,
+              participantPrincipalIds: pending.participantPrincipalIds,
+            });
+            const updatedPending: SharedSpaceRequestRecord = {
+              ...pending,
+              acceptedAt: pending.acceptedAt ?? new Date().toISOString(),
+              completedAt: new Date().toISOString(),
+              bundle,
+            };
+            await this.state.storage.put(`shared-provision:${stored.parentId}`, updatedPending);
+            await appendStoredMessage(this.state, {
+              type: 'COMPLETE',
+              parentId: stored.parentId,
+              senderId: state.stewardId,
+              promiseId: stored.promiseId,
+              payload: {
+                summary: `Provisioned one shared space for ${pending.participantPrincipalIds.length} participants.`,
+                content: `Provisioned one shared space and created invitation deliveries for the named peers.`,
+                shared_space_id: bundle.sharedSpaceId,
+                participant_principals: bundle.participantPrincipalIds,
+                participant_count: bundle.participantPrincipalIds.length,
+                invitation_count: bundle.invitationCount,
+              },
+            });
+          }
+        }
         return new Response(serializeFramedMessage(serverMessageToFrame(stored)), {
           headers: { 'content-type': 'application/itp' },
         });
@@ -803,6 +1220,8 @@ export class HostedSpace {
     if (url.pathname === '/stream' && request.method === 'GET') {
       const state = (await this.state.storage.get<HostedSpaceRecord>('state')) ?? null;
       if (!state) return textResponse('Space not initialized\n', 404);
+      const origin = normalizeOrigin(new URL(request.headers.get('x-spacebase-forwarded-url') ?? request.url));
+      await this.syncPendingInvitations(origin, state);
       try {
         await authenticateHttpRequest(
           request,
