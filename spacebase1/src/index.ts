@@ -6,6 +6,7 @@ import {
   claimWelcomeMarkdown,
   issueStationSession,
   normalizeHandle,
+  signupErrorResponse,
   validateSignupRequestBody,
   validateClaimSignup,
   type ClaimProfile,
@@ -515,7 +516,7 @@ export class SpacebaseControl {
           station_endpoint: profile.itpUrl,
         });
       } catch (error) {
-        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
+        return jsonResponse(signupErrorResponse(error), 400);
       }
     }
 
@@ -582,7 +583,7 @@ export class SpacebaseControl {
         );
         return jsonResponse(issued.signup);
       } catch (error) {
-        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400);
+        return jsonResponse(signupErrorResponse(error), 400);
       }
     }
 
@@ -777,6 +778,9 @@ export class HostedSpace {
                 summary: `Provisioned one home space for ${pending.requestedByHandle}.`,
                 content: `Provisioned one home space for ${pending.requestedByHandle}. Claim and bind it with your own key material.`,
                 claim_url: bundle.claimServiceUrl,
+                bind_url: bundle.claimSignupUrl,
+                bind_method: 'POST',
+                bind_body: 'same as signup body',
                 claim_token: bundle.claimToken,
                 home_space_id: bundle.spaceId,
                 intended_agent_label: bundle.intendedAgentLabel,

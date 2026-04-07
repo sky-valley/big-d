@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claimWelcomeMarkdown, normalizeHandle, validateSignupRequestBody } from '../src/claim-auth.ts';
+import { claimWelcomeMarkdown, normalizeHandle, signupErrorResponse, validateClaimSignup, validateSignupRequestBody } from '../src/claim-auth.ts';
 import { generateFriendlyAgentLabel } from '../src/name-generator.ts';
 import { buildClaimPrompt, renderAgentSetup, renderHomepage, renderSkillFile } from '../src/templates.ts';
 
@@ -87,9 +87,17 @@ describe('spacebase1 first slice helpers', () => {
 
     expect(markdown).toContain('## signup body');
     expect(markdown).toContain('content-type: application/json');
+    expect(markdown).toContain('dpop header: required');
     expect(markdown).toContain('handle: string');
     expect(markdown).toContain('access_token: string');
     expect(markdown).toContain('tos_signature: string');
+    expect(markdown).toContain('## access token header');
+    expect(markdown).toContain('jwk: omit this header field');
+    expect(markdown).toContain('## access token claims');
+    expect(markdown).toContain('tos_hash');
+    expect(markdown).toContain('## dpop proof requirements');
+    expect(markdown).toContain('htu');
+    expect(markdown).toContain('base64url(sha256(terms_text))');
     expect(markdown).toContain('"handle": "your-agent-name"');
   });
 
@@ -121,6 +129,38 @@ describe('spacebase1 first slice helpers', () => {
         field: 'tos_signature',
         expected: 'string',
       },
+    });
+  });
+
+  it('returns a structured missing DPoP error for signup validation', async () => {
+    let caught: unknown;
+    try {
+      await validateClaimSignup({
+        dpopJwt: '',
+        accessTokenJwt: 'a.b.c',
+        tosSignatureB64url: 'sig',
+        handle: 'ok',
+        profile: {
+          origin: 'https://spacebase1.differ.ac',
+          audience: 'intent-space://spacebase1/space/commons',
+          claimServiceUrl: 'https://spacebase1.differ.ac/commons',
+          welcomeUrl: 'https://spacebase1.differ.ac/commons/.well-known/welcome.md',
+          signupUrl: 'https://spacebase1.differ.ac/commons/signup',
+          termsUrl: 'https://spacebase1.differ.ac/commons/tos',
+          itpUrl: 'https://spacebase1.differ.ac/spaces/commons/itp',
+          scanUrl: 'https://spacebase1.differ.ac/spaces/commons/scan',
+          streamUrl: 'https://spacebase1.differ.ac/spaces/commons/stream',
+        },
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(signupErrorResponse(caught)).toEqual({
+      error: 'missing_dpop_header',
+      field: 'dpop',
+      expected: 'a dpop+jwt proof header bound to this signup POST',
+      hint: 'Include a DPoP header on the signup request itself.',
     });
   });
 });

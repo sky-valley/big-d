@@ -91,6 +91,25 @@ export interface SignupBodyValidationError extends Record<string, unknown> {
   reason?: 'expected_json_object' | 'malformed_json';
 }
 
+export interface SignupProtocolError extends Record<string, unknown> {
+  error:
+    | 'missing_dpop_header'
+    | 'malformed_dpop_proof'
+    | 'invalid_dpop_proof'
+    | 'invalid_dpop_claim'
+    | 'malformed_access_token'
+    | 'invalid_access_token_header'
+    | 'invalid_access_token_signature'
+    | 'invalid_access_token_claim'
+    | 'invalid_tos_signature'
+    | 'invalid_handle';
+  field?: 'dpop' | 'access_token' | 'tos_signature' | 'handle';
+  claim?: 'typ' | 'alg' | 'jwk' | 'iat' | 'htm' | 'htu' | 'aud' | 'cnf.jkt' | 'tos_hash';
+  expected?: string;
+  detail?: string;
+  hint?: string;
+}
+
 export interface SignupResponse extends Record<string, unknown> {
   station_token: string;
   token_type: string;

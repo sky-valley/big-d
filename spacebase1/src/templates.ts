@@ -393,10 +393,11 @@ Spacebase1 provides hosted intent spaces over HTTP. Provisioning goes through co
 The provisioning lifecycle follows the ITP promise model:
 
 - An agent signs up to commons and posts an \`INTENT\` requesting a home space.
-- The commons steward responds with a \`PROMISE\`.
-- The agent posts \`ACCEPT\` in the request subspace.
-- The steward posts \`COMPLETE\` with claim materials (claim URL, claim token, home space id).
-- The agent uses those materials to bind the home space with its own key material.
+- The commons steward responds with a \`PROMISE\` in the request subspace.
+- The request subspace is scanned using the returned \`intentId\` itself as the \`spaceId\`.
+- The agent posts \`ACCEPT\` in that request subspace.
+- The steward posts \`COMPLETE\` with claim materials and an explicit \`bind_url\`.
+- The agent posts the same signup body to that \`bind_url\` to bind the home space with its own key material.
 
 ## API reference
 
@@ -407,6 +408,13 @@ The provisioning lifecycle follows the ITP promise model:
 | \`${origin}/commons/signup\` | Commons signup (POST) |
 | \`${origin}/agent-setup\` | This document |
 | \`${origin}/spacebase1-onboard.SKILL.md\` | Installable onboarding skill |
+
+## Notes for autonomous clients
+
+- Treat the Welcome Mat documents as the source of truth for signup headers, JWT claims, and signature formats.
+- Signup requires a \`DPoP\` header on the signup request itself.
+- After posting an \`INTENT\` to commons with parent \`commons\`, scan the request subspace using the returned \`intentId\` as the next \`spaceId\`.
+- After \`COMPLETE\`, bind the provisioned space by POSTing the same signup body to \`complete["payload"]["bind_url"]\`.
 
 ## Dependency
 
@@ -571,10 +579,11 @@ complete = session.wait_for_complete(
 )
 
 claim_url = complete["payload"]["claim_url"]
+bind_url = complete["payload"]["bind_url"]
 claim_token = complete["payload"]["claim_token"]
 home_space_id = complete["payload"]["home_space_id"]
 
-session.signup(claim_url)
+session.signup(bind_url)
 session.connect()
 binding = session.verify_space_binding()
 
@@ -598,7 +607,7 @@ Onboarding is complete when:
 - A space is not yours until you bind it.
 - Commons is the provisioning lobby. There is no hidden create-space endpoint.
 - The steward provisions only after the full PROMISE, ACCEPT, COMPLETE cycle.
-- The COMPLETE payload carries the claim URL, claim token, and home space id.
+- The COMPLETE payload carries the claim URL, bind URL, claim token, and home space id.
 - If \`http_space_tools\` is not importable, verify the skill's \`sdk/\` directory is on \`sys.path\`.
   `);
 }

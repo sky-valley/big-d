@@ -88,6 +88,8 @@ describe('agent-setup page (Path 2: agent-led)', () => {
     expect(markdown).toContain('Spacebase1 is');
     expect(markdown).toContain('How Spacebase1 works');
     expect(markdown).toContain('API reference');
+    expect(markdown).toContain('intentId');
+    expect(markdown).toContain('bind_url');
   });
 
   it('references the commons endpoint', async () => {
@@ -198,6 +200,8 @@ describe('SKILL.md (trusted onboarding instructions)', () => {
     expect(markdown).toContain('session.accept(');
     expect(markdown).toContain('session.wait_for_complete(');
     expect(markdown).toContain('claim_url = complete["payload"]["claim_url"]');
+    expect(markdown).toContain('bind_url = complete["payload"]["bind_url"]');
+    expect(markdown).toContain('session.signup(bind_url)');
   });
 
   it('references the intent-space-agent-pack dependency', async () => {

@@ -1,6 +1,7 @@
 import type {
   HttpRequestAuth,
   SignupBodyValidationError,
+  SignupProtocolError,
   SignupRequestBody,
   SignupResponse,
   StationSession,
@@ -67,6 +68,26 @@ export interface ClaimProfile {
   itpUrl: string;
   scanUrl: string;
   streamUrl: string;
+}
+
+class SignupValidationFailure extends Error {
+  constructor(readonly response: SignupProtocolError) {
+    super(response.detail ?? response.error);
+    this.name = 'SignupValidationFailure';
+  }
+}
+
+function failSignup(response: SignupProtocolError): never {
+  throw new SignupValidationFailure(response);
+}
+
+export function signupErrorResponse(error: unknown): SignupBodyValidationError | SignupProtocolError {
+  if (error instanceof SignupValidationFailure) return error.response;
+  return {
+    error: 'invalid_dpop_proof',
+    field: 'dpop',
+    detail: error instanceof Error ? error.message : String(error),
+  };
 }
 
 function toBase64(value: Uint8Array): string {
@@ -269,16 +290,52 @@ export function claimWelcomeMarkdown(profile: ClaimProfile): string {
     '',
     '- content-type: application/json',
     '- handle: string — your participant handle; the station normalizes it to the supported handle format',
+    `- dpop header: required — a \`dpop+jwt\` proof bound to the signup POST request`,
     `- access_token: string — a ${WELCOME_MAT_DPOP_ALGORITHM}-signed Welcome Mat access token JWT with typ \`wm+jwt\``,
-    `- tos_signature: string — a detached ${WELCOME_MAT_DPOP_ALGORITHM} signature over the current terms text at ${profile.termsUrl}`,
+    `- tos_signature: string — a detached ${WELCOME_MAT_DPOP_ALGORITHM} signature over the raw terms text, base64url-encoded`,
     '',
-    'Example:',
+    '## access token header',
+    '',
+    '- typ: `wm+jwt`',
+    `- alg: \`${WELCOME_MAT_DPOP_ALGORITHM}\``,
+    '- jwk: omit this header field; the public key belongs in the DPoP proof header',
+    '',
+    '```json',
+    JSON.stringify({ typ: 'wm+jwt', alg: WELCOME_MAT_DPOP_ALGORITHM }, null, 2),
+    '```',
+    '',
+    '## access token claims',
+    '',
+    '- sub: string — your agent identifier',
+    `- aud: string — either \`${profile.origin}\` or \`${profile.claimServiceUrl}\``,
+    '- iat: number — issued-at timestamp in seconds',
+    '- exp: number — expiry timestamp in seconds',
+    '- jti: string — unique token id',
+    '- cnf.jkt: string — base64url JWK thumbprint of the DPoP proof key',
+    `- tos_hash: string — \`base64url(sha256(terms_text))\` for the exact text at ${profile.termsUrl}`,
+    '',
+    '## dpop proof requirements',
+    '',
+    '- header typ: `dpop+jwt`',
+    `- header alg: \`${WELCOME_MAT_DPOP_ALGORITHM}\``,
+    '- header jwk: required — your RSA public key',
+    '- payload htm: `POST`',
+    `- payload htu: \`${profile.signupUrl}\``,
+    '- payload iat: number — issued-at timestamp in seconds',
+    '- payload jti: string — unique proof id',
+    '',
+    '## signature formats',
+    '',
+    '- access_token: compact JWT with exactly three parts',
+    '- tos_signature: raw RSA-SHA256 signature bytes over the exact terms text, base64url-encoded without padding',
+    '',
+    '## signup body example',
     '',
     '```json',
     JSON.stringify({
       handle: 'your-agent-name',
       access_token: '<wm+jwt access token>',
-      tos_signature: '<detached rs256 signature over terms>',
+      tos_signature: '<base64url rsa-sha256 signature over terms text>',
     }, null, 2),
     '```',
     '',
@@ -287,6 +344,8 @@ export function claimWelcomeMarkdown(profile: ClaimProfile): string {
     `- itp: POST ${profile.itpUrl}`,
     `- scan: POST ${profile.scanUrl}`,
     `- stream: GET ${profile.streamUrl}`,
+    '',
+    'If you are binding a prepared or provisioned space, the bind endpoint is the signup URL above.',
   ].join('\n');
 }
 
@@ -300,21 +359,105 @@ export async function validateClaimSignup(input: {
 }): Promise<{ handle: string; jwk: JsonWebKey; jwkThumbprint: string }> {
   const nowSeconds = input.nowSeconds ?? Math.floor(Date.now() / 1000);
   const normalizedHandle = normalizeHandle(input.handle);
-  assertHandle(normalizedHandle);
+  try {
+    assertHandle(normalizedHandle);
+  } catch (error) {
+    failSignup({
+      error: 'invalid_handle',
+      field: 'handle',
+      expected: 'lowercase letters, numbers, dots, and hyphens',
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
 
-  const dpop = parseJwt(input.dpopJwt);
-  const jwk = await verifyRs256Jwt(dpop, 'dpop+jwt');
-  assertRecent(dpop.payload.iat, nowSeconds, PROOF_MAX_AGE_SECONDS, 'DPoP proof');
+  if (!input.dpopJwt) {
+    failSignup({
+      error: 'missing_dpop_header',
+      field: 'dpop',
+      expected: 'a dpop+jwt proof header bound to this signup POST',
+      hint: 'Include a DPoP header on the signup request itself.',
+    });
+  }
+
+  let dpop: ParsedJwt;
+  try {
+    dpop = parseJwt(input.dpopJwt);
+  } catch (error) {
+    failSignup({
+      error: 'malformed_dpop_proof',
+      field: 'dpop',
+      expected: 'compact JWT with exactly three parts',
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+  let jwk: JsonWebKey;
+  try {
+    jwk = await verifyRs256Jwt(dpop, 'dpop+jwt');
+  } catch (error) {
+    failSignup({
+      error: 'invalid_dpop_proof',
+      field: 'dpop',
+      expected: `typ=dpop+jwt, alg=${WELCOME_MAT_DPOP_ALGORITHM}, jwk=RSA public key (${WELCOME_MAT_MINIMUM_RSA_BITS}+ bits)`,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+  try {
+    assertRecent(dpop.payload.iat, nowSeconds, PROOF_MAX_AGE_SECONDS, 'DPoP proof');
+  } catch (error) {
+    failSignup({
+      error: 'invalid_dpop_claim',
+      field: 'dpop',
+      claim: 'iat',
+      expected: `fresh timestamp within ${PROOF_MAX_AGE_SECONDS} seconds`,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
   if (dpop.payload.htm !== 'POST') {
-    throw new Error('DPoP htm must be POST');
+    failSignup({
+      error: 'invalid_dpop_claim',
+      field: 'dpop',
+      claim: 'htm',
+      expected: 'POST',
+      detail: 'DPoP proof htm must be POST for signup',
+    });
   }
   if (dpop.payload.htu !== input.profile.signupUrl) {
-    throw new Error('DPoP htu does not match signup URL');
+    failSignup({
+      error: 'invalid_dpop_claim',
+      field: 'dpop',
+      claim: 'htu',
+      expected: input.profile.signupUrl,
+      detail: 'DPoP proof htu must match the exact signup URL',
+    });
   }
 
-  const accessToken = parseJwt(input.accessTokenJwt);
+  let accessToken: ParsedJwt;
+  try {
+    accessToken = parseJwt(input.accessTokenJwt);
+  } catch (error) {
+    failSignup({
+      error: 'malformed_access_token',
+      field: 'access_token',
+      expected: 'compact JWT with exactly three parts',
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+  if (accessToken.header.jwk) {
+    failSignup({
+      error: 'invalid_access_token_header',
+      field: 'access_token',
+      claim: 'jwk',
+      expected: 'omit jwk from the access token header; the public key belongs in the DPoP header',
+      detail: 'Welcome Mat access tokens do not carry jwk in their JOSE header',
+    });
+  }
   if (accessToken.header.typ !== 'wm+jwt' || accessToken.header.alg !== WELCOME_MAT_DPOP_ALGORITHM) {
-    throw new Error('Expected welcome mat access token');
+    failSignup({
+      error: 'invalid_access_token_header',
+      field: 'access_token',
+      expected: `typ=wm+jwt and alg=${WELCOME_MAT_DPOP_ALGORITHM}`,
+      detail: 'Expected a Welcome Mat access token header',
+    });
   }
   const key = await importRsaVerifyKey(jwk);
   const accessValid = await crypto.subtle.verify(
@@ -324,21 +467,54 @@ export async function validateClaimSignup(input: {
     encoder.encode(accessToken.signingInput),
   );
   if (!accessValid) {
-    throw new Error('Access token signature verification failed');
+    failSignup({
+      error: 'invalid_access_token_signature',
+      field: 'access_token',
+      detail: 'Access token signature verification failed against the DPoP proof key',
+    });
   }
 
   const thumbprint = await jwkThumbprint(jwk);
   if (accessToken.payload.aud !== input.profile.origin && accessToken.payload.aud !== input.profile.claimServiceUrl) {
-    throw new Error('Access token aud does not match allowed claim audience');
+    failSignup({
+      error: 'invalid_access_token_claim',
+      field: 'access_token',
+      claim: 'aud',
+      expected: `${input.profile.origin} or ${input.profile.claimServiceUrl}`,
+      detail: 'Access token aud does not match an allowed signup audience',
+    });
   }
   if (accessToken.payload.cnf?.jkt !== thumbprint) {
-    throw new Error('Access token cnf.jkt does not match DPoP key');
+    failSignup({
+      error: 'invalid_access_token_claim',
+      field: 'access_token',
+      claim: 'cnf.jkt',
+      expected: thumbprint,
+      detail: 'Access token cnf.jkt must match the DPoP proof key thumbprint',
+    });
   }
-  if (accessToken.payload.tos_hash !== await sha256b64url(TERMS_OF_SERVICE)) {
-    throw new Error('Access token tos_hash does not match current terms');
+  const expectedTermsHash = await sha256b64url(TERMS_OF_SERVICE);
+  if (accessToken.payload.tos_hash !== expectedTermsHash) {
+    failSignup({
+      error: 'invalid_access_token_claim',
+      field: 'access_token',
+      claim: 'tos_hash',
+      expected: 'base64url(sha256(terms_text)) without padding',
+      detail: 'Access token tos_hash does not match the current terms text',
+      hint: `Expected SHA-256 over ${input.profile.termsUrl}`,
+    });
   }
 
-  await verifyRs256DetachedSignature(jwk, TERMS_OF_SERVICE, input.tosSignatureB64url);
+  try {
+    await verifyRs256DetachedSignature(jwk, TERMS_OF_SERVICE, input.tosSignatureB64url);
+  } catch (error) {
+    failSignup({
+      error: 'invalid_tos_signature',
+      field: 'tos_signature',
+      expected: 'base64url-encoded raw RSA-SHA256 signature over the exact terms text',
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   return { handle: normalizedHandle, jwk, jwkThumbprint: thumbprint };
 }
