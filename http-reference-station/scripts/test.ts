@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { createIntent } from '@differ/itp/src/protocol.ts';
-import { frameToServerMessage, itpMessageToFrame, serializeFramedMessage } from '../src/framing.ts';
+import { FrameParseError, frameToItpMessage, frameToServerMessage, itpMessageToFrame, serializeFramedMessage } from '../src/framing.ts';
 import { HttpReferenceStation } from '../src/server.ts';
 import { TERMS_OF_SERVICE, sha256b64url } from '../src/welcome-mat.ts';
 
@@ -190,7 +190,63 @@ let latestSeq = 0;
   }
 }
 
-// --- Test 5: /stream emits framed stored acts ---
+// --- Test 5: malformed ACCEPT without promise header is rejected ---
+test('/itp rejects ACCEPT missing promise header');
+{
+  const itpUrl = `${station.origin}/itp`;
+  const malformedAccept = serializeFramedMessage({
+    verb: 'ACCEPT',
+    headers: {
+      sender: signup.principal_id,
+      parent: 'root',
+      timestamp: String(Date.now()),
+      'payload-hint': 'application/json',
+    },
+    body: Buffer.from('{}', 'utf8'),
+  });
+  const response = await fetch(itpUrl, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/itp',
+      authorization: `DPoP ${signup.station_token}`,
+      dpop: makeDpopProof(identity, 'POST', itpUrl, signup.station_token),
+    },
+    body: malformedAccept,
+  });
+  const body = Buffer.from(await response.arrayBuffer());
+  const parsed = frameToServerMessage((await import('../src/framing.ts')).parseSingleFramedMessage(body));
+  assert(
+    response.status === 400 && parsed.type === 'ERROR',
+    'Expected malformed ACCEPT to be rejected with framed ERROR',
+  );
+}
+
+// --- Test 6: alternate promise-id header does not satisfy required promise header ---
+test('framing rejects ACCEPT with promise-id instead of promise');
+{
+  let message = '';
+  try {
+    frameToItpMessage({
+      verb: 'ACCEPT',
+      headers: {
+        sender: 'agent-http',
+        parent: 'root',
+        'promise-id': 'promise-123',
+        timestamp: String(Date.now()),
+        'body-length': '2',
+      },
+      body: Buffer.from('{}', 'utf8'),
+    });
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error);
+  }
+  assert(
+    message.includes('Missing promise header on ACCEPT'),
+    `Expected missing promise header error, got: ${message}`,
+  );
+}
+
+// --- Test 7: /stream emits framed stored acts ---
 test('/stream emits framed stored acts over SSE');
 {
   const streamUrl = `${station.origin}/stream?space=root&since=${latestSeq}`;

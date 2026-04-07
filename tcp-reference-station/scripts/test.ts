@@ -13,7 +13,7 @@ import { createHash, createHmac, generateKeyPairSync, randomUUID, sign } from 'c
 import { connect as netConnect } from 'net';
 import { IntentSpace } from '../src/space.ts';
 import { IntentSpaceClient } from '../src/client.ts';
-import { parseFramedMessages, serializeFramedMessage } from '../src/framing.ts';
+import { frameToClientMessage, parseFramedMessages, serializeFramedMessage } from '../src/framing.ts';
 import { requestProofHash } from '../src/proof-input.ts';
 import { createIntent, createPromise } from '@differ/itp/src/protocol.ts';
 
@@ -272,7 +272,66 @@ test('Scan sub-space');
   client.disconnect();
 }
 
-// --- Test 6: scan with cursor ---
+// --- Test 6: malformed ACCEPT without promise header is rejected ---
+test('Malformed ACCEPT without promise header is rejected');
+{
+  const identity = makeIdentity('agent-bad-accept');
+  const authFrame = serializeFramedMessage({
+    verb: 'AUTH',
+    headers: {
+      'station-token': identity.stationToken,
+      proof: identity.buildProof('AUTH', { type: 'AUTH', stationToken: identity.stationToken }),
+    },
+    body: Buffer.alloc(0),
+  });
+  const badAccept = serializeFramedMessage({
+    verb: 'ACCEPT',
+    headers: {
+      sender: 'agent-bad-accept',
+      parent: 'root',
+      timestamp: String(Date.now()),
+      proof: identity.buildProof('ACCEPT', {
+        type: 'ACCEPT',
+        parentId: 'root',
+        senderId: 'agent-bad-accept',
+        timestamp: Date.now(),
+        payload: {},
+      }),
+      'payload-hint': 'application/json',
+    },
+    body: Buffer.from('{}', 'utf8'),
+  });
+  const responses = await sendRawUnixFrames([authFrame, badAccept]);
+  const sawMalformedReject = responses.some((text) => text.includes('Missing promise header on ACCEPT'));
+  assert(sawMalformedReject, `Expected malformed ACCEPT rejection, got: ${responses.join(' | ')}`);
+}
+
+// --- Test 7: framing rejects promise-id alias on ACCEPT ---
+test('Framing rejects ACCEPT with promise-id instead of promise');
+{
+  let message = '';
+  try {
+    frameToClientMessage({
+      verb: 'ACCEPT',
+      headers: {
+        sender: 'agent-accept-alias',
+        parent: 'root',
+        'promise-id': 'promise-123',
+        timestamp: String(Date.now()),
+        'body-length': '2',
+      },
+      body: Buffer.from('{}', 'utf8'),
+    });
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error);
+  }
+  assert(
+    message.includes('Missing promise header on ACCEPT'),
+    `Expected missing promise header error, got: ${message}`,
+  );
+}
+
+// --- Test 8: scan with cursor ---
 test('Scan with since cursor (past end)');
 {
   const client = new IntentSpaceClient(socketPath);
@@ -284,7 +343,7 @@ test('Scan with since cursor (past end)');
   client.disconnect();
 }
 
-// --- Test 7: idempotent post ---
+// --- Test 9: idempotent post ---
 test('Idempotent post (duplicate intentId)');
 {
   const received: any[] = [];
@@ -304,7 +363,7 @@ test('Idempotent post (duplicate intentId)');
   client.disconnect();
 }
 
-// --- Test 8: second client sees echo ---
+// --- Test 10: second client sees echo ---
 test('Second client sees echoed intent');
 {
   const client1 = new IntentSpaceClient(socketPath);
@@ -328,7 +387,7 @@ test('Second client sees echoed intent');
   client2.disconnect();
 }
 
-// --- Test 9: projected PROMISE is accepted ---
+// --- Test 11: projected PROMISE is accepted ---
 test('Projected PROMISE is accepted');
 {
   const received: any[] = [];
@@ -349,7 +408,7 @@ test('Projected PROMISE is accepted');
   client.disconnect();
 }
 
-// --- Test 10: reject INTENT without intentId ---
+// --- Test 12: reject INTENT without intentId ---
 test('Reject INTENT without intentId');
 {
   const errors: string[] = [];
@@ -361,6 +420,7 @@ test('Reject INTENT without intentId');
   const broken = {
     type: 'INTENT',
     senderId: 'agent-1',
+    parentId: 'root',
     timestamp: Date.now(),
     payload: { content: 'oops' },
   };
@@ -370,11 +430,14 @@ test('Reject INTENT without intentId');
   });
   await new Promise((r) => setTimeout(r, 100));
 
-  assert(errors.some((e) => e.includes('intentId')), `Expected intentId error, got: ${errors.join(', ')}`);
+  assert(
+    errors.some((e) => e.includes('Missing intent header on INTENT')),
+    `Expected missing intent header error, got: ${errors.join(', ')}`,
+  );
   client.disconnect();
 }
 
-// --- Test 11: fractal depth ---
+// --- Test 13: fractal depth ---
 test('Fractal: three levels deep');
 {
   const client = new IntentSpaceClient(socketPath);
@@ -404,7 +467,7 @@ test('Fractal: three levels deep');
   client.disconnect();
 }
 
-// --- Test 12: TCP transport ---
+// --- Test 14: TCP transport ---
 test('TCP: connect, post, scan');
 {
   const tcpPort = space.tcpPort!;
@@ -439,7 +502,7 @@ test('TCP: connect, post, scan');
   client.disconnect();
 }
 
-// --- Test 13: TCP and Unix clients see each other ---
+// --- Test 15: TCP and Unix clients see each other ---
 test('TCP and Unix clients see each other');
 {
   const tcpClient = new IntentSpaceClient({ host: '127.0.0.1', port: space.tcpPort! });
@@ -496,7 +559,7 @@ test('TCP and Unix clients see each other');
   unixClient.disconnect();
 }
 
-// --- Test 14: TLS transport ---
+// --- Test 16: TLS transport ---
 test('TLS: connect, post, scan');
 {
   const client = new IntentSpaceClient({

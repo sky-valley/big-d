@@ -25,6 +25,20 @@ export class FrameParseError extends Error {}
 
 export const ITP_VERBS = new Set(['INTENT', 'PROMISE', 'DECLINE', 'ACCEPT', 'COMPLETE', 'ASSESS']);
 
+const REQUIRED_HEADERS: Record<string, string[]> = {
+  INTENT: ['sender', 'parent', 'intent', 'timestamp', 'body-length'],
+  PROMISE: ['sender', 'parent', 'intent', 'promise', 'timestamp', 'body-length'],
+  DECLINE: ['sender', 'parent', 'intent', 'timestamp', 'body-length'],
+  ACCEPT: ['sender', 'parent', 'promise', 'timestamp', 'body-length'],
+  COMPLETE: ['sender', 'parent', 'promise', 'timestamp', 'body-length'],
+  ASSESS: ['sender', 'parent', 'promise', 'timestamp', 'body-length'],
+  SCAN: ['space', 'since', 'body-length'],
+  SCAN_RESULT: ['space', 'latest-seq', 'body-length'],
+  AUTH: ['station-token', 'proof', 'body-length'],
+  AUTH_RESULT: ['sender', 'principal', 'body-length'],
+  ERROR: ['body-length'],
+};
+
 export function parseFramedMessages(buffer: Buffer): ParseResult {
   const messages: FramedMessage[] = [];
   let offset = 0;
@@ -46,13 +60,13 @@ export function parseFramedMessages(buffer: Buffer): ParseResult {
       if (!rawLine) {
         throw new FrameParseError('Unexpected empty header line');
       }
-      const separator = rawLine.indexOf(':');
+      const separator = rawLine.indexOf(': ');
       if (separator <= 0) {
         throw new FrameParseError(`Malformed header line: ${rawLine}`);
       }
       const name = rawLine.slice(0, separator).trim();
-      const value = rawLine.slice(separator + 1).trim();
-      if (!/^[a-z0-9-]+$/.test(name)) {
+      const value = rawLine.slice(separator + 2).trim();
+      if (!/^[a-z-]+$/.test(name)) {
         throw new FrameParseError(`Invalid header name: ${name}`);
       }
       if (Object.prototype.hasOwnProperty.call(headers, name)) {
@@ -135,23 +149,26 @@ export function frameToScanRequest(frame: FramedMessage): ScanRequest {
   if (frame.verb !== 'SCAN') {
     throw new FrameParseError(`Expected SCAN frame, got ${frame.verb}`);
   }
+  assertRequiredHeaders(frame);
   return {
     type: 'SCAN',
     spaceId: requireHeader(frame, 'space'),
-    since: parseIntegerHeader(frame, 'since'),
+    since: parseNonNegativeIntegerHeader(frame, 'since'),
   };
 }
 
 export function frameToServerMessage(frame: FramedMessage): ServerMessage {
   if (frame.verb === 'SCAN_RESULT') {
+    assertRequiredHeaders(frame);
     return {
       type: 'SCAN_RESULT',
       spaceId: requireHeader(frame, 'space'),
-      latestSeq: parseIntegerHeader(frame, 'latest-seq'),
+      latestSeq: parseNonNegativeIntegerHeader(frame, 'latest-seq'),
       messages: decodeJson<StoredMessage[]>(frame),
     };
   }
   if (frame.verb === 'ERROR') {
+    assertRequiredHeaders(frame);
     return {
       type: 'ERROR',
       message: frame.body.toString('utf8'),
@@ -178,11 +195,12 @@ export function itpMessageToFrame(message: ITPMessage & { proof?: string; seq?: 
 }
 
 export function frameToItpMessage(frame: FramedMessage): ITPMessage {
+  assertRequiredHeaders(frame);
   const payload = decodeJson<Record<string, unknown>>(frame);
   const message: ITPMessage = {
     type: frame.verb as ITPMessage['type'],
     senderId: requireHeader(frame, 'sender'),
-    timestamp: parseIntegerHeader(frame, 'timestamp'),
+    timestamp: parseNonNegativeIntegerHeader(frame, 'timestamp'),
     payload,
   };
   const parentId = optionalHeader(frame, 'parent');
@@ -199,6 +217,9 @@ function frameToMessageEcho(frame: FramedMessage): ServerMessage {
   const seq = optionalHeader(frame, 'seq');
   if (seq == null) {
     throw new FrameParseError(`${frame.verb} echo is missing seq header`);
+  }
+  if (!/^\d+$/.test(seq)) {
+    throw new FrameParseError(`seq must be a non-negative integer on ${frame.verb}`);
   }
   message.seq = Number.parseInt(seq, 10);
   return message as MessageEcho;
@@ -219,12 +240,19 @@ function decodeJson<T>(frame: FramedMessage): T {
   }
 }
 
-function parseIntegerHeader(frame: FramedMessage, name: string): number {
+function parseNonNegativeIntegerHeader(frame: FramedMessage, name: string): number {
   const raw = requireHeader(frame, name);
-  if (!/^-?\d+$/.test(raw)) {
-    throw new FrameParseError(`${name} must be an integer`);
+  if (!/^\d+$/.test(raw)) {
+    throw new FrameParseError(`${name} must be a non-negative integer`);
   }
   return Number.parseInt(raw, 10);
+}
+
+function assertRequiredHeaders(frame: FramedMessage): void {
+  const required = REQUIRED_HEADERS[frame.verb] ?? [];
+  for (const header of required) {
+    requireHeader(frame, header);
+  }
 }
 
 function requireHeader(frame: FramedMessage, name: string): string {
