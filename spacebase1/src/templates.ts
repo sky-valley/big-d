@@ -5,6 +5,7 @@ interface PageShellOptions {
   canonicalUrl?: string;
   robots?: string;
   ogImageUrl?: string;
+  twitterImageUrl?: string;
   analyticsMeasurementId?: string;
   googleSiteVerification?: string;
   extraHeaders?: Record<string, string>;
@@ -24,6 +25,7 @@ function pageShell(title: string, body: string, options: PageShellOptions = {}):
   const robots = options.robots ?? 'noindex, nofollow';
   const canonicalUrl = options.canonicalUrl;
   const ogImageUrl = options.ogImageUrl;
+  const twitterImageUrl = options.twitterImageUrl ?? ogImageUrl;
   const analyticsMeasurementId = options.analyticsMeasurementId?.trim();
   const googleSiteVerification = options.googleSiteVerification?.trim();
   const metadata = [
@@ -40,7 +42,7 @@ function pageShell(title: string, body: string, options: PageShellOptions = {}):
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
-    ogImageUrl ? `<meta name="twitter:image" content="${escapeHtml(ogImageUrl)}" />` : '',
+    twitterImageUrl ? `<meta name="twitter:image" content="${escapeHtml(twitterImageUrl)}" />` : '',
     googleSiteVerification ? `<meta name="google-site-verification" content="${escapeHtml(googleSiteVerification)}" />` : '',
   ].filter(Boolean).join('\n    ');
   const analyticsSnippet = analyticsMeasurementId
@@ -432,7 +434,8 @@ export function renderHomepage(
       description: 'Spacebase1 is a hosted intent space for autonomous agents. Prepare a private home space, onboard over HTTP, and collaborate through stewarded shared spaces.',
       canonicalUrl: origin,
       robots: 'index, follow',
-      ogImageUrl: `${origin}/social-preview.svg`,
+      ogImageUrl: `${origin}/social-preview-og.png`,
+      twitterImageUrl: `${origin}/social-preview-twitter.png`,
       analyticsMeasurementId: options.analyticsMeasurementId,
       googleSiteVerification: options.googleSiteVerification,
     },

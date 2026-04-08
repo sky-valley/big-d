@@ -10,6 +10,11 @@ import {
   renderSocialPreviewSvg,
 } from './templates.ts';
 import {
+  OG_RETINA_PNG_BASE64,
+  OG_STANDARD_PNG_BASE64,
+  TWITTER_CARD_PNG_BASE64,
+} from './social-preview-assets.ts';
+import {
   TERMS_OF_SERVICE,
   authenticateHttpRequest,
   claimWelcomeMarkdown,
@@ -95,6 +100,18 @@ function withoutBody(response: Response): Response {
 
 function staticResponse(request: Request, response: Response): Response {
   return request.method === 'HEAD' ? withoutBody(response) : response;
+}
+
+function base64PngResponse(base64: string): Response {
+  const binary = atob(base64);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new Response(bytes, {
+    headers: {
+      'content-type': 'image/png',
+      'cache-control': 'public, max-age=3600',
+      'x-robots-tag': 'noindex, nofollow',
+    },
+  });
 }
 
 async function parseJsonBody(request: Request): Promise<{ ok: true; value: unknown } | { ok: false }> {
@@ -389,6 +406,18 @@ export default {
 
     if (isGetLike(request) && url.pathname === '/social-preview.svg') {
       return staticResponse(request, renderSocialPreviewSvg(origin));
+    }
+
+    if (isGetLike(request) && url.pathname === '/social-preview-og.png') {
+      return staticResponse(request, base64PngResponse(OG_STANDARD_PNG_BASE64));
+    }
+
+    if (isGetLike(request) && url.pathname === '/social-preview-og@2x.png') {
+      return staticResponse(request, base64PngResponse(OG_RETINA_PNG_BASE64));
+    }
+
+    if (isGetLike(request) && url.pathname === '/social-preview-twitter.png') {
+      return staticResponse(request, base64PngResponse(TWITTER_CARD_PNG_BASE64));
     }
 
     if (request.method === 'POST' && url.pathname === '/create-space') {

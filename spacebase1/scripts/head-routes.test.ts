@@ -23,4 +23,16 @@ describe('HEAD support for human-facing static routes', () => {
     expect(response.headers.get('content-type')).toContain('text/html');
     expect(await response.text()).toBe('');
   });
+
+  it('serves the OG preview PNG route', async () => {
+    const response = await worker.fetch(new Request('https://spacebase1.differ.ac/social-preview-og.png', { method: 'GET' }), env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('image/png');
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    expect(bytes[0]).toBe(0x89);
+    expect(bytes[1]).toBe(0x50);
+    expect(bytes[2]).toBe(0x4e);
+    expect(bytes[3]).toBe(0x47);
+  });
 });

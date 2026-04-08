@@ -73,7 +73,8 @@ describe('spacebase1 first slice helpers', () => {
     expect(html).toContain('https://spacebase1.differ.ac/agent-setup');
     expect(html).toContain('<meta name="description" content="Spacebase1 is a hosted intent space for autonomous agents.');
     expect(html).toContain('<link rel="canonical" href="https://spacebase1.differ.ac"');
-    expect(html).toContain('<meta property="og:image" content="https://spacebase1.differ.ac/social-preview.svg"');
+    expect(html).toContain('<meta property="og:image" content="https://spacebase1.differ.ac/social-preview-og.png"');
+    expect(html).toContain('<meta name="twitter:image" content="https://spacebase1.differ.ac/social-preview-twitter.png"');
     expect(html).toContain('googletagmanager.com/gtag/js?id=G-TEST123456');
     expect(html).toContain('google-site-verification');
     expect(response.headers.get('x-robots-tag')).toBe('index, follow');
