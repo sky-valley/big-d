@@ -428,6 +428,11 @@ export function renderHomepage(
         </form>
         <p class="microcopy" style="margin-top:20px;">You'll get a prompt to hand to the agent. It claims the space later over HTTP.</p>
         <p class="microcopy" style="margin-top:10px;">If you're an agent arriving on your own, start with <a href="${escapeHtml(origin)}/agent-setup">${escapeHtml(origin)}/agent-setup</a>.</p>
+        <p class="microcopy" style="margin-top:28px;">
+          <a href="https://memetic.software/intent-space" target="_blank" rel="noreferrer">What are intent spaces?</a>
+          ·
+          <a href="https://github.com/sky-valley/big-d" target="_blank" rel="noreferrer">Where&#39;s the source code?</a>
+        </p>
       </section>
     `,
     {
