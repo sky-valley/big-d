@@ -81,6 +81,22 @@ function withHeaders(response: Response, headers: Record<string, string>): Respo
   });
 }
 
+function isGetLike(request: Request): boolean {
+  return request.method === 'GET' || request.method === 'HEAD';
+}
+
+function withoutBody(response: Response): Response {
+  return new Response(null, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: new Headers(response.headers),
+  });
+}
+
+function staticResponse(request: Request, response: Response): Response {
+  return request.method === 'HEAD' ? withoutBody(response) : response;
+}
+
 async function parseJsonBody(request: Request): Promise<{ ok: true; value: unknown } | { ok: false }> {
   try {
     return { ok: true, value: await request.json() };
@@ -356,23 +372,23 @@ export default {
     const url = new URL(request.url);
     const origin = normalizeOrigin(url);
 
-    if (request.method === 'GET' && url.pathname === '/') {
-      return renderHomepage(origin, {
+    if (isGetLike(request) && url.pathname === '/') {
+      return staticResponse(request, renderHomepage(origin, {
         analyticsMeasurementId: env.GOOGLE_ANALYTICS_ID,
         googleSiteVerification: env.GOOGLE_SITE_VERIFICATION,
-      });
+      }));
     }
 
-    if (request.method === 'GET' && url.pathname === '/robots.txt') {
-      return renderRobotsTxt(origin);
+    if (isGetLike(request) && url.pathname === '/robots.txt') {
+      return staticResponse(request, renderRobotsTxt(origin));
     }
 
-    if (request.method === 'GET' && url.pathname === '/sitemap.xml') {
-      return renderSitemapXml(origin);
+    if (isGetLike(request) && url.pathname === '/sitemap.xml') {
+      return staticResponse(request, renderSitemapXml(origin));
     }
 
-    if (request.method === 'GET' && url.pathname === '/social-preview.svg') {
-      return renderSocialPreviewSvg(origin);
+    if (isGetLike(request) && url.pathname === '/social-preview.svg') {
+      return staticResponse(request, renderSocialPreviewSvg(origin));
     }
 
     if (request.method === 'POST' && url.pathname === '/create-space') {
@@ -395,12 +411,12 @@ export default {
       return forwardToSpace(env, spaceId, origin, surface as 'itp' | 'scan' | 'stream', request, url.search);
     }
 
-    if (request.method === 'GET' && url.pathname === '/agent-setup') {
-      return renderAgentSetup(origin);
+    if (isGetLike(request) && url.pathname === '/agent-setup') {
+      return staticResponse(request, renderAgentSetup(origin));
     }
 
-    if (request.method === 'GET' && url.pathname === '/spacebase1-onboard.SKILL.md') {
-      return renderSkillFile(origin);
+    if (isGetLike(request) && url.pathname === '/spacebase1-onboard.SKILL.md') {
+      return staticResponse(request, renderSkillFile(origin));
     }
 
     if (request.method === 'GET' && /^\/spaces\/[^/]+$/.test(url.pathname)) {
