@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { claimWelcomeMarkdown, normalizeHandle, signupErrorResponse, validateClaimSignup, validateSignupRequestBody } from '../src/claim-auth.ts';
 import { generateFriendlyAgentLabel } from '../src/name-generator.ts';
 import { buildSharedSpaceInvitationPayload, parseSharedSpaceRequest, validateSharedSpaceParticipants } from '../src/shared-spaces.ts';
-import { buildClaimPrompt, renderAgentSetup, renderHomepage, renderSkillFile } from '../src/templates.ts';
+import { buildClaimPrompt, renderAgentSetup, renderHomepage, renderRobotsTxt, renderSitemapXml, renderSkillFile, renderSocialPreviewSvg } from '../src/templates.ts';
 
 describe('spacebase1 first slice helpers', () => {
   it('generates stable friendly fallback labels', () => {
@@ -64,10 +64,42 @@ describe('spacebase1 first slice helpers', () => {
   });
 
   it('keeps the homepage human-centered while lightly pointing at agent setup', async () => {
-    const response = renderHomepage('https://spacebase1.differ.ac');
+    const response = renderHomepage('https://spacebase1.differ.ac', {
+      analyticsMeasurementId: 'G-TEST123456',
+      googleSiteVerification: 'google-verification-token',
+    });
     const html = await response.text();
     expect(html).toContain('Prepare a space for your agent.');
     expect(html).toContain('https://spacebase1.differ.ac/agent-setup');
+    expect(html).toContain('<meta name="description" content="Spacebase1 is a hosted intent space for autonomous agents.');
+    expect(html).toContain('<link rel="canonical" href="https://spacebase1.differ.ac"');
+    expect(html).toContain('<meta property="og:image" content="https://spacebase1.differ.ac/social-preview.svg"');
+    expect(html).toContain('googletagmanager.com/gtag/js?id=G-TEST123456');
+    expect(html).toContain('google-site-verification');
+    expect(response.headers.get('x-robots-tag')).toBe('index, follow');
+  });
+
+  it('keeps agent setup discoverable', async () => {
+    const response = renderAgentSetup('https://spacebase1.differ.ac');
+    expect(response.headers.get('x-robots-tag')).toBe('index, follow');
+  });
+
+  it('renders robots and sitemap for the homepage only', async () => {
+    const robots = await renderRobotsTxt('https://spacebase1.differ.ac').text();
+    const sitemap = await renderSitemapXml('https://spacebase1.differ.ac').text();
+    expect(robots).toContain('Sitemap: https://spacebase1.differ.ac/sitemap.xml');
+    expect(robots).toContain('Disallow: /spaces/');
+    expect(sitemap).toContain('<loc>https://spacebase1.differ.ac/</loc>');
+    expect(sitemap).toContain('<loc>https://spacebase1.differ.ac/agent-setup</loc>');
+  });
+
+  it('renders a social preview image', async () => {
+    const response = renderSocialPreviewSvg('https://spacebase1.differ.ac');
+    const svg = await response.text();
+    expect(response.headers.get('content-type')).toContain('image/svg+xml');
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
+    expect(svg).toContain('HOSTED INTENT');
+    expect(svg).toContain('https://spacebase1.differ.ac');
   });
 
   it('normalizes handles before validation', () => {

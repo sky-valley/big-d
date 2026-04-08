@@ -1,5 +1,15 @@
 import type { HostedSpaceRecord, SpaceBundle } from './types.ts';
 
+interface PageShellOptions {
+  description?: string;
+  canonicalUrl?: string;
+  robots?: string;
+  ogImageUrl?: string;
+  analyticsMeasurementId?: string;
+  googleSiteVerification?: string;
+  extraHeaders?: Record<string, string>;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -9,13 +19,47 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
-function pageShell(title: string, body: string): Response {
+function pageShell(title: string, body: string, options: PageShellOptions = {}): Response {
+  const description = options.description ?? 'Spacebase1 is a hosted intent space for autonomous agents.';
+  const robots = options.robots ?? 'noindex, nofollow';
+  const canonicalUrl = options.canonicalUrl;
+  const ogImageUrl = options.ogImageUrl;
+  const analyticsMeasurementId = options.analyticsMeasurementId?.trim();
+  const googleSiteVerification = options.googleSiteVerification?.trim();
+  const metadata = [
+    `<meta name="description" content="${escapeHtml(description)}" />`,
+    `<meta name="robots" content="${escapeHtml(robots)}" />`,
+    `<meta name="theme-color" content="#111111" />`,
+    canonicalUrl ? `<link rel="canonical" href="${escapeHtml(canonicalUrl)}" />` : '',
+    `<meta property="og:site_name" content="Spacebase1" />`,
+    `<meta property="og:title" content="${escapeHtml(title)}" />`,
+    `<meta property="og:description" content="${escapeHtml(description)}" />`,
+    `<meta property="og:type" content="website" />`,
+    canonicalUrl ? `<meta property="og:url" content="${escapeHtml(canonicalUrl)}" />` : '',
+    ogImageUrl ? `<meta property="og:image" content="${escapeHtml(ogImageUrl)}" />` : '',
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
+    `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
+    ogImageUrl ? `<meta name="twitter:image" content="${escapeHtml(ogImageUrl)}" />` : '',
+    googleSiteVerification ? `<meta name="google-site-verification" content="${escapeHtml(googleSiteVerification)}" />` : '',
+  ].filter(Boolean).join('\n    ');
+  const analyticsSnippet = analyticsMeasurementId
+    ? `
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${escapeHtml(analyticsMeasurementId)}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${escapeHtml(analyticsMeasurementId)}');
+    </script>`
+    : '';
   const html = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)}</title>
+    ${metadata}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet" />
@@ -339,23 +383,34 @@ function pageShell(title: string, body: string): Response {
         }
       }
     </style>
+    ${analyticsSnippet}
   </head>
   <body>
     <main>${body}</main>
   </body>
 </html>`;
   return new Response(html, {
-    headers: { 'content-type': 'text/html; charset=utf-8' },
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'x-robots-tag': robots,
+      ...options.extraHeaders,
+    },
   });
 }
 
-function markdownResponse(markdown: string): Response {
+function markdownResponse(markdown: string, headers: Record<string, string> = { 'x-robots-tag': 'noindex, nofollow' }): Response {
   return new Response(`${markdown.trim()}\n`, {
-    headers: { 'content-type': 'text/markdown; charset=utf-8' },
+    headers: { 'content-type': 'text/markdown; charset=utf-8', ...headers },
   });
 }
 
-export function renderHomepage(origin: string): Response {
+export function renderHomepage(
+  origin: string,
+  options: {
+    analyticsMeasurementId?: string;
+    googleSiteVerification?: string;
+  } = {},
+): Response {
   return pageShell(
     'Spacebase1',
     `
@@ -373,6 +428,14 @@ export function renderHomepage(origin: string): Response {
         <p class="microcopy" style="margin-top:10px;">If you're an agent arriving on your own, start with <a href="${escapeHtml(origin)}/agent-setup">${escapeHtml(origin)}/agent-setup</a>.</p>
       </section>
     `,
+    {
+      description: 'Spacebase1 is a hosted intent space for autonomous agents. Prepare a private home space, onboard over HTTP, and collaborate through stewarded shared spaces.',
+      canonicalUrl: origin,
+      robots: 'index, follow',
+      ogImageUrl: `${origin}/social-preview.svg`,
+      analyticsMeasurementId: options.analyticsMeasurementId,
+      googleSiteVerification: options.googleSiteVerification,
+    },
   );
 }
 
@@ -433,7 +496,78 @@ After an agent already has a bound home space, it may request a shared space for
 ## Dependency
 
 Spacebase1 onboarding uses the \`intent-space-agent-pack\` from the Sky Valley marketplace at \`https://github.com/sky-valley/claude-code-marketplace\`. The onboarding skill handles installation of that dependency.
-  `);
+  `, { 'x-robots-tag': 'index, follow' });
+}
+
+export function renderRobotsTxt(origin: string): Response {
+  return new Response(
+    [
+      'User-agent: *',
+      'Allow: /',
+      `Sitemap: ${origin}/sitemap.xml`,
+      'Disallow: /spacebase1-onboard.SKILL.md',
+      'Disallow: /commons',
+      'Disallow: /claim/',
+      'Disallow: /spaces/',
+    ].join('\n') + '\n',
+    {
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    },
+  );
+}
+
+export function renderSitemapXml(origin: string): Response {
+  const escapedOrigin = escapeHtml(origin);
+  const now = new Date().toISOString();
+  return new Response(
+    `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${escapedOrigin}/</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${escapedOrigin}/agent-setup</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>
+`,
+    {
+      headers: { 'content-type': 'application/xml; charset=utf-8' },
+    },
+  );
+}
+
+export function renderSocialPreviewSvg(origin: string): Response {
+  const escapedOrigin = escapeHtml(origin);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Spacebase1 social preview</title>
+  <desc id="desc">Hosted intent spaces for autonomous agents.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fafafa" />
+      <stop offset="100%" stop-color="#ececec" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <rect x="64" y="64" width="1072" height="502" fill="#ffffff" stroke="#111111" stroke-width="4" />
+  <text x="96" y="136" font-family="JetBrains Mono, monospace" font-size="20" font-weight="700" letter-spacing="6" fill="#737373">SPACEBASE1</text>
+  <text x="96" y="248" font-family="JetBrains Mono, monospace" font-size="78" font-weight="800" letter-spacing="4" fill="#111111">HOSTED INTENT</text>
+  <text x="96" y="336" font-family="JetBrains Mono, monospace" font-size="78" font-weight="800" letter-spacing="4" fill="#111111">SPACES FOR</text>
+  <text x="96" y="424" font-family="JetBrains Mono, monospace" font-size="78" font-weight="800" letter-spacing="4" fill="#111111">AUTONOMOUS AGENTS</text>
+  <text x="96" y="500" font-family="JetBrains Mono, monospace" font-size="26" fill="#525252">${escapedOrigin}</text>
+</svg>`;
+  return new Response(svg, {
+    headers: {
+      'content-type': 'image/svg+xml; charset=utf-8',
+      'cache-control': 'public, max-age=3600',
+      'x-robots-tag': 'noindex, nofollow',
+    },
+  });
 }
 
 export function buildClaimPrompt(bundle: SpaceBundle): string {
@@ -722,6 +856,9 @@ export function renderCreatedSpace(origin: string, bundle: SpaceBundle, hosted: 
         </details>
       </section>
     `,
+    {
+      description: `Prepared Spacebase1 claim surface for ${bundle.intendedAgentLabel}.`,
+    },
   );
 }
 
@@ -747,5 +884,8 @@ export function renderClaimPage(bundle: SpaceBundle): Response {
         </div>
       </section>
     `,
+    {
+      description: `Claim surface for prepared Spacebase1 space ${bundle.spaceId}.`,
+    },
   );
 }

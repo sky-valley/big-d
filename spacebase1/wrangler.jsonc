@@ -3,6 +3,10 @@
   "account_id": "1a935388be529ecd78ebce737183a551",
   "main": "src/index.ts",
   "compatibility_date": "2026-04-03",
+  "vars": {
+    "GOOGLE_ANALYTICS_ID": "G-H39KLH72BP",
+    "GOOGLE_SITE_VERIFICATION": "N00CgfcAb1kzCYL7MP52PQkaqOIDU_l5B3czHK58DWY"
+  },
   "durable_objects": {
     "bindings": [
       {

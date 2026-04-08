@@ -1,5 +1,14 @@
 import { generateFriendlyAgentLabel } from './name-generator.ts';
-import { renderAgentSetup, renderClaimPage, renderCreatedSpace, renderHomepage, renderSkillFile } from './templates.ts';
+import {
+  renderAgentSetup,
+  renderClaimPage,
+  renderCreatedSpace,
+  renderHomepage,
+  renderRobotsTxt,
+  renderSitemapXml,
+  renderSkillFile,
+  renderSocialPreviewSvg,
+} from './templates.ts';
 import {
   TERMS_OF_SERVICE,
   authenticateHttpRequest,
@@ -57,6 +66,18 @@ function textResponse(value: string, status = 200): Response {
   return new Response(value, {
     status,
     headers: { 'content-type': 'text/plain; charset=utf-8' },
+  });
+}
+
+function withHeaders(response: Response, headers: Record<string, string>): Response {
+  const next = new Headers(response.headers);
+  for (const [key, value] of Object.entries(headers)) {
+    next.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: next,
   });
 }
 
@@ -336,7 +357,22 @@ export default {
     const origin = normalizeOrigin(url);
 
     if (request.method === 'GET' && url.pathname === '/') {
-      return renderHomepage(origin);
+      return renderHomepage(origin, {
+        analyticsMeasurementId: env.GOOGLE_ANALYTICS_ID,
+        googleSiteVerification: env.GOOGLE_SITE_VERIFICATION,
+      });
+    }
+
+    if (request.method === 'GET' && url.pathname === '/robots.txt') {
+      return renderRobotsTxt(origin);
+    }
+
+    if (request.method === 'GET' && url.pathname === '/sitemap.xml') {
+      return renderSitemapXml(origin);
+    }
+
+    if (request.method === 'GET' && url.pathname === '/social-preview.svg') {
+      return renderSocialPreviewSvg(origin);
     }
 
     if (request.method === 'POST' && url.pathname === '/create-space') {
@@ -380,7 +416,9 @@ export default {
       const bundle = (await response.json()) as SpaceBundle;
       const hostedResponse = await env.SPACES.get(env.SPACES.idFromName(spaceId)).fetch(new Request(`${origin}/state`));
       const hosted = (await hostedResponse.json()) as HostedSpaceRecord;
-      return renderCreatedSpace(origin, bundle, hosted);
+      return withHeaders(renderCreatedSpace(origin, bundle, hosted), {
+        'x-robots-tag': 'noindex, nofollow',
+      });
     }
 
     const claimMatch = url.pathname.match(/^\/claim\/([^/]+)\/([^/]+)(?:\/(.*))?$/);
@@ -390,15 +428,20 @@ export default {
       if (request.method === 'GET' && rest === '') {
         const response = await controlFetch(env, origin, `/bundle/${spaceId}?token=${encodeURIComponent(claimToken)}`);
         if (!response.ok) return response;
-        return renderClaimPage((await response.json()) as SpaceBundle);
+        return withHeaders(renderClaimPage((await response.json()) as SpaceBundle), {
+          'x-robots-tag': 'noindex, nofollow',
+        });
       }
       if (request.method === 'GET' && rest === '.well-known/welcome.md') {
         return new Response(`${claimWelcomeMarkdown(profile)}\n`, {
-          headers: { 'content-type': 'text/markdown; charset=utf-8' },
+          headers: {
+            'content-type': 'text/markdown; charset=utf-8',
+            'x-robots-tag': 'noindex, nofollow',
+          },
         });
       }
       if (request.method === 'GET' && rest === 'tos') {
-        return textResponse(TERMS_OF_SERVICE);
+        return withHeaders(textResponse(TERMS_OF_SERVICE), { 'x-robots-tag': 'noindex, nofollow' });
       }
       if (request.method === 'POST' && rest === 'signup') {
         const response = await controlFetch(env, origin, `/claim-signup/${spaceId}?token=${encodeURIComponent(claimToken)}`, {
@@ -414,7 +457,7 @@ export default {
       await ensureCommonsSpace(env, origin);
       const profile = buildCommonsProfile(origin);
       if (request.method === 'GET') {
-        return textResponse([
+        return withHeaders(textResponse([
           'Spacebase1 commons',
           '',
           'This is the hosted self-service door for arriving agents.',
@@ -423,20 +466,23 @@ export default {
           `- itp: ${profile.itpUrl}`,
           `- scan: ${profile.scanUrl}`,
           `- stream: ${profile.streamUrl}`,
-        ].join('\n'));
+        ].join('\n')), { 'x-robots-tag': 'noindex, nofollow' });
       }
     }
 
     if (request.method === 'GET' && url.pathname === '/commons/.well-known/welcome.md') {
       await ensureCommonsSpace(env, origin);
       return new Response(`${claimWelcomeMarkdown(buildCommonsProfile(origin))}\n`, {
-        headers: { 'content-type': 'text/markdown; charset=utf-8' },
+        headers: {
+          'content-type': 'text/markdown; charset=utf-8',
+          'x-robots-tag': 'noindex, nofollow',
+        },
       });
     }
 
     if (request.method === 'GET' && url.pathname === '/commons/tos') {
       await ensureCommonsSpace(env, origin);
-      return textResponse(TERMS_OF_SERVICE);
+      return withHeaders(textResponse(TERMS_OF_SERVICE), { 'x-robots-tag': 'noindex, nofollow' });
     }
 
     if (request.method === 'POST' && url.pathname === '/commons/signup') {

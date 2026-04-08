@@ -1,6 +1,8 @@
 export interface Env {
   CONTROL: DurableObjectNamespace;
   SPACES: DurableObjectNamespace;
+  GOOGLE_ANALYTICS_ID?: string;
+  GOOGLE_SITE_VERIFICATION?: string;
 }
 
 export interface PreparedSpaceRecord {
