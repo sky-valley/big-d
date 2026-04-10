@@ -524,158 +524,22 @@ export const OBSERVATORY_HTML =
   '\n' +
   'const app = document.getElementById(\'app\');\n' +
   '\n' +
-  '// ── ITP framing ──────────────────────────────────────────────────────────────\n' +
+  '// ── Observe client ───────────────────────────────────────────────────────────\n' +
+  '// Uses the token-only GET /observe endpoint — no DPoP, no ITP framing.\n' +
   '\n' +
-  'function buildScanFrame(spaceId, since = 0) {\n' +
-  '  const headers = `SCAN\\nspace: ${spaceId}\\nsince: ${since}\\nbody-length: 0\\n\\n`;\n' +
-  '  return new TextEncoder().encode(headers);\n' +
-  '}\n' +
-  '\n' +
-  'function parseScanResult(buffer) {\n' +
-  '  const text = new TextDecoder().decode(buffer);\n' +
-  '  const headerEnd = text.indexOf(\'\\n\\n\');\n' +
-  '  if (headerEnd === -1) throw new Error(\'Missing header terminator\');\n' +
-  '  const headerText = text.slice(0, headerEnd);\n' +
-  '  const lines = headerText.split(\'\\n\');\n' +
-  '  const verb = lines.shift()?.trim();\n' +
-  '  if (verb === \'ERROR\') {\n' +
-  '    const bodyStart = headerEnd + 2;\n' +
-  '    throw new Error(text.slice(bodyStart) || \'Station returned an error\');\n' +
-  '  }\n' +
-  '  if (verb !== \'SCAN_RESULT\') throw new Error(`Expected SCAN_RESULT, got ${verb}`);\n' +
-  '  const headers = {};\n' +
-  '  for (const line of lines) {\n' +
-  '    const sep = line.indexOf(\': \');\n' +
-  '    if (sep > 0) headers[line.slice(0, sep)] = line.slice(sep + 2);\n' +
-  '  }\n' +
-  '  const bodyLength = parseInt(headers[\'body-length\'] ?? \'0\', 10);\n' +
-  '  const bodyStart = headerEnd + 2;\n' +
-  '  const bodyText = text.slice(bodyStart, bodyStart + bodyLength);\n' +
-  '  return {\n' +
-  '    spaceId: headers.space,\n' +
-  '    latestSeq: parseInt(headers[\'latest-seq\'] ?? \'0\', 10),\n' +
-  '    messages: bodyText ? JSON.parse(bodyText) : [],\n' +
-  '  };\n' +
-  '}\n' +
-  '\n' +
-  '// ── DPoP auth ────────────────────────────────────────────────────────────────\n' +
-  '\n' +
-  'function b64url(input) {\n' +
-  '  const bytes = typeof input === \'string\' ? new TextEncoder().encode(input) : new Uint8Array(input);\n' +
-  '  let binary = \'\';\n' +
-  '  for (const b of bytes) binary += String.fromCharCode(b);\n' +
-  '  return btoa(binary).replace(/\\+/g, \'-\').replace(/\\//g, \'_\').replace(/=+$/, \'\');\n' +
-  '}\n' +
-  '\n' +
-  'async function sha256b64url(text) {\n' +
-  '  const hash = await crypto.subtle.digest(\'SHA-256\', new TextEncoder().encode(text));\n' +
-  '  return b64url(hash);\n' +
-  '}\n' +
-  '\n' +
-  'async function importPrivateKey(jwk) {\n' +
-  '  return crypto.subtle.importKey(\n' +
-  '    \'jwk\', jwk, { name: \'RSASSA-PKCS1-v1_5\', hash: \'SHA-256\' }, false, [\'sign\'],\n' +
-  '  );\n' +
-  '}\n' +
-  '\n' +
-  'async function importPrivateKeyExportable(jwk) {\n' +
-  '  return crypto.subtle.importKey(\n' +
-  '    \'jwk\', jwk, { name: \'RSASSA-PKCS1-v1_5\', hash: \'SHA-256\' }, true, [\'sign\'],\n' +
-  '  );\n' +
-  '}\n' +
-  '\n' +
-  'function publicJwkFromPrivate(jwk) {\n' +
-  '  const { d, p, q, dp, dq, qi, ...pub } = jwk;\n' +
-  '  return pub;\n' +
-  '}\n' +
-  '\n' +
-  '// ── PEM support ──────────────────────────────────────────────────────────────\n' +
-  '\n' +
-  'function isPem(text) {\n' +
-  '  return text.trimStart().startsWith(\'-----BEGIN\');\n' +
-  '}\n' +
-  '\n' +
-  'function pemToArrayBuffer(pem) {\n' +
-  '  const lines = pem.split(\'\\n\').filter(l => !l.startsWith(\'-----\') && l.trim());\n' +
-  '  const b64 = lines.join(\'\');\n' +
-  '  const binary = atob(b64);\n' +
-  '  const bytes = new Uint8Array(binary.length);\n' +
-  '  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);\n' +
-  '  return bytes.buffer;\n' +
-  '}\n' +
-  '\n' +
-  'async function importPemPrivateKey(pem) {\n' +
-  '  const der = pemToArrayBuffer(pem);\n' +
-  '  return crypto.subtle.importKey(\n' +
-  '    \'pkcs8\', der, { name: \'RSASSA-PKCS1-v1_5\', hash: \'SHA-256\' }, true, [\'sign\'],\n' +
-  '  );\n' +
-  '}\n' +
-  '\n' +
-  'async function cryptoKeyToPublicJwk(cryptoKey) {\n' +
-  '  const jwk = await crypto.subtle.exportKey(\'jwk\', cryptoKey);\n' +
-  '  const { d, p, q, dp, dq, qi, key_ops, ...pub } = jwk;\n' +
-  '  return pub;\n' +
-  '}\n' +
-  '\n' +
-  '/** Parse a key from text — accepts JWK JSON or PEM. Returns { privateKey, publicJwk }. */\n' +
-  'async function parseKeyInput(text) {\n' +
-  '  const trimmed = text.trim();\n' +
-  '  if (isPem(trimmed)) {\n' +
-  '    const cryptoKey = await importPemPrivateKey(trimmed);\n' +
-  '    const publicJwk = await cryptoKeyToPublicJwk(cryptoKey);\n' +
-  '    // Re-import as non-exportable for signing\n' +
-  '    const jwk = await crypto.subtle.exportKey(\'jwk\', cryptoKey);\n' +
-  '    const privateKey = await importPrivateKey(jwk);\n' +
-  '    return { privateKey, publicJwk };\n' +
-  '  }\n' +
-  '  const jwk = JSON.parse(trimmed);\n' +
-  '  const privateKey = await importPrivateKey(jwk);\n' +
-  '  const publicJwk = publicJwkFromPrivate(jwk);\n' +
-  '  return { privateKey, publicJwk };\n' +
-  '}\n' +
-  '\n' +
-  'function b64urlDecode(str) {\n' +
-  '  const padded = str.replace(/-/g, \'+\').replace(/_/g, \'/\');\n' +
-  '  return atob(padded);\n' +
-  '}\n' +
-  '\n' +
-  'async function makeDpopProof(privateKey, publicJwk, method, url, stationToken) {\n' +
-  '  const header = { typ: \'dpop+jwt\', alg: \'RS256\', jwk: publicJwk };\n' +
-  '  const payload = {\n' +
-  '    jti: crypto.randomUUID(),\n' +
-  '    iat: Math.floor(Date.now() / 1000),\n' +
-  '    htm: method.toUpperCase(),\n' +
-  '    htu: url,\n' +
-  '    ath: await sha256b64url(stationToken),\n' +
-  '  };\n' +
-  '  const signingInput = b64url(JSON.stringify(header)) + \'.\' + b64url(JSON.stringify(payload));\n' +
-  '  const signature = await crypto.subtle.sign(\'RSASSA-PKCS1-v1_5\', privateKey, new TextEncoder().encode(signingInput));\n' +
-  '  return signingInput + \'.\' + b64url(signature);\n' +
-  '}\n' +
-  '\n' +
-  '// ── Scan client ──────────────────────────────────────────────────────────────\n' +
-  '\n' +
-  'let connection = null; // { scanUrl, stationToken, privateKey, publicJwk, spaceId }\n' +
+  'let connection = null; // { origin, spaceId, stationToken }\n' +
   '\n' +
   'async function scanSpace(spaceId, since = 0) {\n' +
-  '  const proof = await makeDpopProof(\n' +
-  '    connection.privateKey, connection.publicJwk,\n' +
-  '    \'POST\', connection.scanUrl, connection.stationToken,\n' +
-  '  );\n' +
-  '  const response = await fetch(connection.scanUrl, {\n' +
-  '    method: \'POST\',\n' +
-  '    headers: {\n' +
-  '      \'authorization\': `DPoP ${connection.stationToken}`,\n' +
-  '      \'dpop\': proof,\n' +
-  '      \'content-type\': \'application/itp\',\n' +
-  '    },\n' +
-  '    body: buildScanFrame(spaceId, since),\n' +
-  '  });\n' +
+  '  const observeUrl = `${connection.origin}/spaces/${connection.spaceId}/observe`\n' +
+  '    + `?token=${encodeURIComponent(connection.stationToken)}`\n' +
+  '    + `&space=${encodeURIComponent(spaceId)}`\n' +
+  '    + `&since=${since}`;\n' +
+  '  const response = await fetch(observeUrl);\n' +
   '  if (!response.ok) {\n' +
   '    const text = await response.text();\n' +
-  '    throw new Error(`Scan failed (${response.status}): ${text}`);\n' +
+  '    throw new Error(`Observe failed (${response.status}): ${text}`);\n' +
   '  }\n' +
-  '  return parseScanResult(new Uint8Array(await response.arrayBuffer()));\n' +
+  '  return response.json();\n' +
   '}\n' +
   '\n' +
   'async function scanRecursive(spaceId, maxDepth = 3) {\n' +
@@ -851,7 +715,7 @@ export const OBSERVATORY_HTML =
   '\n' +
   '  return {\n' +
   '    generatedAt: Date.now(),\n' +
-  '    origin: connection.scanUrl.replace(/\\/spaces\\/.*/, \'\') || connection.scanUrl,\n' +
+  '    origin: connection.origin,\n' +
   '    spaceId,\n' +
   '    nodes,\n' +
   '    edges,\n' +
@@ -1313,7 +1177,6 @@ export const OBSERVATORY_HTML =
   '  const savedOrigin = hash.get(\'origin\') ?? \'\';\n' +
   '  const savedSpace = hash.get(\'space\') ?? \'\';\n' +
   '  const savedToken = hash.get(\'token\') ?? \'\';\n' +
-  '  const savedScanUrl = hash.get(\'scanUrl\') ?? \'\';\n' +
   '\n' +
   '  app.innerHTML = `\n' +
   '    <main class="connect-shell">\n' +
@@ -1324,28 +1187,20 @@ export const OBSERVATORY_HTML =
   '        <form id="connect-form">\n' +
   '          <div class="connect-field">\n' +
   '            <label for="f-origin">Station origin</label>\n' +
-  '            <input id="f-origin" type="url" placeholder="https://spacebase1.example" value="${esc(savedOrigin)}" required />\n' +
+  '            <input id="f-origin" type="url" placeholder="https://spacebase1.differ.ac" value="${esc(savedOrigin)}" required />\n' +
   '          </div>\n' +
   '          <div class="connect-field">\n' +
   '            <label for="f-space">Space ID</label>\n' +
   '            <input id="f-space" type="text" placeholder="space-xxxxxxxx-..." value="${esc(savedSpace)}" required />\n' +
   '          </div>\n' +
   '          <div class="connect-field">\n' +
-  '            <label for="f-scan-url">Scan URL (optional — overrides origin + space)</label>\n' +
-  '            <input id="f-scan-url" type="url" placeholder="http://127.0.0.1:8787/scan" value="${esc(savedScanUrl)}" />\n' +
-  '          </div>\n' +
-  '          <div class="connect-field">\n' +
   '            <label for="f-token">Station token</label>\n' +
-  '            <input id="f-token" type="text" placeholder="Opaque token from signup response" value="${esc(savedToken)}" required />\n' +
-  '          </div>\n' +
-  '          <div class="connect-field">\n' +
-  '            <label for="f-key">Private key (JWK JSON or PEM)</label>\n' +
-  '            <textarea id="f-key" placeholder=\'{"kty":"RSA",...} or -----BEGIN PRIVATE KEY-----\' required></textarea>\n' +
+  '            <input id="f-token" type="text" placeholder="From signup response" value="${esc(savedToken)}" required />\n' +
   '          </div>\n' +
   '          <button type="submit" class="connect-btn" id="connect-btn">Connect</button>\n' +
   '          <p class="connect-hint">\n' +
-  '            Paste your station token and RSA private key (JWK JSON or PEM format).\n' +
-  '            The key never leaves this page.\n' +
+  '            These values come from the signup response. If you opened this link\n' +
+  '            from the agent output, they are already filled in.\n' +
   '          </p>\n' +
   '        </form>\n' +
   '      </div>\n' +
@@ -1365,21 +1220,11 @@ export const OBSERVATORY_HTML =
   '      const origin = document.getElementById(\'f-origin\').value.replace(/\\/+$/, \'\');\n' +
   '      const spaceId = document.getElementById(\'f-space\').value.trim();\n' +
   '      const stationToken = document.getElementById(\'f-token\').value.trim();\n' +
-  '      const keyText = document.getElementById(\'f-key\').value.trim();\n' +
-  '      const scanUrlOverride = document.getElementById(\'f-scan-url\').value.trim();\n' +
-  '      const { privateKey, publicJwk } = await parseKeyInput(keyText);\n' +
-  '      const scanUrl = scanUrlOverride || `${origin}/spaces/${spaceId}/scan`;\n' +
-  '\n' +
-  '      connection = { scanUrl, stationToken, privateKey, publicJwk, spaceId };\n' +
-  '\n' +
-  '      // Save non-secret params in hash for reload convenience\n' +
-  '      const hashParts = [`origin=${encodeURIComponent(origin)}`, `space=${encodeURIComponent(spaceId)}`];\n' +
-  '      if (scanUrlOverride) hashParts.push(`scanUrl=${encodeURIComponent(scanUrlOverride)}`);\n' +
-  '      location.hash = hashParts.join(\'&\');\n' +
-  '\n' +
+  '      connection = { origin, stationToken, spaceId };\n' +
+  '      location.hash = `origin=${encodeURIComponent(origin)}&space=${encodeURIComponent(spaceId)}&token=${encodeURIComponent(stationToken)}`;\n' +
   '      await startObservatory();\n' +
   '    } catch (err) {\n' +
-  '      errEl.textContent = err.message;\n' +
+  '      errEl.textContent = err.message || err.name || \'Connection failed\';\n' +
   '      errEl.style.display = \'block\';\n' +
   '      btn.disabled = false;\n' +
   '      btn.textContent = \'Connect\';\n' +
@@ -1410,34 +1255,29 @@ export const OBSERVATORY_HTML =
   '  pollTimer = setInterval(poll, POLL_INTERVAL);\n' +
   '}\n' +
   '\n' +
-  '// ── Auto-connect from hash params ────────────────────────────────────────────\n' +
+  '// ── Boot ─────────────────────────────────────────────────────────────────────\n' +
+  '// Auto-connect if origin, space, and token are all in the hash.\n' +
   '\n' +
-  'async function tryAutoConnect() {\n' +
+  'async function boot() {\n' +
   '  const hash = new URLSearchParams(location.hash.slice(1));\n' +
   '  const origin = hash.get(\'origin\');\n' +
   '  const space = hash.get(\'space\');\n' +
   '  const token = hash.get(\'token\');\n' +
-  '  const keyParam = hash.get(\'key\');\n' +
-  '  const scanUrlParam = hash.get(\'scanUrl\');\n' +
   '\n' +
-  '  if (!origin || !space || !token || !keyParam) return false;\n' +
-  '\n' +
-  '  try {\n' +
-  '    app.innerHTML = `<main class="loading-shell"><p>Connecting...</p></main>`;\n' +
-  '    // key param is base64url-encoded PEM or JWK JSON\n' +
-  '    const keyText = b64urlDecode(keyParam);\n' +
-  '    const { privateKey, publicJwk } = await parseKeyInput(keyText);\n' +
-  '    const scanUrl = scanUrlParam || `${origin}/spaces/${space}/scan`;\n' +
-  '    connection = { scanUrl, stationToken: token, privateKey, publicJwk, spaceId: space };\n' +
-  '    await startObservatory();\n' +
-  '    return true;\n' +
-  '  } catch (err) {\n' +
-  '    showConnect(`Auto-connect failed: ${err.message}`);\n' +
-  '    return true; // show error, don\'t fall through to blank form\n' +
+  '  if (origin && space && token) {\n' +
+  '    try {\n' +
+  '      connection = { origin, stationToken: token, spaceId: space };\n' +
+  '      await startObservatory();\n' +
+  '      return;\n' +
+  '    } catch (err) {\n' +
+  '      showConnect(`Auto-connect failed: ${err.message || err.name || \'Unknown error\'}`);\n' +
+  '      return;\n' +
+  '    }\n' +
   '  }\n' +
+  '  showConnect();\n' +
   '}\n' +
   '\n' +
-  'tryAutoConnect().then((connected) => { if (!connected) showConnect(); });\n' +
+  'boot();\n' +
   '    </script>\n' +
   '  </body>\n' +
   '</html>\n' +
