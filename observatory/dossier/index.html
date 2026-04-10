@@ -577,9 +577,65 @@ async function importPrivateKey(jwk) {
   );
 }
 
+async function importPrivateKeyExportable(jwk) {
+  return crypto.subtle.importKey(
+    'jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, true, ['sign'],
+  );
+}
+
 function publicJwkFromPrivate(jwk) {
   const { d, p, q, dp, dq, qi, ...pub } = jwk;
   return pub;
+}
+
+// ── PEM support ──────────────────────────────────────────────────────────────
+
+function isPem(text) {
+  return text.trimStart().startsWith('-----BEGIN');
+}
+
+function pemToArrayBuffer(pem) {
+  const lines = pem.split('\n').filter(l => !l.startsWith('-----') && l.trim());
+  const b64 = lines.join('');
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function importPemPrivateKey(pem) {
+  const der = pemToArrayBuffer(pem);
+  return crypto.subtle.importKey(
+    'pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, true, ['sign'],
+  );
+}
+
+async function cryptoKeyToPublicJwk(cryptoKey) {
+  const jwk = await crypto.subtle.exportKey('jwk', cryptoKey);
+  const { d, p, q, dp, dq, qi, key_ops, ...pub } = jwk;
+  return pub;
+}
+
+/** Parse a key from text — accepts JWK JSON or PEM. Returns { privateKey, publicJwk }. */
+async function parseKeyInput(text) {
+  const trimmed = text.trim();
+  if (isPem(trimmed)) {
+    const cryptoKey = await importPemPrivateKey(trimmed);
+    const publicJwk = await cryptoKeyToPublicJwk(cryptoKey);
+    // Re-import as non-exportable for signing
+    const jwk = await crypto.subtle.exportKey('jwk', cryptoKey);
+    const privateKey = await importPrivateKey(jwk);
+    return { privateKey, publicJwk };
+  }
+  const jwk = JSON.parse(trimmed);
+  const privateKey = await importPrivateKey(jwk);
+  const publicJwk = publicJwkFromPrivate(jwk);
+  return { privateKey, publicJwk };
+}
+
+function b64urlDecode(str) {
+  const padded = str.replace(/-/g, '+').replace(/_/g, '/');
+  return atob(padded);
 }
 
 async function makeDpopProof(privateKey, publicJwk, method, url, stationToken) {
@@ -1282,12 +1338,12 @@ function showConnect(errorMsg) {
             <input id="f-token" type="text" placeholder="Opaque token from signup response" value="${esc(savedToken)}" required />
           </div>
           <div class="connect-field">
-            <label for="f-key">Private key (JWK JSON)</label>
-            <textarea id="f-key" placeholder='{"kty":"RSA","n":"...","e":"AQAB","d":"...",...}' required></textarea>
+            <label for="f-key">Private key (JWK JSON or PEM)</label>
+            <textarea id="f-key" placeholder='{"kty":"RSA",...} or -----BEGIN PRIVATE KEY-----' required></textarea>
           </div>
           <button type="submit" class="connect-btn" id="connect-btn">Connect</button>
           <p class="connect-hint">
-            Provide the station token and RSA private key from your signup flow.
+            Paste your station token and RSA private key (JWK JSON or PEM format).
             The key never leaves this page.
           </p>
         </form>
@@ -1310,9 +1366,7 @@ function showConnect(errorMsg) {
       const stationToken = document.getElementById('f-token').value.trim();
       const keyText = document.getElementById('f-key').value.trim();
       const scanUrlOverride = document.getElementById('f-scan-url').value.trim();
-      const privateKeyJwk = JSON.parse(keyText);
-      const privateKey = await importPrivateKey(privateKeyJwk);
-      const publicJwk = publicJwkFromPrivate(privateKeyJwk);
+      const { privateKey, publicJwk } = await parseKeyInput(keyText);
       const scanUrl = scanUrlOverride || `${origin}/spaces/${spaceId}/scan`;
 
       connection = { scanUrl, stationToken, privateKey, publicJwk, spaceId };
@@ -1355,7 +1409,34 @@ async function startObservatory() {
   pollTimer = setInterval(poll, POLL_INTERVAL);
 }
 
-showConnect();
+// ── Auto-connect from hash params ────────────────────────────────────────────
+
+async function tryAutoConnect() {
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const origin = hash.get('origin');
+  const space = hash.get('space');
+  const token = hash.get('token');
+  const keyParam = hash.get('key');
+  const scanUrlParam = hash.get('scanUrl');
+
+  if (!origin || !space || !token || !keyParam) return false;
+
+  try {
+    app.innerHTML = `<main class="loading-shell"><p>Connecting...</p></main>`;
+    // key param is base64url-encoded PEM or JWK JSON
+    const keyText = b64urlDecode(keyParam);
+    const { privateKey, publicJwk } = await parseKeyInput(keyText);
+    const scanUrl = scanUrlParam || `${origin}/spaces/${space}/scan`;
+    connection = { scanUrl, stationToken: token, privateKey, publicJwk, spaceId: space };
+    await startObservatory();
+    return true;
+  } catch (err) {
+    showConnect(`Auto-connect failed: ${err.message}`);
+    return true; // show error, don't fall through to blank form
+  }
+}
+
+tryAutoConnect().then((connected) => { if (!connected) showConnect(); });
     </script>
   </body>
 </html>

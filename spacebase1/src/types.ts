@@ -124,6 +124,7 @@ export interface SignupResponse extends Record<string, unknown> {
   scan_endpoint: string;
   stream_endpoint: string;
   space_id: string;
+  observatory_url: string;
 }
 
 export interface StationSession {

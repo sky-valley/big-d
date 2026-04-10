@@ -578,9 +578,65 @@ export const OBSERVATORY_HTML =
   '  );\n' +
   '}\n' +
   '\n' +
+  'async function importPrivateKeyExportable(jwk) {\n' +
+  '  return crypto.subtle.importKey(\n' +
+  '    \'jwk\', jwk, { name: \'RSASSA-PKCS1-v1_5\', hash: \'SHA-256\' }, true, [\'sign\'],\n' +
+  '  );\n' +
+  '}\n' +
+  '\n' +
   'function publicJwkFromPrivate(jwk) {\n' +
   '  const { d, p, q, dp, dq, qi, ...pub } = jwk;\n' +
   '  return pub;\n' +
+  '}\n' +
+  '\n' +
+  '// ── PEM support ──────────────────────────────────────────────────────────────\n' +
+  '\n' +
+  'function isPem(text) {\n' +
+  '  return text.trimStart().startsWith(\'-----BEGIN\');\n' +
+  '}\n' +
+  '\n' +
+  'function pemToArrayBuffer(pem) {\n' +
+  '  const lines = pem.split(\'\\n\').filter(l => !l.startsWith(\'-----\') && l.trim());\n' +
+  '  const b64 = lines.join(\'\');\n' +
+  '  const binary = atob(b64);\n' +
+  '  const bytes = new Uint8Array(binary.length);\n' +
+  '  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);\n' +
+  '  return bytes.buffer;\n' +
+  '}\n' +
+  '\n' +
+  'async function importPemPrivateKey(pem) {\n' +
+  '  const der = pemToArrayBuffer(pem);\n' +
+  '  return crypto.subtle.importKey(\n' +
+  '    \'pkcs8\', der, { name: \'RSASSA-PKCS1-v1_5\', hash: \'SHA-256\' }, true, [\'sign\'],\n' +
+  '  );\n' +
+  '}\n' +
+  '\n' +
+  'async function cryptoKeyToPublicJwk(cryptoKey) {\n' +
+  '  const jwk = await crypto.subtle.exportKey(\'jwk\', cryptoKey);\n' +
+  '  const { d, p, q, dp, dq, qi, key_ops, ...pub } = jwk;\n' +
+  '  return pub;\n' +
+  '}\n' +
+  '\n' +
+  '/** Parse a key from text — accepts JWK JSON or PEM. Returns { privateKey, publicJwk }. */\n' +
+  'async function parseKeyInput(text) {\n' +
+  '  const trimmed = text.trim();\n' +
+  '  if (isPem(trimmed)) {\n' +
+  '    const cryptoKey = await importPemPrivateKey(trimmed);\n' +
+  '    const publicJwk = await cryptoKeyToPublicJwk(cryptoKey);\n' +
+  '    // Re-import as non-exportable for signing\n' +
+  '    const jwk = await crypto.subtle.exportKey(\'jwk\', cryptoKey);\n' +
+  '    const privateKey = await importPrivateKey(jwk);\n' +
+  '    return { privateKey, publicJwk };\n' +
+  '  }\n' +
+  '  const jwk = JSON.parse(trimmed);\n' +
+  '  const privateKey = await importPrivateKey(jwk);\n' +
+  '  const publicJwk = publicJwkFromPrivate(jwk);\n' +
+  '  return { privateKey, publicJwk };\n' +
+  '}\n' +
+  '\n' +
+  'function b64urlDecode(str) {\n' +
+  '  const padded = str.replace(/-/g, \'+\').replace(/_/g, \'/\');\n' +
+  '  return atob(padded);\n' +
   '}\n' +
   '\n' +
   'async function makeDpopProof(privateKey, publicJwk, method, url, stationToken) {\n' +
@@ -1283,12 +1339,12 @@ export const OBSERVATORY_HTML =
   '            <input id="f-token" type="text" placeholder="Opaque token from signup response" value="${esc(savedToken)}" required />\n' +
   '          </div>\n' +
   '          <div class="connect-field">\n' +
-  '            <label for="f-key">Private key (JWK JSON)</label>\n' +
-  '            <textarea id="f-key" placeholder=\'{"kty":"RSA","n":"...","e":"AQAB","d":"...",...}\' required></textarea>\n' +
+  '            <label for="f-key">Private key (JWK JSON or PEM)</label>\n' +
+  '            <textarea id="f-key" placeholder=\'{"kty":"RSA",...} or -----BEGIN PRIVATE KEY-----\' required></textarea>\n' +
   '          </div>\n' +
   '          <button type="submit" class="connect-btn" id="connect-btn">Connect</button>\n' +
   '          <p class="connect-hint">\n' +
-  '            Provide the station token and RSA private key from your signup flow.\n' +
+  '            Paste your station token and RSA private key (JWK JSON or PEM format).\n' +
   '            The key never leaves this page.\n' +
   '          </p>\n' +
   '        </form>\n' +
@@ -1311,9 +1367,7 @@ export const OBSERVATORY_HTML =
   '      const stationToken = document.getElementById(\'f-token\').value.trim();\n' +
   '      const keyText = document.getElementById(\'f-key\').value.trim();\n' +
   '      const scanUrlOverride = document.getElementById(\'f-scan-url\').value.trim();\n' +
-  '      const privateKeyJwk = JSON.parse(keyText);\n' +
-  '      const privateKey = await importPrivateKey(privateKeyJwk);\n' +
-  '      const publicJwk = publicJwkFromPrivate(privateKeyJwk);\n' +
+  '      const { privateKey, publicJwk } = await parseKeyInput(keyText);\n' +
   '      const scanUrl = scanUrlOverride || `${origin}/spaces/${spaceId}/scan`;\n' +
   '\n' +
   '      connection = { scanUrl, stationToken, privateKey, publicJwk, spaceId };\n' +
@@ -1356,7 +1410,34 @@ export const OBSERVATORY_HTML =
   '  pollTimer = setInterval(poll, POLL_INTERVAL);\n' +
   '}\n' +
   '\n' +
-  'showConnect();\n' +
+  '// ── Auto-connect from hash params ────────────────────────────────────────────\n' +
+  '\n' +
+  'async function tryAutoConnect() {\n' +
+  '  const hash = new URLSearchParams(location.hash.slice(1));\n' +
+  '  const origin = hash.get(\'origin\');\n' +
+  '  const space = hash.get(\'space\');\n' +
+  '  const token = hash.get(\'token\');\n' +
+  '  const keyParam = hash.get(\'key\');\n' +
+  '  const scanUrlParam = hash.get(\'scanUrl\');\n' +
+  '\n' +
+  '  if (!origin || !space || !token || !keyParam) return false;\n' +
+  '\n' +
+  '  try {\n' +
+  '    app.innerHTML = `<main class="loading-shell"><p>Connecting...</p></main>`;\n' +
+  '    // key param is base64url-encoded PEM or JWK JSON\n' +
+  '    const keyText = b64urlDecode(keyParam);\n' +
+  '    const { privateKey, publicJwk } = await parseKeyInput(keyText);\n' +
+  '    const scanUrl = scanUrlParam || `${origin}/spaces/${space}/scan`;\n' +
+  '    connection = { scanUrl, stationToken: token, privateKey, publicJwk, spaceId: space };\n' +
+  '    await startObservatory();\n' +
+  '    return true;\n' +
+  '  } catch (err) {\n' +
+  '    showConnect(`Auto-connect failed: ${err.message}`);\n' +
+  '    return true; // show error, don\'t fall through to blank form\n' +
+  '  }\n' +
+  '}\n' +
+  '\n' +
+  'tryAutoConnect().then((connected) => { if (!connected) showConnect(); });\n' +
   '    </script>\n' +
   '  </body>\n' +
   '</html>\n' +
