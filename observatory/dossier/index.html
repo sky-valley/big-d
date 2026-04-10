@@ -1,0 +1,1361 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Space Observatory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+:root {
+  --ink: #111217;
+  --paper: #f2eee6;
+  --paper-soft: #ebe4d8;
+  --accent: #0e6d5a;
+  --accent-soft: rgba(14, 109, 90, 0.14);
+  --signal: #d1642e;
+  --signal-soft: rgba(209, 100, 46, 0.16);
+  --line: rgba(17, 18, 23, 0.14);
+  --line-strong: rgba(17, 18, 23, 0.28);
+  --shadow: 0 24px 80px rgba(17, 18, 23, 0.12);
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --display: "Space Grotesk", "Avenir Next", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: radial-gradient(circle at top, #fbf7f1 0%, var(--paper) 46%, #e8dfd1 100%); color: var(--ink); }
+body { font-family: var(--display); }
+button { font: inherit; color: inherit; }
+
+/* ── Connect screen ────────────────────────────── */
+.connect-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+.connect-card {
+  width: 100%;
+  max-width: 38rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+  padding: 2.5rem;
+}
+.connect-card h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2.2rem;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+.connect-card .eyebrow {
+  margin: 0 0 1.8rem;
+  font-family: var(--mono);
+  font-size: 0.77rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(17, 18, 23, 0.6);
+}
+.connect-field { margin-bottom: 1rem; }
+.connect-field label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(17, 18, 23, 0.55);
+}
+.connect-field input,
+.connect-field textarea {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 120ms ease;
+}
+.connect-field input:focus,
+.connect-field textarea:focus { border-color: var(--accent); }
+.connect-field textarea { min-height: 6rem; resize: vertical; }
+.connect-error {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: #9c2e11;
+  background: rgba(209, 100, 46, 0.1);
+  border: 1px solid rgba(209, 100, 46, 0.25);
+  display: none;
+}
+.connect-btn {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+.connect-btn:hover { background: #0a5a49; }
+.connect-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.connect-hint {
+  margin: 1rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: rgba(17, 18, 23, 0.5);
+}
+
+/* ── Observatory shell ─────────────────────────── */
+.shell {
+  min-height: 100vh;
+  padding: 2rem;
+  display: grid;
+  gap: 0;
+}
+
+.hero-plane,
+.workspace {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+}
+
+.hero-plane {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  min-height: min(36rem, calc(100vh - 4rem));
+  overflow: hidden;
+}
+
+.hero-copy {
+  padding: 3rem 3rem 2.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.77rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(17, 18, 23, 0.6);
+}
+
+.hero-copy h1,
+.room-header h2 {
+  margin: 0;
+  font-size: clamp(2.8rem, 5vw, 5.5rem);
+  line-height: 0.94;
+  letter-spacing: -0.05em;
+  max-width: 10ch;
+}
+
+.lede {
+  margin: 0;
+  max-width: 32rem;
+  font-size: 1.08rem;
+  line-height: 1.7;
+  color: rgba(17, 18, 23, 0.76);
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.hero-meta span,
+.room-badges span {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.hero-graph {
+  position: relative;
+  border-left: 1px solid var(--line);
+  background:
+    linear-gradient(rgba(17, 18, 23, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 18, 23, 0.05) 1px, transparent 1px);
+  background-size: 3rem 3rem;
+  overflow: hidden;
+  cursor: grab;
+}
+.hero-graph.is-panning { cursor: grabbing; }
+
+.graph-surface {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+
+.graph-controls {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  z-index: 10;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(17, 18, 23, 0.08);
+}
+.graph-controls button {
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  transition: background 100ms ease;
+}
+.graph-controls button:hover { background: rgba(255, 255, 255, 1); }
+.graph-controls button + button { border-top: 1px solid var(--line); }
+
+.graph-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.metro-line {
+  stroke: var(--line-strong);
+  stroke-width: 0.35;
+  stroke-linecap: round;
+}
+.metro-line-interior { stroke: rgba(209, 100, 46, 0.5); stroke-width: 0.35; }
+.metro-line-nested { stroke: rgba(14, 109, 90, 0.4); stroke-width: 0.3; stroke-dasharray: 0.8 0.6; }
+
+.station {
+  position: absolute;
+  transform: translate(-5px, -50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 180ms ease;
+}
+.station:hover { transform: translate(-5px, -50%) scale(1.06); }
+.station.is-selected { transform: translate(-5px, -50%) scale(1.06); }
+.station-root { transform: translate(-8px, -50%); }
+.station-root:hover,
+.station-root.is-selected { transform: translate(-8px, -50%) scale(1.06); }
+
+.station-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dot-color, var(--ink));
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px var(--dot-color, var(--ink));
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.station-dot-hub {
+  width: 16px;
+  height: 16px;
+  border-width: 3px;
+}
+.station.is-selected .station-dot,
+.station:hover .station-dot {
+  transform: scale(1.35);
+  box-shadow: 0 0 0 2px var(--dot-color, var(--ink)), 0 0 12px rgba(14, 109, 90, 0.25);
+}
+
+.station-label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  padding: 0.2rem 0.45rem;
+  background: rgba(242, 238, 230, 0.92);
+  border: 1px solid var(--line);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+.station:hover .station-label,
+.station.is-selected .station-label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.station.is-fresh { animation: station-arrive 420ms ease; }
+
+/* ── Browser chrome ─────────────────────────────── */
+.browser {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 30rem;
+  margin-top: -4.75rem;
+  position: relative;
+  z-index: 2;
+  border: 1px solid var(--line);
+  border-top: 0;
+  background: rgba(255, 252, 247, 0.92);
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+}
+
+.browser-nav {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.6);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  min-height: 2.4rem;
+}
+
+.crumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.crumb-type {
+  padding: 0.12rem 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 2px;
+  background: rgba(17, 18, 23, 0.06);
+  color: rgba(17, 18, 23, 0.45);
+}
+.crumb:first-child .crumb-type { background: var(--accent-soft); color: var(--accent); }
+.crumb-name {
+  border: none;
+  background: none;
+  font: inherit;
+  padding: 0.2rem 0.3rem;
+  cursor: pointer;
+  color: rgba(17, 18, 23, 0.6);
+  border-radius: 3px;
+  transition: background 100ms ease, color 100ms ease;
+}
+.crumb-name:hover { background: rgba(17, 18, 23, 0.06); color: var(--ink); }
+.crumb-current .crumb-name { color: var(--ink); font-weight: 600; }
+
+.crumb-sep {
+  margin: 0 0.25rem;
+  color: rgba(17, 18, 23, 0.22);
+  font-size: 0.85rem;
+}
+
+.nav-meta {
+  margin-left: auto;
+  color: rgba(17, 18, 23, 0.4);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.browser-viewport {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  min-height: 0;
+}
+
+.browser-page {
+  overflow: auto;
+  padding: 0.8rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.page-subtitle {
+  margin: 0 0 0.4rem;
+  padding: 0 0.2rem;
+  font-size: 0.92rem;
+  color: rgba(17, 18, 23, 0.55);
+}
+.page-empty {
+  padding: 2rem;
+  text-align: center;
+  color: rgba(17, 18, 23, 0.4);
+}
+
+.event-row {
+  border: 1px solid transparent;
+  border-left: 3px solid var(--line);
+  background: transparent;
+  padding: 0.8rem 0.9rem;
+  display: grid;
+  gap: 0.22rem;
+  cursor: pointer;
+  text-align: left;
+  animation: event-fade 280ms ease;
+}
+.event-row:hover,
+.event-row.is-selected {
+  border-color: var(--line);
+  border-left-color: var(--signal);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.event-row.has-children {
+  border-left-color: var(--accent);
+}
+.event-row.has-children:hover {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.drill-arrow {
+  font-weight: 700;
+  color: var(--accent);
+  margin-left: 0.3rem;
+}
+
+.event-kind,
+.event-meta,
+.inspector-meta {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.event-kind { color: var(--signal); }
+.event-label { font-size: 0.98rem; line-height: 1.5; }
+.event-meta, .inspector-meta { color: rgba(17, 18, 23, 0.5); }
+
+.browser-inspector {
+  border-left: 1px solid var(--line);
+  padding: 1.2rem;
+  background: rgba(17, 18, 23, 0.94);
+  color: #f7f4ee;
+  min-width: 0;
+  overflow: auto;
+}
+.browser-inspector h3 {
+  margin: 0 0 0.45rem;
+  font-size: 1.2rem;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.browser-inspector pre {
+  margin: 0.8rem 0 0;
+  padding: 0.8rem;
+  border: 1px solid rgba(247, 244, 238, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.loading-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  font-size: 1.2rem;
+}
+
+@keyframes station-arrive {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  60% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes event-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1100px) {
+  .hero-plane { grid-template-columns: 1fr; min-height: auto; }
+  .hero-graph { min-height: 26rem; border-left: 0; border-top: 1px solid var(--line); }
+  .browser { margin-top: 0.85rem; }
+  .browser-viewport { grid-template-columns: 1fr; }
+  .browser-inspector { border-left: 0; border-top: 1px solid var(--line); max-height: 18rem; }
+}
+
+@media (max-width: 720px) {
+  .shell { padding: 1rem; gap: 1rem; }
+  .hero-copy { padding: 1.2rem; }
+  .hero-copy h1 { max-width: none; }
+  .hero-meta { gap: 0.4rem; }
+  .browser-inspector { padding: 1rem; }
+}
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+import { hierarchy, tree } from 'https://cdn.jsdelivr.net/npm/d3-hierarchy@3/+esm';
+
+const app = document.getElementById('app');
+
+// ── ITP framing ──────────────────────────────────────────────────────────────
+
+function buildScanFrame(spaceId, since = 0) {
+  const headers = `SCAN\nspace: ${spaceId}\nsince: ${since}\nbody-length: 0\n\n`;
+  return new TextEncoder().encode(headers);
+}
+
+function parseScanResult(buffer) {
+  const text = new TextDecoder().decode(buffer);
+  const headerEnd = text.indexOf('\n\n');
+  if (headerEnd === -1) throw new Error('Missing header terminator');
+  const headerText = text.slice(0, headerEnd);
+  const lines = headerText.split('\n');
+  const verb = lines.shift()?.trim();
+  if (verb === 'ERROR') {
+    const bodyStart = headerEnd + 2;
+    throw new Error(text.slice(bodyStart) || 'Station returned an error');
+  }
+  if (verb !== 'SCAN_RESULT') throw new Error(`Expected SCAN_RESULT, got ${verb}`);
+  const headers = {};
+  for (const line of lines) {
+    const sep = line.indexOf(': ');
+    if (sep > 0) headers[line.slice(0, sep)] = line.slice(sep + 2);
+  }
+  const bodyLength = parseInt(headers['body-length'] ?? '0', 10);
+  const bodyStart = headerEnd + 2;
+  const bodyText = text.slice(bodyStart, bodyStart + bodyLength);
+  return {
+    spaceId: headers.space,
+    latestSeq: parseInt(headers['latest-seq'] ?? '0', 10),
+    messages: bodyText ? JSON.parse(bodyText) : [],
+  };
+}
+
+// ── DPoP auth ────────────────────────────────────────────────────────────────
+
+function b64url(input) {
+  const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : new Uint8Array(input);
+  let binary = '';
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function sha256b64url(text) {
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return b64url(hash);
+}
+
+async function importPrivateKey(jwk) {
+  return crypto.subtle.importKey(
+    'jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign'],
+  );
+}
+
+function publicJwkFromPrivate(jwk) {
+  const { d, p, q, dp, dq, qi, ...pub } = jwk;
+  return pub;
+}
+
+async function makeDpopProof(privateKey, publicJwk, method, url, stationToken) {
+  const header = { typ: 'dpop+jwt', alg: 'RS256', jwk: publicJwk };
+  const payload = {
+    jti: crypto.randomUUID(),
+    iat: Math.floor(Date.now() / 1000),
+    htm: method.toUpperCase(),
+    htu: url,
+    ath: await sha256b64url(stationToken),
+  };
+  const signingInput = b64url(JSON.stringify(header)) + '.' + b64url(JSON.stringify(payload));
+  const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', privateKey, new TextEncoder().encode(signingInput));
+  return signingInput + '.' + b64url(signature);
+}
+
+// ── Scan client ──────────────────────────────────────────────────────────────
+
+let connection = null; // { scanUrl, stationToken, privateKey, publicJwk, spaceId }
+
+async function scanSpace(spaceId, since = 0) {
+  const proof = await makeDpopProof(
+    connection.privateKey, connection.publicJwk,
+    'POST', connection.scanUrl, connection.stationToken,
+  );
+  const response = await fetch(connection.scanUrl, {
+    method: 'POST',
+    headers: {
+      'authorization': `DPoP ${connection.stationToken}`,
+      'dpop': proof,
+      'content-type': 'application/itp',
+    },
+    body: buildScanFrame(spaceId, since),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Scan failed (${response.status}): ${text}`);
+  }
+  return parseScanResult(new Uint8Array(await response.arrayBuffer()));
+}
+
+async function scanRecursive(spaceId, maxDepth = 3) {
+  const allMessages = new Map();
+  const interiorMessages = new Map();
+
+  async function descend(parentId, depth) {
+    const result = await scanSpace(parentId);
+    const messages = result.messages;
+    allMessages.set(parentId, messages);
+    if (depth >= maxDepth) return;
+
+    const intents = messages.filter((m) => m.type === 'INTENT' && m.intentId);
+    const scanPromises = intents.map(async (intent) => {
+      const interior = await scanSpace(intent.intentId);
+      if (interior.messages.length > 0) {
+        interiorMessages.set(intent.intentId, interior.messages);
+        await descend(intent.intentId, depth + 1);
+      }
+    });
+    await Promise.all(scanPromises);
+  }
+
+  await descend(spaceId, 0);
+  return { topLevel: allMessages.get(spaceId) ?? [], interiors: interiorMessages };
+}
+
+// ── Data model ───────────────────────────────────────────────────────────────
+
+const participantNames = new Map();
+
+function friendlyName(senderId) {
+  if (participantNames.has(senderId)) return participantNames.get(senderId);
+  if (senderId.length > 16) return senderId.slice(-8);
+  return senderId;
+}
+
+function learnParticipants(messages) {
+  for (const m of messages) {
+    if (m.payload?.handle && typeof m.payload.handle === 'string') {
+      participantNames.set(m.senderId, m.payload.handle);
+    }
+    if (m.payload?.intended_agent_label && typeof m.payload.intended_agent_label === 'string') {
+      const label = m.payload.intended_agent_label;
+      if (!participantNames.has(m.senderId) && label.length < 40) {
+        participantNames.set(m.senderId, label);
+      }
+    }
+    if (m.payload?.content && typeof m.payload.content === 'string') {
+      const match = m.payload.content.match(/for\s+([a-z0-9_-]+)/i);
+      if (match && match[1].length < 30) {
+        const target = match[1];
+        if (!participantNames.has(target)) {
+          participantNames.set(target, target);
+        }
+      }
+    }
+  }
+}
+
+function eventKindFor(msg) {
+  const map = {
+    INTENT: 'intent_posted', PROMISE: 'promise_posted', ACCEPT: 'accept_posted',
+    COMPLETE: 'complete_posted', ASSESS: 'assess_posted', DECLINE: 'decline_posted',
+  };
+  return map[msg.type] ?? 'message_posted';
+}
+
+function eventLabelFor(msg) {
+  if (msg.type === 'PROMISE') return String(msg.payload?.content ?? 'Promise posted');
+  if (msg.type === 'ACCEPT') return `${friendlyName(msg.senderId)} accepts`;
+  if (msg.type === 'COMPLETE') return `${friendlyName(msg.senderId)} completes`;
+  if (msg.type === 'ASSESS') return `${friendlyName(msg.senderId)} assesses`;
+  if (msg.type === 'DECLINE') return String(msg.payload?.reason ?? 'Declined');
+  if (msg.type === 'INTENT') return String(msg.payload?.content ?? 'Intent posted');
+  return String(msg.payload?.content ?? `${msg.type.toLowerCase()} posted`);
+}
+
+function toEvents(parentId, messages) {
+  return messages.map((msg) => ({
+    id: `${parentId}:${msg.seq}`,
+    roomId: parentId,
+    kind: eventKindFor(msg),
+    label: eventLabelFor(msg),
+    actorId: friendlyName(msg.senderId),
+    timestamp: msg.timestamp,
+    seq: msg.seq,
+    raw: msg,
+  }));
+}
+
+function buildSnapshot(spaceId, topLevel, interiors) {
+  learnParticipants(topLevel);
+  for (const msgs of interiors.values()) learnParticipants(msgs);
+
+  const nodes = [];
+  const edges = [];
+  const eventsByNode = {};
+  const interiorEvents = {};
+
+  const topEvents = toEvents(spaceId, topLevel);
+  eventsByNode[spaceId] = topEvents;
+  const participants = [...new Set(topLevel.map((m) => m.senderId))];
+  nodes.push({
+    id: spaceId,
+    type: 'root',
+    title: spaceId.length > 20 ? spaceId.slice(0, 8) + '...' + spaceId.slice(-6) : spaceId,
+    subtitle: 'Top-level space',
+    visibility: 'bound',
+    participants: participants.map(friendlyName),
+    updatedAt: topEvents.at(-1)?.timestamp ?? 0,
+    eventCount: topEvents.length,
+    preview: topEvents.at(-1)?.label ?? 'No activity',
+  });
+
+  const intents = topLevel.filter((m) => m.type === 'INTENT' && m.intentId);
+  for (const intent of intents) {
+    const id = intent.intentId;
+    edges.push({ from: spaceId, to: id, kind: 'contains' });
+    const interior = interiors.get(id) ?? [];
+    const intEvents = toEvents(id, interior);
+    eventsByNode[id] = intEvents;
+
+    const label = intent.payload?.content
+      ? String(intent.payload.content).slice(0, 60)
+      : `Intent ${id.slice(-8)}`;
+    const intParticipants = [...new Set(interior.map((m) => m.senderId))];
+    nodes.push({
+      id,
+      type: 'intent_interior',
+      title: label,
+      subtitle: `Thread from ${friendlyName(intent.senderId)}`,
+      visibility: 'interior',
+      participants: intParticipants.map(friendlyName),
+      updatedAt: intEvents.at(-1)?.timestamp ?? intent.timestamp,
+      eventCount: intEvents.length,
+      preview: intEvents.at(-1)?.label ?? 'No responses yet',
+    });
+
+    for (const innerMsg of interior) {
+      if (innerMsg.type === 'INTENT' && innerMsg.intentId && interiors.has(innerMsg.intentId)) {
+        const nestedId = innerMsg.intentId;
+        edges.push({ from: id, to: nestedId, kind: 'contains' });
+        const nestedMsgs = interiors.get(nestedId);
+        const nestedEvents = toEvents(nestedId, nestedMsgs);
+        interiorEvents[nestedId] = nestedEvents;
+        eventsByNode[nestedId] = nestedEvents;
+        nodes.push({
+          id: nestedId,
+          type: 'nested_interior',
+          title: `Thread ${nestedId.slice(-8)}`,
+          subtitle: `Nested thread`,
+          visibility: 'interior',
+          participants: [...new Set(nestedMsgs.map((m) => m.senderId))].map(friendlyName),
+          updatedAt: nestedEvents.at(-1)?.timestamp ?? 0,
+          eventCount: nestedEvents.length,
+          preview: nestedEvents.at(-1)?.label ?? '',
+        });
+      }
+    }
+
+    // Interior events for drill-down from top-level intents
+    if (interior.length > 0) {
+      interiorEvents[id] = intEvents;
+    }
+  }
+
+  nodes.sort((a, b) => {
+    if (a.type === 'root') return -1;
+    if (b.type === 'root') return 1;
+    return b.updatedAt - a.updatedAt;
+  });
+
+  return {
+    generatedAt: Date.now(),
+    origin: connection.scanUrl.replace(/\/spaces\/.*/, '') || connection.scanUrl,
+    spaceId,
+    nodes,
+    edges,
+    eventsByNode,
+    interiorEvents,
+  };
+}
+
+// ── Rendering ────────────────────────────────────────────────────────────────
+
+let snapshot = null;
+let selectedNodeId = null;
+let selectedEventId = null;
+let knownNodeIds = new Set();
+let renderedFingerprint = null;
+let renderedNodeId = null;
+let renderedEventId = null;
+let renderedBrowseDepth = 0;
+let isFirstRender = true;
+let browseStack = [];
+
+let graphScale = 1;
+let graphPanX = 0;
+let graphPanY = 0;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 4;
+const ZOOM_STEP = 0.15;
+
+function esc(value) {
+  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
+
+function timeAgo(ts) {
+  if (!ts) return 'quiet';
+  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (s < 5) return 'live now';
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function nodeColor(node) {
+  if (node.type === 'root') return 'var(--accent)';
+  if (node.type === 'intent_interior') return 'var(--signal)';
+  return 'var(--accent)';
+}
+
+function metroLayout(nodes, edges) {
+  const coords = new Map();
+  const root = nodes.find((n) => n.type === 'root');
+  if (!root) return coords;
+
+  const childrenOf = new Map();
+  const hasParent = new Set();
+  for (const edge of edges) {
+    if (!childrenOf.has(edge.from)) childrenOf.set(edge.from, []);
+    childrenOf.get(edge.from).push(edge.to);
+    hasParent.add(edge.to);
+  }
+  for (const n of nodes) {
+    if (n.id !== root.id && !hasParent.has(n.id)) {
+      if (!childrenOf.has(root.id)) childrenOf.set(root.id, []);
+      childrenOf.get(root.id).push(n.id);
+    }
+  }
+
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  function buildNode(id) {
+    const kids = (childrenOf.get(id) || []).filter((cid) => nodeById.has(cid)).map((cid) => buildNode(cid));
+    return { id, children: kids.length > 0 ? kids : undefined };
+  }
+
+  const rootH = hierarchy(buildNode(root.id));
+  const nodeCount = rootH.descendants().length;
+  const radius = Math.min(40, 20 + nodeCount * 3);
+  const treeLayout = tree()
+    .size([2 * Math.PI, radius])
+    .separation((a, b) => (a.parent === b.parent ? 1.2 : 2) / (a.depth || 1));
+  treeLayout(rootH);
+
+  const angleOffset = -Math.PI / 4;
+  rootH.each((d) => {
+    if (d.depth === 0) {
+      coords.set(d.data.id, { x: 50, y: 50 });
+    } else {
+      const angle = d.x + angleOffset;
+      coords.set(d.data.id, {
+        x: Math.max(8, Math.min(92, 50 + Math.cos(angle) * d.y)),
+        y: Math.max(8, Math.min(92, 50 + Math.sin(angle) * d.y)),
+      });
+    }
+  });
+  return coords;
+}
+
+function buildGraphMarkup(nodes) {
+  const edges = snapshot.edges || [];
+  const coords = metroLayout(nodes, edges);
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+
+  let lineMarkup = '';
+  for (const edge of edges) {
+    const from = coords.get(edge.from);
+    const to = coords.get(edge.to);
+    if (!from || !to) continue;
+    const child = nodeById.get(edge.to);
+    const cls = child?.type === 'intent_interior' ? 'metro-line metro-line-interior' : 'metro-line metro-line-nested';
+    lineMarkup += `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" class="${cls}" />`;
+  }
+
+  const nodeMarkup = nodes.map((node) => {
+    const point = coords.get(node.id) || { x: 50, y: 50 };
+    const isSelected = node.id === selectedNodeId;
+    const isFresh = !knownNodeIds.has(node.id);
+    const isRoot = node.type === 'root';
+    const cls = ['station', isRoot ? 'station-root' : '', isSelected ? 'is-selected' : '', isFresh ? 'is-fresh' : ''].filter(Boolean).join(' ');
+    const shortLabel = node.title.length > 24 ? node.title.slice(0, 22) + '...' : node.title;
+    return `
+      <button class="${cls}" data-node-id="${esc(node.id)}" style="left:${point.x}%;top:${point.y}%">
+        <span class="station-dot${isRoot ? ' station-dot-hub' : ''}" style="--dot-color:${nodeColor(node)}"></span>
+        <span class="station-label">${esc(shortLabel)}</span>
+      </button>`;
+  }).join('');
+
+  return `
+    <div class="graph-surface">
+      <svg viewBox="0 0 100 100" class="graph-lines" preserveAspectRatio="none">${lineMarkup}</svg>
+      ${nodeMarkup}
+    </div>`;
+}
+
+function applyGraphTransform() {
+  const surface = document.querySelector('.graph-surface');
+  if (surface) surface.style.transform = `translate(${graphPanX}px, ${graphPanY}px) scale(${graphScale})`;
+}
+
+let graphPanZoomBound = false;
+
+function bindGraphPanZoom() {
+  const container = document.querySelector('.hero-graph');
+  if (!container) return;
+  applyGraphTransform();
+  if (graphPanZoomBound) return;
+  graphPanZoomBound = true;
+
+  container.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const old = graphScale;
+    graphScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, graphScale + (e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP)));
+    const ratio = graphScale / old;
+    graphPanX = cx - ratio * (cx - graphPanX);
+    graphPanY = cy - ratio * (cy - graphPanY);
+    applyGraphTransform();
+  }, { passive: false });
+
+  let dragging = false, dx = 0, dy = 0, px = 0, py = 0;
+  container.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.station') || e.target.closest('.graph-controls')) return;
+    dragging = true; dx = e.clientX; dy = e.clientY; px = graphPanX; py = graphPanY;
+    container.classList.add('is-panning');
+    container.setPointerCapture(e.pointerId);
+  });
+  container.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    graphPanX = px + (e.clientX - dx);
+    graphPanY = py + (e.clientY - dy);
+    applyGraphTransform();
+  });
+  const endDrag = () => { dragging = false; container.classList.remove('is-panning'); };
+  container.addEventListener('pointerup', endDrag);
+  container.addEventListener('pointercancel', endDrag);
+
+  container.addEventListener('click', (e) => {
+    const btn = e.target.closest('.graph-controls button');
+    if (!btn) return;
+    const rect = container.getBoundingClientRect();
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const old = graphScale;
+    if (btn.classList.contains('graph-zoom-in')) graphScale = Math.min(ZOOM_MAX, graphScale + ZOOM_STEP);
+    else if (btn.classList.contains('graph-zoom-out')) graphScale = Math.max(ZOOM_MIN, graphScale - ZOOM_STEP);
+    else if (btn.classList.contains('graph-zoom-reset')) { graphScale = 1; graphPanX = 0; graphPanY = 0; applyGraphTransform(); return; }
+    const ratio = graphScale / old;
+    graphPanX = cx - ratio * (cx - graphPanX);
+    graphPanY = cy - ratio * (cy - graphPanY);
+    applyGraphTransform();
+  });
+}
+
+function snapshotFingerprint(snap) {
+  const nodes = snap.nodes || [];
+  const eventCounts = nodes.map((n) => `${n.id}:${(snap.eventsByNode?.[n.id] || []).length}`).join(',');
+  const interiorCounts = Object.entries(snap.interiorEvents || {}).map(([k, v]) => `${k}:${v.length}`).join(',');
+  return `${nodes.length}|${eventCounts}|${interiorCounts}|bs${browseStack.length}`;
+}
+
+function eventRowHtml(event, isSelected, hasChildren) {
+  return `
+    <button class="event-row${isSelected ? ' is-selected' : ''}${hasChildren ? ' has-children' : ''}" data-event-id="${esc(event.id)}"${hasChildren ? ` data-drill-id="${esc(event.raw?.intentId ?? '')}"` : ''}>
+      <span class="event-kind">${esc(event.kind.replaceAll('_', ' '))}</span>
+      <span class="event-label">${esc(event.label)}${hasChildren ? ' <span class="drill-arrow">&#8250;</span>' : ''}</span>
+      <span class="event-meta">${esc(event.actorId)} &middot; ${esc(timeAgo(event.timestamp))}${hasChildren ? ' &middot; has thread' : ''}</span>
+    </button>`;
+}
+
+function currentBrowseEvents(nodeEvents) {
+  if (browseStack.length === 0) return nodeEvents;
+  const deepest = browseStack[browseStack.length - 1];
+  return snapshot?.interiorEvents?.[deepest.parentId] ?? [];
+}
+
+function eventHasChildren(event) {
+  const intentId = event.raw?.intentId;
+  if (!intentId) return false;
+  const children = snapshot?.interiorEvents?.[intentId];
+  return children && children.length > 0;
+}
+
+function buildBreadcrumbMarkup(selectedNode) {
+  if (!selectedNode) return '';
+  const nodes = snapshot.nodes || [];
+  const edges = snapshot.edges || [];
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const parentOf = new Map();
+  for (const edge of edges) parentOf.set(edge.to, edge.from);
+
+  const path = [];
+  let cur = selectedNode.id;
+  while (cur && nodeById.has(cur)) { path.unshift(cur); cur = parentOf.get(cur); }
+
+  let markup = path.map((id, i) => {
+    const node = nodeById.get(id);
+    if (!node) return '';
+    const isLast = browseStack.length === 0 && i === path.length - 1;
+    const sep = i > 0 ? '<span class="crumb-sep">&#8250;</span>' : '';
+    const typeLabel = node.type === 'root' ? 'space' : 'thread';
+    return `${sep}<div class="crumb${isLast ? ' crumb-current' : ''}">
+      <span class="crumb-type">${esc(typeLabel)}</span>
+      <button class="crumb-name" data-node-id="${esc(id)}">${esc(node.title.length > 30 ? node.title.slice(0, 28) + '...' : node.title)}</button>
+    </div>`;
+  }).join('');
+
+  for (let i = 0; i < browseStack.length; i++) {
+    const entry = browseStack[i];
+    const isLast = i === browseStack.length - 1;
+    markup += `<span class="crumb-sep">&#8250;</span><div class="crumb${isLast ? ' crumb-current' : ''}">
+      <span class="crumb-type">thread</span>
+      <button class="crumb-name" data-browse-depth="${i}">${esc(entry.label)}</button>
+    </div>`;
+  }
+  return markup;
+}
+
+function bindNodeClicks() {
+  app.querySelectorAll('[data-node-id]').forEach((el) => {
+    el.addEventListener('click', () => {
+      selectedNodeId = el.getAttribute('data-node-id');
+      selectedEventId = null;
+      browseStack = [];
+      render();
+    });
+  });
+  app.querySelectorAll('[data-browse-depth]').forEach((el) => {
+    el.addEventListener('click', () => {
+      browseStack = browseStack.slice(0, parseInt(el.getAttribute('data-browse-depth'), 10) + 1);
+      selectedEventId = null;
+      render();
+    });
+  });
+}
+
+function bindEventClicks() {
+  app.querySelectorAll('#event-rail [data-event-id]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const drillId = el.getAttribute('data-drill-id');
+      if (drillId) {
+        const label = el.querySelector('.event-label')?.textContent?.replace(' \u203A', '') ?? drillId.slice(-8);
+        browseStack.push({ parentId: drillId, label });
+        selectedEventId = null;
+        render();
+        return;
+      }
+      selectedEventId = el.getAttribute('data-event-id');
+      render();
+    });
+  });
+}
+
+function render() {
+  if (!snapshot) {
+    app.innerHTML = `<main class="loading-shell"><p>Scanning space...</p></main>`;
+    return;
+  }
+
+  const nodes = snapshot.nodes || [];
+  if (!selectedNodeId || !nodes.some((n) => n.id === selectedNodeId)) {
+    selectedNodeId = nodes[0]?.id ?? null;
+    browseStack = [];
+  }
+  const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? nodes[0];
+  const nodeEvents = selectedNode ? (snapshot.eventsByNode?.[selectedNode.id] ?? []) : [];
+  const visibleEvents = currentBrowseEvents(nodeEvents);
+  if (!selectedEventId || !visibleEvents.some((e) => e.id === selectedEventId)) {
+    selectedEventId = visibleEvents.at(-1)?.id ?? null;
+  }
+  const selectedEvent = visibleEvents.find((e) => e.id === selectedEventId) ?? visibleEvents.at(-1) ?? null;
+
+  const nextFp = snapshotFingerprint(snapshot);
+  const browseChanged = browseStack.length !== renderedBrowseDepth;
+  const nodeChanged = selectedNodeId !== renderedNodeId || browseChanged;
+  const eventChanged = selectedEventId !== renderedEventId;
+  const dataChanged = nextFp !== renderedFingerprint;
+
+  if (!isFirstRender && !dataChanged && !nodeChanged && !eventChanged) return;
+
+  // Fast path: only event selection changed
+  if (!isFirstRender && !dataChanged && !nodeChanged && eventChanged) {
+    app.querySelectorAll('#event-rail .event-row').forEach((el) => {
+      el.classList.toggle('is-selected', el.getAttribute('data-event-id') === selectedEventId);
+    });
+    const inspector = app.querySelector('.browser-inspector');
+    if (inspector) {
+      inspector.querySelector('h3').textContent = selectedEvent?.label ?? 'No event selected';
+      inspector.querySelector('.inspector-meta').textContent = selectedEvent?.actorId ?? '';
+      inspector.querySelector('code').textContent = JSON.stringify(selectedEvent?.raw ?? {}, null, 2);
+    }
+    renderedEventId = selectedEventId;
+    return;
+  }
+
+  // Medium path: data changed but node didn't — patch event rail
+  if (!isFirstRender && dataChanged && !nodeChanged) {
+    const rail = document.getElementById('event-rail');
+    if (rail) {
+      const existingIds = new Set();
+      rail.querySelectorAll('[data-event-id]').forEach((el) => existingIds.add(el.getAttribute('data-event-id')));
+      const newEvents = visibleEvents.filter((e) => !existingIds.has(e.id));
+      for (const event of newEvents) {
+        rail.insertAdjacentHTML('beforeend', eventRowHtml(event, event.id === selectedEventId, eventHasChildren(event)));
+      }
+      rail.querySelectorAll('.event-row').forEach((el) => {
+        el.classList.toggle('is-selected', el.getAttribute('data-event-id') === selectedEventId);
+      });
+      bindEventClicks();
+    }
+
+    const navMeta = app.querySelector('.nav-meta');
+    if (navMeta && selectedNode) navMeta.textContent = `${selectedNode.visibility} \u00B7 ${selectedNode.eventCount} events \u00B7 ${timeAgo(selectedNode.updatedAt)}`;
+
+    const heroMeta = app.querySelector('.hero-meta');
+    if (heroMeta) {
+      const spans = heroMeta.querySelectorAll('span');
+      if (spans[1]) spans[1].textContent = `${nodes.length} threads`;
+      if (spans[2]) spans[2].textContent = `${Object.values(snapshot.eventsByNode || {}).reduce((s, e) => s + e.length, 0)} events`;
+    }
+
+    const graph = app.querySelector('.hero-graph');
+    if (graph) {
+      graph.innerHTML = buildGraphMarkup(nodes) + `<div class="graph-controls">
+        <button class="graph-zoom-in" title="Zoom in">+</button>
+        <button class="graph-zoom-out" title="Zoom out">&minus;</button>
+        <button class="graph-zoom-reset" title="Reset view">&#8226;</button>
+      </div>`;
+      bindGraphPanZoom();
+      graph.querySelectorAll('[data-node-id]').forEach((el) => {
+        el.addEventListener('click', () => { selectedNodeId = el.getAttribute('data-node-id'); selectedEventId = null; browseStack = []; render(); });
+      });
+    }
+
+    const inspector = app.querySelector('.browser-inspector');
+    if (inspector) {
+      inspector.querySelector('h3').textContent = selectedEvent?.label ?? 'No event selected';
+      inspector.querySelector('.inspector-meta').textContent = selectedEvent?.actorId ?? '';
+      inspector.querySelector('code').textContent = JSON.stringify(selectedEvent?.raw ?? {}, null, 2);
+    }
+
+    knownNodeIds = new Set(nodes.map((n) => n.id));
+    renderedFingerprint = nextFp;
+    renderedNodeId = selectedNodeId;
+    renderedBrowseDepth = browseStack.length;
+    renderedEventId = selectedEventId;
+    return;
+  }
+
+  // Full render
+  const totalEvents = Object.values(snapshot.eventsByNode || {}).reduce((s, e) => s + e.length, 0);
+  graphPanZoomBound = false;
+  app.innerHTML = `
+    <main class="shell">
+      <section class="hero-plane">
+        <div class="hero-copy">
+          <p class="eyebrow">Live space observatory</p>
+          <h1>Threads appear as agents act.</h1>
+          <p class="lede">
+            The space anchors observation. Intent threads bloom at the edges.
+            Promise lifecycles unfold inside each thread.
+          </p>
+          <div class="hero-meta">
+            <span>${esc(snapshot.origin)}</span>
+            <span>${nodes.length} threads</span>
+            <span>${totalEvents} events</span>
+          </div>
+        </div>
+        <div class="hero-graph">
+          ${buildGraphMarkup(nodes)}
+          <div class="graph-controls">
+            <button class="graph-zoom-in" title="Zoom in">+</button>
+            <button class="graph-zoom-out" title="Zoom out">&minus;</button>
+            <button class="graph-zoom-reset" title="Reset view">&#8226;</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="browser">
+        <nav class="browser-nav" id="nav-bar">
+          ${buildBreadcrumbMarkup(selectedNode)}
+          <span class="nav-meta">${selectedNode ? `${esc(selectedNode.visibility)} \u00B7 ${selectedNode.eventCount} events \u00B7 ${esc(timeAgo(selectedNode.updatedAt))}` : ''}</span>
+        </nav>
+
+        <div class="browser-viewport">
+          <div class="browser-page" id="event-rail">
+            ${selectedNode ? `
+              <p class="page-subtitle">${esc(selectedNode.subtitle)}${browseStack.length > 0 ? ` \u203A ${esc(browseStack[browseStack.length - 1].label)}` : ''}</p>
+              ${visibleEvents.map((e) => eventRowHtml(e, e.id === selectedEventId, eventHasChildren(e))).join('')}
+            ` : '<p class="page-empty">No threads discovered yet.</p>'}
+          </div>
+
+          <aside class="browser-inspector${selectedEvent ? ' has-event' : ''}">
+            <p class="eyebrow">Raw detail</p>
+            <h3>${esc(selectedEvent?.label ?? 'No event selected')}</h3>
+            <p class="inspector-meta">${esc(selectedEvent?.actorId ?? '')}</p>
+            <pre><code>${esc(JSON.stringify(selectedEvent?.raw ?? {}, null, 2))}</code></pre>
+          </aside>
+        </div>
+      </section>
+    </main>`;
+
+  knownNodeIds = new Set(nodes.map((n) => n.id));
+  isFirstRender = false;
+  renderedFingerprint = nextFp;
+  renderedNodeId = selectedNodeId;
+  renderedBrowseDepth = browseStack.length;
+  renderedEventId = selectedEventId;
+
+  bindNodeClicks();
+  bindEventClicks();
+  bindGraphPanZoom();
+}
+
+// ── Connect screen ───────────────────────────────────────────────────────────
+
+function showConnect(errorMsg) {
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const savedOrigin = hash.get('origin') ?? '';
+  const savedSpace = hash.get('space') ?? '';
+  const savedToken = hash.get('token') ?? '';
+  const savedScanUrl = hash.get('scanUrl') ?? '';
+
+  app.innerHTML = `
+    <main class="connect-shell">
+      <div class="connect-card">
+        <p class="eyebrow">Space observatory</p>
+        <h1>Connect</h1>
+        <div class="connect-error" id="connect-error">${esc(errorMsg ?? '')}</div>
+        <form id="connect-form">
+          <div class="connect-field">
+            <label for="f-origin">Station origin</label>
+            <input id="f-origin" type="url" placeholder="https://spacebase1.example" value="${esc(savedOrigin)}" required />
+          </div>
+          <div class="connect-field">
+            <label for="f-space">Space ID</label>
+            <input id="f-space" type="text" placeholder="space-xxxxxxxx-..." value="${esc(savedSpace)}" required />
+          </div>
+          <div class="connect-field">
+            <label for="f-scan-url">Scan URL (optional — overrides origin + space)</label>
+            <input id="f-scan-url" type="url" placeholder="http://127.0.0.1:8787/scan" value="${esc(savedScanUrl)}" />
+          </div>
+          <div class="connect-field">
+            <label for="f-token">Station token</label>
+            <input id="f-token" type="text" placeholder="Opaque token from signup response" value="${esc(savedToken)}" required />
+          </div>
+          <div class="connect-field">
+            <label for="f-key">Private key (JWK JSON)</label>
+            <textarea id="f-key" placeholder='{"kty":"RSA","n":"...","e":"AQAB","d":"...",...}' required></textarea>
+          </div>
+          <button type="submit" class="connect-btn" id="connect-btn">Connect</button>
+          <p class="connect-hint">
+            Provide the station token and RSA private key from your signup flow.
+            The key never leaves this page.
+          </p>
+        </form>
+      </div>
+    </main>`;
+
+  if (errorMsg) document.getElementById('connect-error').style.display = 'block';
+
+  document.getElementById('connect-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('connect-btn');
+    const errEl = document.getElementById('connect-error');
+    btn.disabled = true;
+    btn.textContent = 'Connecting...';
+    errEl.style.display = 'none';
+
+    try {
+      const origin = document.getElementById('f-origin').value.replace(/\/+$/, '');
+      const spaceId = document.getElementById('f-space').value.trim();
+      const stationToken = document.getElementById('f-token').value.trim();
+      const keyText = document.getElementById('f-key').value.trim();
+      const scanUrlOverride = document.getElementById('f-scan-url').value.trim();
+      const privateKeyJwk = JSON.parse(keyText);
+      const privateKey = await importPrivateKey(privateKeyJwk);
+      const publicJwk = publicJwkFromPrivate(privateKeyJwk);
+      const scanUrl = scanUrlOverride || `${origin}/spaces/${spaceId}/scan`;
+
+      connection = { scanUrl, stationToken, privateKey, publicJwk, spaceId };
+
+      // Save non-secret params in hash for reload convenience
+      const hashParts = [`origin=${encodeURIComponent(origin)}`, `space=${encodeURIComponent(spaceId)}`];
+      if (scanUrlOverride) hashParts.push(`scanUrl=${encodeURIComponent(scanUrlOverride)}`);
+      location.hash = hashParts.join('&');
+
+      await startObservatory();
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Connect';
+    }
+  });
+}
+
+// ── Refresh loop ─────────────────────────────────────────────────────────────
+
+const POLL_INTERVAL = 4000;
+let pollTimer = null;
+
+async function poll() {
+  try {
+    const { topLevel, interiors } = await scanRecursive(connection.spaceId);
+    snapshot = buildSnapshot(connection.spaceId, topLevel, interiors);
+    render();
+  } catch (err) {
+    console.warn('Poll failed:', err.message);
+  }
+}
+
+async function startObservatory() {
+  app.innerHTML = `<main class="loading-shell"><p>Scanning space...</p></main>`;
+  const { topLevel, interiors } = await scanRecursive(connection.spaceId);
+  snapshot = buildSnapshot(connection.spaceId, topLevel, interiors);
+  render();
+  pollTimer = setInterval(poll, POLL_INTERVAL);
+}
+
+showConnect();
+    </script>
+  </body>
+</html>
