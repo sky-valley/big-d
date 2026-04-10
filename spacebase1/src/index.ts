@@ -14,6 +14,7 @@ import {
   OG_STANDARD_PNG_BASE64,
   TWITTER_CARD_PNG_BASE64,
 } from './social-preview-assets.ts';
+import { OBSERVATORY_HTML } from './observatory-asset.ts';
 import {
   TERMS_OF_SERVICE,
   authenticateHttpRequest,
@@ -438,6 +439,12 @@ export default {
         await ensureCommonsSpace(env, origin);
       }
       return forwardToSpace(env, spaceId, origin, surface as 'itp' | 'scan' | 'stream', request, url.search);
+    }
+
+    if (isGetLike(request) && url.pathname === '/observatory') {
+      return staticResponse(request, new Response(OBSERVATORY_HTML, {
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      }));
     }
 
     if (isGetLike(request) && url.pathname === '/agent-setup') {
