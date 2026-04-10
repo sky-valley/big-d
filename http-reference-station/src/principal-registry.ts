@@ -43,6 +43,10 @@ export class StationPrincipalRegistry {
     return record;
   }
 
+  getByJwkThumbprint(jwkThumbprint: string): StationPrincipalRecord | null {
+    return this.load().records.find((record) => record.jwkThumbprint === jwkThumbprint) ?? null;
+  }
+
   private load(): PersistedPrincipalRegistry {
     if (!existsSync(this.registryPath)) {
       return { records: [] };

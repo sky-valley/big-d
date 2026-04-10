@@ -73,6 +73,14 @@ function signJwt(header: Record<string, unknown>, payload: Record<string, unknow
   return `${signingInput}.${b64urlEncode(signature)}`;
 }
 
+function signStationJwt(payload: Record<string, unknown>): string {
+  const headerPart = b64urlEncode(Buffer.from(JSON.stringify({ typ: 'itp+jwt', alg: 'HS256' }), 'utf8'));
+  const payloadPart = b64urlEncode(Buffer.from(JSON.stringify(payload), 'utf8'));
+  const signingInput = `${headerPart}.${payloadPart}`;
+  const signature = createHmac('sha256', authSecret).update(signingInput).digest();
+  return `${signingInput}.${b64urlEncode(signature)}`;
+}
+
 function makeAccessToken(identity: HttpIdentity, origin: string): string {
   return signJwt(
     { typ: 'wm+jwt', alg: 'RS256' },
@@ -129,6 +137,26 @@ async function postSignup(handle: string, identity: HttpIdentity): Promise<any> 
     }),
   });
   return await response.json();
+}
+
+async function postContinue(identity: HttpIdentity): Promise<any> {
+  const continueUrl = `${station.origin}/continue`;
+  const response = await fetch(continueUrl, {
+    method: 'POST',
+    headers: {
+      dpop: makeDpopProof(identity, 'POST', continueUrl),
+    },
+  });
+  return await response.json();
+}
+
+function expiredStationToken(stationToken: string): string {
+  const [headerPart, payloadPart] = stationToken.split('.');
+  const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8')) as Record<string, unknown>;
+  return signStationJwt({
+    ...payload,
+    exp: Math.floor(Date.now() / 1000) - 60,
+  });
 }
 
 async function postItp(signupResponse: any, identityValue: HttpIdentity, message: ReturnType<typeof createIntent>): Promise<any> {
@@ -209,6 +237,35 @@ test('Canonical proof bytes are order-invariant and strip proof');
   assert(text.split('\n').at(-3) === 'body-length: 2', 'Expected body-length to be the final header');
 }
 
+test('Continue reissues the current station credential for the same principal');
+{
+  const identity = makeIdentity();
+  const firstSignup = await postSignup('agent-http-continuity', identity);
+  const secondSignup = await postContinue(identity);
+
+  assert(
+    firstSignup.principal_id === secondSignup.principal_id,
+    `Expected continue to preserve principal_id, got ${firstSignup.principal_id} vs ${secondSignup.principal_id}`,
+  );
+  assert(
+    firstSignup.station_token !== secondSignup.station_token,
+    'Expected continue to reissue a fresh station token',
+  );
+  assert(
+    secondSignup.continue_endpoint === `${station.origin}/continue`,
+    `Expected continue endpoint in response, got ${secondSignup.continue_endpoint}`,
+  );
+
+  const staleAfterContinue = await scanSpace(firstSignup, identity, 'root');
+  assert(
+    staleAfterContinue.status === 401 && staleAfterContinue.parsed.message.includes('no longer current'),
+    `Expected superseded credential to be rejected after continue, got ${staleAfterContinue.status} ${JSON.stringify(staleAfterContinue.parsed)}`,
+  );
+
+  const currentAfterContinue = await scanSpace(secondSignup, identity, 'root');
+  assert(currentAfterContinue.status === 200, 'Expected continued credential to succeed on live scan');
+}
+
 test('Signed frame without itp-sig is rejected');
 {
   let parseMessage = '';
@@ -257,7 +314,7 @@ test('Discovery document is published');
 {
   const response = await fetch(`${station.origin}/.well-known/welcome.md`);
   const text = await response.text();
-  assert(response.status === 200 && text.includes('/itp') && text.includes('/signup'), 'Expected welcome document with core endpoints');
+  assert(response.status === 200 && text.includes('/itp') && text.includes('/signup') && text.includes('/continue'), 'Expected welcome document with core endpoints');
 }
 
 // --- Test 2: signup succeeds ---
@@ -267,9 +324,32 @@ const signup = await postSignup('agent-http', identity);
 {
   assert(typeof signup.station_token === 'string', 'Expected station token');
   assert(signup.station_origin === station.origin, 'Expected station origin in signup response');
+  assert(signup.continue_endpoint === `${station.origin}/continue`, 'Expected continue endpoint in signup response');
 }
 
-// --- Test 3: /itp accepts framed intent body ---
+// --- Test 3: expired station token is rejected ---
+test('/itp rejects expired station tokens');
+{
+  const itpUrl = `${station.origin}/itp`;
+  const intent = createIntent(signup.principal_id, 'expired token should fail');
+  intent.intentId = 'http-test-expired';
+  const staleToken = expiredStationToken(signup.station_token);
+  const response = await fetch(itpUrl, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/itp',
+      authorization: `DPoP ${staleToken}`,
+      dpop: makeDpopProof(identity, 'POST', itpUrl, staleToken),
+    },
+    body: serializeFramedMessage(itpMessageToFrame(intent)),
+  });
+  const body = Buffer.from(await response.arrayBuffer());
+  const parsed = frameToServerMessage((await import('../src/framing.ts')).parseSingleFramedMessage(body));
+  assert(response.status === 401 && parsed.type === 'ERROR', 'Expected expired station token to be rejected');
+  assert(parsed.type === 'ERROR' && parsed.message.includes('expired'), `Expected expired token error, got ${parsed.type === 'ERROR' ? parsed.message : 'unexpected response'}`);
+}
+
+// --- Test 4: /itp accepts framed intent body ---
 test('/itp accepts framed intent body');
 {
   const itpUrl = `${station.origin}/itp`;

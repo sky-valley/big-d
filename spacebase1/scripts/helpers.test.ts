@@ -1,8 +1,31 @@
+import { generateKeyPairSync, sign } from 'crypto';
 import { describe, expect, it } from 'vitest';
-import { claimWelcomeMarkdown, normalizeHandle, signupErrorResponse, validateClaimSignup, validateSignupRequestBody } from '../src/claim-auth.ts';
+import {
+  authenticateHttpRequest,
+  claimWelcomeMarkdown,
+  issueStationSession,
+  jwkThumbprint,
+  normalizeHandle,
+  sha256b64url,
+  signupErrorResponse,
+  validateClaimSignup,
+  validateSignupRequestBody,
+} from '../src/claim-auth.ts';
 import { generateFriendlyAgentLabel } from '../src/name-generator.ts';
 import { buildSharedSpaceInvitationPayload, parseSharedSpaceRequest, validateSharedSpaceParticipants } from '../src/shared-spaces.ts';
 import { buildClaimPrompt, renderAgentSetup, renderHomepage, renderRobotsTxt, renderSitemapXml, renderSkillFile, renderSocialPreviewSvg } from '../src/templates.ts';
+
+function b64urlEncode(value: Buffer | string): string {
+  return Buffer.from(value).toString('base64url');
+}
+
+function signJwt(header: Record<string, unknown>, payload: Record<string, unknown>, privateKeyPem: string): string {
+  const headerPart = b64urlEncode(Buffer.from(JSON.stringify(header), 'utf8'));
+  const payloadPart = b64urlEncode(Buffer.from(JSON.stringify(payload), 'utf8'));
+  const signingInput = `${headerPart}.${payloadPart}`;
+  const signature = sign('RSA-SHA256', Buffer.from(signingInput, 'utf8'), privateKeyPem);
+  return `${signingInput}.${b64urlEncode(signature)}`;
+}
 
 describe('spacebase1 first slice helpers', () => {
   it('generates stable friendly fallback labels', () => {
@@ -115,6 +138,7 @@ describe('spacebase1 first slice helpers', () => {
       claimServiceUrl: 'https://spacebase1.differ.ac/commons',
       welcomeUrl: 'https://spacebase1.differ.ac/commons/.well-known/welcome.md',
       signupUrl: 'https://spacebase1.differ.ac/commons/signup',
+      continueUrl: 'https://spacebase1.differ.ac/spaces/commons/continue',
       termsUrl: 'https://spacebase1.differ.ac/commons/tos',
       itpUrl: 'https://spacebase1.differ.ac/spaces/commons/itp',
       scanUrl: 'https://spacebase1.differ.ac/spaces/commons/scan',
@@ -127,11 +151,13 @@ describe('spacebase1 first slice helpers', () => {
     expect(markdown).toContain('handle: string');
     expect(markdown).toContain('access_token: string');
     expect(markdown).toContain('tos_signature: string');
+    expect(markdown).toContain('continue: POST https://spacebase1.differ.ac/spaces/commons/continue');
     expect(markdown).toContain('## access token header');
     expect(markdown).toContain('jwk: omit this header field');
     expect(markdown).toContain('## access token claims');
     expect(markdown).toContain('tos_hash');
-    expect(markdown).toContain('## dpop proof requirements');
+    expect(markdown).toContain('## signup dpop proof requirements');
+    expect(markdown).toContain('## continue request');
     expect(markdown).toContain('htu');
     expect(markdown).toContain('base64url(sha256(terms_text))');
     expect(markdown).toContain('"handle": "your-agent-name"');
@@ -182,6 +208,7 @@ describe('spacebase1 first slice helpers', () => {
           claimServiceUrl: 'https://spacebase1.differ.ac/commons',
           welcomeUrl: 'https://spacebase1.differ.ac/commons/.well-known/welcome.md',
           signupUrl: 'https://spacebase1.differ.ac/commons/signup',
+          continueUrl: 'https://spacebase1.differ.ac/spaces/commons/continue',
           termsUrl: 'https://spacebase1.differ.ac/commons/tos',
           itpUrl: 'https://spacebase1.differ.ac/spaces/commons/itp',
           scanUrl: 'https://spacebase1.differ.ac/spaces/commons/scan',
@@ -198,6 +225,55 @@ describe('spacebase1 first slice helpers', () => {
       expected: 'a dpop+jwt proof header bound to this signup POST',
       hint: 'Include a DPoP header on the signup request itself.',
     });
+  });
+
+  it('authenticates current Spacebase1 sessions before expiry', async () => {
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 4096 });
+    const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    const publicJwk = publicKey.export({ format: 'jwk' }) as JsonWebKey;
+    const jkt = await jwkThumbprint(publicJwk);
+    const profile = {
+      origin: 'https://spacebase1.differ.ac',
+      audience: 'intent-space://spacebase1/space/space-123',
+      claimServiceUrl: 'https://spacebase1.differ.ac/spaces/space-123',
+      welcomeUrl: 'https://spacebase1.differ.ac/spaces/space-123/.well-known/welcome.md',
+      continueUrl: 'https://spacebase1.differ.ac/spaces/space-123/continue',
+      termsUrl: 'https://spacebase1.differ.ac/spaces/space-123/tos',
+      itpUrl: 'https://spacebase1.differ.ac/spaces/space-123/itp',
+      scanUrl: 'https://spacebase1.differ.ac/spaces/space-123/scan',
+      streamUrl: 'https://spacebase1.differ.ac/spaces/space-123/stream',
+    };
+    const issued = await issueStationSession('agent-spacebase1', 'prn-spacebase1-test', jkt, profile, 'space-123');
+    const absoluteUrl = profile.scanUrl;
+    const proof = signJwt(
+      { typ: 'dpop+jwt', alg: 'RS256', jwk: publicJwk },
+      {
+        jti: 'proof-spacebase1-1',
+        iat: Math.floor(Date.now() / 1000),
+        htm: 'POST',
+        htu: absoluteUrl,
+        ath: await sha256b64url(issued.stationToken),
+      },
+      privateKeyPem,
+    );
+    const auth = await authenticateHttpRequest(
+      new Request(absoluteUrl, {
+        method: 'POST',
+        headers: {
+          authorization: `DPoP ${issued.stationToken}`,
+          dpop: proof,
+        },
+      }),
+      absoluteUrl,
+      profile.audience,
+      async (tokenHash) => (tokenHash === issued.session.tokenHash ? issued.session : null),
+      async () => true,
+      async () => true,
+    );
+
+    expect(typeof issued.session.expiresAt).toBe('string');
+    expect(auth.principalId).toBe('prn-spacebase1-test');
+    expect(auth.senderId).toBe('prn-spacebase1-test');
   });
 
   it('parses shared-space requests from product payloads only', () => {

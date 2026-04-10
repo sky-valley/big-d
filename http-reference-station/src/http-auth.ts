@@ -44,9 +44,15 @@ export function authenticateHttpRequest(
   absoluteUrl: string,
   authSecret: string,
   audience: string,
+  isCurrentCredential: (principalId: string, audience: string, tokenId: string) => boolean,
 ): HttpRequestAuth {
   const stationTokenRaw = requireAuthorizationToken(req);
   const stationToken = verifyStationToken(stationTokenRaw, authSecret, audience);
+  const principalId = stationToken.payload.principal_id as string;
+  const tokenId = stationToken.payload.jti;
+  if (typeof tokenId !== 'string' || !isCurrentCredential(principalId, audience, tokenId)) {
+    throw new Error('Station token is no longer current');
+  }
   const proofRaw = requireDpopHeader(req);
   const proof = parseJwt(proofRaw);
   const jwk = verifyRs256Jwt(proof, 'dpop+jwt');
@@ -76,7 +82,7 @@ export function authenticateHttpRequest(
 
   return {
     senderId: stationToken.payload.sub as string,
-    principalId: stationToken.payload.principal_id as string,
+    principalId,
     stationToken: stationTokenRaw,
     jkt: stationToken.payload.cnf!.jkt as string,
     audience,

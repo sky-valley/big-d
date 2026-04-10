@@ -12,6 +12,7 @@ import {
   serverMessageToFrame,
 } from './framing.ts';
 import { authenticateHttpRequest } from './http-auth.ts';
+import { StationCredentialRegistry } from './credential-registry.ts';
 import { StationPrincipalRegistry } from './principal-registry.ts';
 import { buildServiceIntents } from './service-intents.ts';
 import { DEFAULT_DB_DIR, IntentStore } from './store.ts';
@@ -22,6 +23,7 @@ import {
   isSignupRequestBody,
   issueStationToken,
   llmsTxt,
+  validateContinuation,
   validateSignup,
   welcomeMatMarkdown,
   type HttpReferenceProfile,
@@ -92,6 +94,7 @@ export class HttpReferenceStation {
   private server: Server | null = null;
   private store: IntentStore;
   private registry: StationPrincipalRegistry;
+  private credentialRegistry: StationCredentialRegistry;
   private subscribers = new Set<StreamSubscriber>();
   private subscriberCount = 0;
   private _host: string;
@@ -102,6 +105,7 @@ export class HttpReferenceStation {
   private _stationAudience: string;
   private readonly profilePaths = {
     signupPath: '/signup',
+    continuePath: '/continue',
     termsPath: '/tos',
     itpPath: '/itp',
     scanPath: '/scan',
@@ -119,6 +123,7 @@ export class HttpReferenceStation {
     this._stationAudience = options.stationAudience ?? defaultAudience();
     this.store = new IntentStore(options.dbPath);
     this.registry = new StationPrincipalRegistry(join(dataDir, 'principal-registry.json'), 'prn_http');
+    this.credentialRegistry = new StationCredentialRegistry(join(dataDir, 'current-station-credentials.json'));
   }
 
   get host(): string { return this._host; }
@@ -193,6 +198,10 @@ export class HttpReferenceStation {
         await this.handleSignup(req, res);
         return;
       }
+      if (req.method === 'POST' && url.pathname === this.profilePaths.continuePath) {
+        await this.handleContinue(req, res);
+        return;
+      }
       if (req.method === 'POST' && url.pathname === this.profilePaths.itpPath) {
         await this.handleItp(req, res, url);
         return;
@@ -253,19 +262,56 @@ export class HttpReferenceStation {
       profile: this.profile,
     });
     const principal = this.registry.issue(validated.handle, validated.jwkThumbprint);
-    const signup: SignupResponse = issueStationToken(
+    const issued = issueStationToken(
       validated.handle,
       principal.principalId,
       validated.jwkThumbprint,
       this._authSecret,
       this.profile,
     );
-    sendJson(res, 200, signup);
+    this.credentialRegistry.setCurrent(principal.principalId, this._stationAudience, issued.tokenId);
+    sendJson(res, 200, issued.signup);
+  }
+
+  private async handleContinue(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const dpopJwt = req.headers.dpop;
+    if (typeof dpopJwt !== 'string' || dpopJwt.length === 0) {
+      sendJson(res, 400, { error: 'missing_dpop' });
+      return;
+    }
+    try {
+      const validated = validateContinuation({
+        dpopJwt,
+        profile: this.profile,
+      });
+      const principal = this.registry.getByJwkThumbprint(validated.jwkThumbprint);
+      if (!principal) {
+        sendJson(res, 404, { error: 'unknown_principal' });
+        return;
+      }
+      const issued = issueStationToken(
+        principal.handle,
+        principal.principalId,
+        validated.jwkThumbprint,
+        this._authSecret,
+        this.profile,
+      );
+      this.credentialRegistry.setCurrent(principal.principalId, this._stationAudience, issued.tokenId);
+      sendJson(res, 200, issued.signup);
+    } catch (error) {
+      sendJson(res, 401, { error: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   private async handleItp(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     try {
-      const auth = authenticateHttpRequest(req, url.toString(), this._authSecret, this._stationAudience);
+      const auth = authenticateHttpRequest(
+        req,
+        url.toString(),
+        this._authSecret,
+        this._stationAudience,
+        (principalId, audience, tokenId) => this.credentialRegistry.isCurrent(principalId, audience, tokenId),
+      );
       const frame = parseSingleFramedMessage(await readBody(req));
       if (!ITP_VERBS.has(frame.verb)) {
         sendFramed(res, 400, { type: 'ERROR', message: `${frame.verb} is not a live ITP act` });
@@ -291,7 +337,13 @@ export class HttpReferenceStation {
 
   private async handleScan(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     try {
-      const auth = authenticateHttpRequest(req, url.toString(), this._authSecret, this._stationAudience);
+      const auth = authenticateHttpRequest(
+        req,
+        url.toString(),
+        this._authSecret,
+        this._stationAudience,
+        (principalId, audience, tokenId) => this.credentialRegistry.isCurrent(principalId, audience, tokenId),
+      );
       const frame = parseSingleFramedMessage(await readBody(req));
       const scan = frameToScanRequest(frame);
       const messages = this.store.scan(scan.spaceId, scan.since ?? 0, auth.senderId);
@@ -308,7 +360,13 @@ export class HttpReferenceStation {
 
   private async handleStream(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     try {
-      const auth = authenticateHttpRequest(req, url.toString(), this._authSecret, this._stationAudience);
+      const auth = authenticateHttpRequest(
+        req,
+        url.toString(),
+        this._authSecret,
+        this._stationAudience,
+        (principalId, audience, tokenId) => this.credentialRegistry.isCurrent(principalId, audience, tokenId),
+      );
       const spaceId = url.searchParams.get('space');
       const sinceRaw = url.searchParams.get('since') ?? '0';
       if (!spaceId) {
