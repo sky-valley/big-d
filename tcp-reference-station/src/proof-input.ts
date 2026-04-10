@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import type { AuthenticatedITPMessage, AuthRequest, ScanRequest } from './types.ts';
-import { serializeFramedMessage, type FramedMessage } from './framing.ts';
+import { canonicalProofBytes, type FramedMessage } from './framing.ts';
 
 type ProofBoundRequest =
   | Pick<AuthRequest, 'type' | 'stationToken'>
@@ -12,7 +12,7 @@ export function requestProofHash(value: ProofBoundRequest): string {
 }
 
 export function canonicalProofInput(value: ProofBoundRequest): Buffer {
-  return serializeFramedMessage(proofInputFrame(value));
+  return canonicalProofBytes(proofInputFrame(value));
 }
 
 function proofInputFrame(value: ProofBoundRequest): FramedMessage {

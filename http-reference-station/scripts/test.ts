@@ -3,7 +3,17 @@ import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { createIntent } from '@differ/itp/src/protocol.ts';
-import { FrameParseError, frameToItpMessage, frameToServerMessage, itpMessageToFrame, serializeFramedMessage } from '../src/framing.ts';
+import {
+  FrameParseError,
+  ITP_SIGNATURE_HEADER,
+  ITP_SIGNATURE_VERSION,
+  canonicalProofBytes,
+  frameToItpMessage,
+  frameToServerMessage,
+  itpMessageToFrame,
+  parseSingleFramedMessage,
+  serializeFramedMessage,
+} from '../src/framing.ts';
 import { HttpReferenceStation } from '../src/server.ts';
 import { TERMS_OF_SERVICE, sha256b64url } from '../src/welcome-mat.ts';
 
@@ -162,6 +172,84 @@ async function scanSpace(signupResponse: any, identityValue: HttpIdentity, space
     status: response.status,
     parsed: frameToServerMessage((await import('../src/framing.ts')).parseSingleFramedMessage(body)),
   };
+}
+
+// --- Canonical proof/hash envelope tests ---
+test('Canonical proof bytes are order-invariant and strip proof');
+{
+  const body = Buffer.from('{}', 'utf8');
+  const first = canonicalProofBytes({
+    verb: 'INTENT',
+    headers: {
+      sender: 'agent-http',
+      parent: 'root',
+      intent: 'intent-http',
+      timestamp: '1775701868218',
+      proof: 'proof-to-strip',
+      'payload-hint': 'application/json',
+    },
+    body,
+  });
+  const second = canonicalProofBytes({
+    verb: 'INTENT',
+    headers: {
+      'payload-hint': 'application/json',
+      timestamp: '1775701868218',
+      proof: 'different-proof-to-strip',
+      intent: 'intent-http',
+      parent: 'root',
+      sender: 'agent-http',
+    },
+    body,
+  });
+  const text = first.toString('utf8');
+  assert(first.equals(second), 'Expected canonical bytes to ignore insertion order');
+  assert(text.includes(`${ITP_SIGNATURE_HEADER}: ${ITP_SIGNATURE_VERSION}`), 'Expected canonical bytes to include signature version');
+  assert(!text.includes('proof:'), 'Expected canonical bytes to strip proof');
+  assert(text.split('\n').at(-3) === 'body-length: 2', 'Expected body-length to be the final header');
+}
+
+test('Signed frame without itp-sig is rejected');
+{
+  let parseMessage = '';
+  try {
+    parseSingleFramedMessage(Buffer.from([
+      'INTENT',
+      'sender: agent-http',
+      'parent: root',
+      'intent: intent-http',
+      'timestamp: 1775701868218',
+      'proof: stale-proof',
+      'body-length: 2',
+      '',
+      '{}',
+    ].join('\n'), 'utf8'));
+  } catch (error) {
+    parseMessage = error instanceof Error ? error.message : String(error);
+  }
+
+  let serializeMessage = '';
+  try {
+    serializeFramedMessage({
+      verb: 'INTENT',
+      headers: {
+        sender: 'agent-http',
+        parent: 'root',
+        intent: 'intent-http',
+        timestamp: '1775701868218',
+        proof: 'stale-proof',
+      },
+      body: Buffer.from('{}', 'utf8'),
+    });
+  } catch (error) {
+    serializeMessage = error instanceof Error ? error.message : String(error);
+  }
+
+  assert(
+    parseMessage.includes('Signed frame requires itp-sig: v1')
+      && serializeMessage.includes('Signed frame requires itp-sig: v1'),
+    `Expected signed-frame marker rejection, got parse="${parseMessage}" serialize="${serializeMessage}"`,
+  );
 }
 
 // --- Test 1: discovery works ---

@@ -13,7 +13,14 @@ import { createHash, createHmac, generateKeyPairSync, randomUUID, sign } from 'c
 import { connect as netConnect } from 'net';
 import { IntentSpace } from '../src/space.ts';
 import { IntentSpaceClient } from '../src/client.ts';
-import { frameToClientMessage, parseFramedMessages, serializeFramedMessage } from '../src/framing.ts';
+import {
+  ITP_SIGNATURE_HEADER,
+  ITP_SIGNATURE_VERSION,
+  canonicalProofBytes,
+  frameToClientMessage,
+  parseFramedMessages,
+  serializeFramedMessage,
+} from '../src/framing.ts';
 import { requestProofHash } from '../src/proof-input.ts';
 import { createIntent, createPromise } from '@differ/itp/src/protocol.ts';
 
@@ -186,6 +193,81 @@ console.log(`Server listening on ${socketPath}`);
 
 // ============ Tests ============
 
+// --- Test 0: canonical proof bytes are independent of header insertion order ---
+test('Canonical proof bytes are order-invariant and strip proof');
+{
+  const body = Buffer.from('{}', 'utf8');
+  const first = canonicalProofBytes({
+    verb: 'INTENT',
+    headers: {
+      sender: 'agent-a',
+      parent: 'root',
+      intent: 'intent-a',
+      timestamp: '1775701868218',
+      proof: 'proof-to-strip',
+      'payload-hint': 'application/json',
+    },
+    body,
+  });
+  const second = canonicalProofBytes({
+    verb: 'INTENT',
+    headers: {
+      'payload-hint': 'application/json',
+      proof: 'different-proof-to-strip',
+      timestamp: '1775701868218',
+      intent: 'intent-a',
+      parent: 'root',
+      sender: 'agent-a',
+    },
+    body,
+  });
+  const text = first.toString('utf8');
+  assert(first.equals(second), 'Expected canonical bytes to ignore insertion order');
+  assert(text.includes(`${ITP_SIGNATURE_HEADER}: ${ITP_SIGNATURE_VERSION}`), 'Expected canonical bytes to include signature version');
+  assert(!text.includes('proof:'), 'Expected canonical bytes to strip proof');
+  assert(text.split('\n').at(-3) === 'body-length: 2', 'Expected body-length to be the final header');
+}
+
+// --- Test 0b: signed frames require itp-sig marker ---
+test('Signed frame without itp-sig is rejected');
+{
+  let parseMessage = '';
+  try {
+    parseFramedMessages(Buffer.from([
+      'SCAN',
+      'space: root',
+      'since: 0',
+      'proof: stale-proof',
+      'body-length: 0',
+      '',
+      '',
+    ].join('\n'), 'utf8'));
+  } catch (error) {
+    parseMessage = error instanceof Error ? error.message : String(error);
+  }
+
+  let serializeMessage = '';
+  try {
+    serializeFramedMessage({
+      verb: 'SCAN',
+      headers: {
+        space: 'root',
+        since: '0',
+        proof: 'stale-proof',
+      },
+      body: Buffer.alloc(0),
+    });
+  } catch (error) {
+    serializeMessage = error instanceof Error ? error.message : String(error);
+  }
+
+  assert(
+    parseMessage.includes('Signed frame requires itp-sig: v1')
+      && serializeMessage.includes('Signed frame requires itp-sig: v1'),
+    `Expected signed-frame marker rejection, got parse="${parseMessage}" serialize="${serializeMessage}"`,
+  );
+}
+
 // --- Test 1: connect receives service intents ---
 test('Connect receives service intents');
 {
@@ -280,21 +362,24 @@ test('Malformed ACCEPT without promise header is rejected');
     verb: 'AUTH',
     headers: {
       'station-token': identity.stationToken,
+      [ITP_SIGNATURE_HEADER]: ITP_SIGNATURE_VERSION,
       proof: identity.buildProof('AUTH', { type: 'AUTH', stationToken: identity.stationToken }),
     },
     body: Buffer.alloc(0),
   });
+  const acceptTimestamp = Date.now();
   const badAccept = serializeFramedMessage({
     verb: 'ACCEPT',
     headers: {
       sender: 'agent-bad-accept',
       parent: 'root',
-      timestamp: String(Date.now()),
+      timestamp: String(acceptTimestamp),
+      [ITP_SIGNATURE_HEADER]: ITP_SIGNATURE_VERSION,
       proof: identity.buildProof('ACCEPT', {
         type: 'ACCEPT',
         parentId: 'root',
         senderId: 'agent-bad-accept',
-        timestamp: Date.now(),
+        timestamp: acceptTimestamp,
         payload: {},
       }),
       'payload-hint': 'application/json',
@@ -677,6 +762,7 @@ test('Monitoring records auth failure');
     verb: 'AUTH',
     headers: {
       'station-token': 'not-a-jwt',
+      [ITP_SIGNATURE_HEADER]: ITP_SIGNATURE_VERSION,
       proof: 'also-not-a-jwt',
     },
     body: Buffer.alloc(0),

@@ -3,6 +3,8 @@ import type { MessageEcho, ScanRequest, ScanResult, ServerMessage, StoredMessage
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const HEADER_TERMINATOR = encoder.encode('\n\n');
+export const ITP_SIGNATURE_HEADER = 'itp-sig';
+export const ITP_SIGNATURE_VERSION = 'v1';
 const ITP_VERBS = new Set(['INTENT', 'PROMISE', 'DECLINE', 'ACCEPT', 'COMPLETE', 'ASSESS']);
 const REQUIRED_HEADERS: Record<string, string[]> = {
   INTENT: ['sender', 'parent', 'intent', 'timestamp', 'body-length'],
@@ -41,17 +43,20 @@ export function parseSingleFramedMessage(buffer: Uint8Array): FramedMessage {
   const lines = headerText.split('\n');
   const verb = lines.shift()?.trim();
   if (!verb) throw new FrameParseError('Missing verb line');
+  validateVerb(verb);
   const headers: Record<string, string> = {};
   for (const rawLine of lines) {
     if (!rawLine) throw new FrameParseError('Unexpected empty header line');
     const separator = rawLine.indexOf(': ');
     if (separator <= 0) throw new FrameParseError(`Malformed header line: ${rawLine}`);
-    const name = rawLine.slice(0, separator).trim();
-    const value = rawLine.slice(separator + 2).trim();
-    if (!/^[a-z-]+$/.test(name)) throw new FrameParseError(`Invalid header name: ${name}`);
+    const name = rawLine.slice(0, separator);
+    const value = rawLine.slice(separator + 2);
+    validateHeaderName(name);
+    validateHeaderValue(name, value);
     if (headers[name] != null) throw new FrameParseError(`Duplicate header: ${name}`);
     headers[name] = value;
   }
+  assertSignatureVersion(headers);
   const bodyLengthRaw = headers['body-length'];
   if (bodyLengthRaw == null || !/^\d+$/.test(bodyLengthRaw)) {
     throw new FrameParseError('body-length must be a decimal byte count');
@@ -65,8 +70,31 @@ export function parseSingleFramedMessage(buffer: Uint8Array): FramedMessage {
 }
 
 export function serializeFramedMessage(message: FramedMessage): Uint8Array {
+  validateVerb(message.verb);
+  validateHeadersForSerialization(message.headers);
   const headers = { ...message.headers, 'body-length': String(message.body.length) };
   const headerText = `${[message.verb, ...Object.entries(headers).map(([name, value]) => `${name}: ${value}`), ''].join('\n')}\n`;
+  const headerBytes = encoder.encode(headerText);
+  const result = new Uint8Array(headerBytes.length + message.body.length);
+  result.set(headerBytes, 0);
+  result.set(message.body, headerBytes.length);
+  return result;
+}
+
+export function canonicalProofBytes(message: FramedMessage): Uint8Array {
+  validateVerb(message.verb);
+  const headers = { ...message.headers };
+  delete headers.proof;
+  delete headers['body-length'];
+  headers[ITP_SIGNATURE_HEADER] = ITP_SIGNATURE_VERSION;
+  validateHeadersForSerialization(headers);
+
+  const headerText = `${[
+    message.verb,
+    ...Object.keys(headers).sort().map((name) => `${name}: ${headers[name]}`),
+    `body-length: ${message.body.length}`,
+    '',
+  ].join('\n')}\n`;
   const headerBytes = encoder.encode(headerText);
   const result = new Uint8Array(headerBytes.length + message.body.length);
   result.set(headerBytes, 0);
@@ -189,5 +217,35 @@ function assertRequiredHeaders(frame: FramedMessage): void {
   const required = REQUIRED_HEADERS[frame.verb] ?? [];
   for (const header of required) {
     requireHeader(frame, header);
+  }
+}
+
+function validateVerb(verb: string): void {
+  if (!/^[A-Z_]+$/.test(verb)) throw new FrameParseError(`Invalid verb line: ${verb}`);
+}
+
+function validateHeaderName(name: string): void {
+  if (!/^[a-z-]+$/.test(name)) throw new FrameParseError(`Invalid header name: ${name}`);
+}
+
+function validateHeaderValue(name: string, value: string): void {
+  if (/[\n\r\u0000]/.test(value)) throw new FrameParseError(`Invalid header value for ${name}`);
+}
+
+function assertSignatureVersion(headers: Record<string, string>): void {
+  const version = headers[ITP_SIGNATURE_HEADER];
+  if (version != null && version !== ITP_SIGNATURE_VERSION) {
+    throw new FrameParseError(`Unsupported ${ITP_SIGNATURE_HEADER} value: ${version}`);
+  }
+  if (headers.proof != null && version !== ITP_SIGNATURE_VERSION) {
+    throw new FrameParseError(`Signed frame requires ${ITP_SIGNATURE_HEADER}: ${ITP_SIGNATURE_VERSION}`);
+  }
+}
+
+function validateHeadersForSerialization(headers: Record<string, string>): void {
+  assertSignatureVersion(headers);
+  for (const [name, value] of Object.entries(headers)) {
+    validateHeaderName(name);
+    validateHeaderValue(name, value);
   }
 }

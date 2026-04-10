@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   FrameParseError,
+  ITP_SIGNATURE_HEADER,
+  ITP_SIGNATURE_VERSION,
+  canonicalProofBytes,
   frameToItpMessage,
   frameToScanRequest,
   parseSingleFramedMessage,
+  serializeFramedMessage,
 } from '../src/framing.ts';
 
 const encoder = new TextEncoder();
@@ -13,6 +17,83 @@ function framed(text: string): Uint8Array {
 }
 
 describe('spacebase1 framing aligns with ITP envelope requirements', () => {
+  it('canonical proof bytes are order-invariant and strip proof', () => {
+    const body = framed('{}');
+    const first = canonicalProofBytes({
+      verb: 'INTENT',
+      headers: {
+        sender: 'agent-1',
+        parent: 'root',
+        intent: 'intent-1',
+        timestamp: '1775701868218',
+        proof: 'proof-to-strip',
+        'payload-hint': 'application/json',
+      },
+      body,
+    });
+    const second = canonicalProofBytes({
+      verb: 'INTENT',
+      headers: {
+        'payload-hint': 'application/json',
+        timestamp: '1775701868218',
+        proof: 'different-proof-to-strip',
+        intent: 'intent-1',
+        parent: 'root',
+        sender: 'agent-1',
+      },
+      body,
+    });
+
+    const text = new TextDecoder().decode(first);
+    expect(first).toEqual(second);
+    expect(text).toContain(`${ITP_SIGNATURE_HEADER}: ${ITP_SIGNATURE_VERSION}`);
+    expect(text).not.toContain('proof:');
+    expect(text.split('\n').at(-3)).toBe('body-length: 2');
+  });
+
+  it('rejects signed frames without itp-sig marker', () => {
+    expect(() => parseSingleFramedMessage(framed([
+      'SCAN',
+      'space: root',
+      'since: 0',
+      'proof: stale-proof',
+      'body-length: 0',
+      '',
+      '',
+    ].join('\n')))).toThrowError(
+      new FrameParseError('Signed frame requires itp-sig: v1'),
+    );
+  });
+
+  it('rejects unsupported itp-sig marker values', () => {
+    expect(() => parseSingleFramedMessage(framed([
+      'SCAN',
+      'space: root',
+      'since: 0',
+      'itp-sig: v2',
+      'proof: stale-proof',
+      'body-length: 0',
+      '',
+      '',
+    ].join('\n')))).toThrowError(
+      new FrameParseError('Unsupported itp-sig value: v2'),
+    );
+  });
+
+  it('refuses to serialize signed frames without itp-sig marker', () => {
+    expect(() => serializeFramedMessage({
+      verb: 'SCAN',
+      headers: {
+        space: 'root',
+        since: '0',
+        proof: 'stale-proof',
+      },
+      body: new Uint8Array(),
+    })).toThrowError(
+      new FrameParseError('Signed frame requires itp-sig: v1'),
+    );
+  });
+
   it('rejects ACCEPT without promise header', () => {
     const frame = parseSingleFramedMessage(framed([
       'ACCEPT',

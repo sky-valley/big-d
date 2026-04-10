@@ -1,5 +1,5 @@
 AUTH
 station-token: <station-token>
+itp-sig: v1
 proof: <itp-pop-jwt>
 body-length: 0
-

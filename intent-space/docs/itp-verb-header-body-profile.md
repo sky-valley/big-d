@@ -10,7 +10,7 @@ It is intentionally narrow:
 - scalar header formats and naming
 - malformed-envelope conditions
 - auth transport-profile doctrine
-- canonical proof/hash doctrine
+- canonical proof/hash profile
 - transcript/debug persistence doctrine
 
 It does not redefine intent-space semantics. It only redefines how the same
@@ -64,7 +64,8 @@ Rules:
 - duplicate headers are forbidden
 - unknown headers are allowed and must be preserved
 - header order is not semantically meaningful
-- receivers may normalize header ordering internally for canonical hashing
+- signed-frame hashing uses the canonical ordering defined in
+  [Section 4](#4-itp-sig-v1-canonical-proofhash-profile)
 - per-verb required header names are authoritative; implementations must not
   invent alternate spellings such as `promise-id` for `promise` or `space-id`
   for `space`
@@ -291,6 +292,7 @@ materials and semantics.
 Pure TCP / ITP profile requires:
 
 - `station-token`
+- `itp-sig`
 - `proof`
 - `body-length`
 
@@ -360,20 +362,111 @@ where possible.
 The system should not invent a second unrelated auth model merely because the
 transport changed.
 
-## 4. Canonical Proof / Hash Doctrine
+## 4. `itp-sig: v1` Canonical Proof/Hash Profile
 
-Phase 0 pins the doctrine, not yet the final byte-level implementation text.
+This section defines the byte-level canonicalization profile for ITP frames
+that carry proof material in a `proof` header.
 
-Required doctrine:
+The profile name is carried as:
+
+```text
+itp-sig: v1
+```
+
+The profile name is a header value, not a header-name suffix. This preserves the
+current header-name grammar while making signed-frame canonicalization explicit.
+
+### 4.1 Scope
+
+`itp-sig: v1` applies only to the framed envelope:
+
+- verb line
+- header names and values
+- exact raw body bytes
+- computed body byte length
+
+It does **not** define, parse, normalize, canonicalize, or constrain the body
+contents. A JSON body, text body, binary body, or empty body is signed as the
+same opaque bytes that appear after the header terminator.
+
+### 4.2 Signed Frame Requirement
+
+A frame that carries a `proof` header is a signed frame.
+
+Signed frames MUST carry:
+
+- `itp-sig: v1`
+
+Receivers MUST reject a frame that carries `proof` without `itp-sig: v1`.
+
+Receivers implementing only this profile MUST reject any other `itp-sig` value.
+
+There is no legacy compatibility requirement in this profile.
+
+### 4.3 Canonical Bytes
+
+To compute canonical bytes for `itp-sig: v1`:
+
+1. Start from the framed envelope: verb, headers, and raw body bytes.
+2. Remove the `proof` header if present.
+3. Set `itp-sig` to `v1`.
+4. Remove `body-length` from the sortable header set.
+5. Sort remaining headers lexicographically by header name using bytewise ASCII
+   order.
+6. Serialize:
+   - the verb line
+   - each sorted header as `name: value`
+   - `body-length: <decimal byte count>` as the final header
+   - one empty line
+   - the original raw body bytes
+
+Canonical LF shape:
+
+```text
+VERB
+header-a: value
+header-b: value
+itp-sig: v1
+body-length: <decimal-bytes>
+
+<opaque body bytes>
+```
+
+`body-length` is always recomputed from the raw body byte count. Its incoming
+position and incoming value do not participate in canonicalization.
+
+### 4.4 Validation Rules
+
+Signed-frame implementations MUST reject:
+
+- missing `itp-sig: v1` on any frame carrying `proof`
+- any unsupported `itp-sig` value
+- duplicate headers
+- invalid header names
+- header values containing LF, CR, or NUL
+- non-decimal or negative `body-length`
+- body byte count mismatches
+
+### 4.5 Proof Binding
+
+The proof mechanism remains transport-aware.
+
+For the pure TCP / ITP station profile, the per-message proof payload binds the
+request by hashing the `itp-sig: v1` canonical bytes for the request without the
+`proof` header.
+
+For HTTP carriers, the HTTP DPoP proof remains bound to the HTTP request. HTTP
+deployments may still parse ITP frames that contain `proof`, and if they do,
+they MUST apply the same signed-frame envelope validation rules above.
+
+Required doctrine remains:
 
 - proof binding remains explicit and transport-aware
-- canonical hashing must be defined over the new framed message representation,
-  not JSON object canonicalization
-- the rule must specify:
-  - which headers participate
-  - how headers are normalized
-  - whether body bytes are hashed directly or via digest
-  - how HTTP and TCP profiles reuse the same semantic proof materials
+- canonical hashing is over framed message bytes, not JSON object
+  canonicalization
+- body bytes are hashed directly as opaque bytes through the canonical frame
+- HTTP and TCP profiles reuse the same underlying proof-of-possession materials
+  without requiring byte-identical auth surfaces
 
 Implementation may not invent this piecemeal in auth code.
 

@@ -64,7 +64,7 @@ For live station participation over TCP:
 
 - use the ITP-framed `AUTH` act on the station wire
 - bind the proof to the station audience, action, token hash, and canonical
-  framed request hash
+  `itp-sig: v1` framed request hash
 - continue requiring fresh proofs for `SCAN` and live ITP acts
 
 The normative framing and header requirements live in:
