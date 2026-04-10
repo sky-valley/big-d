@@ -533,7 +533,8 @@ export const OBSERVATORY_HTML =
   '  const observeUrl = `${connection.origin}/spaces/${connection.spaceId}/observe`\n' +
   '    + `?token=${encodeURIComponent(connection.stationToken)}`\n' +
   '    + `&space=${encodeURIComponent(spaceId)}`\n' +
-  '    + `&since=${since}`;\n' +
+  '    + `&since=${since}`\n' +
+  '    + `&_t=${Date.now()}`;\n' +
   '  const response = await fetch(observeUrl);\n' +
   '  if (!response.ok) {\n' +
   '    const text = await response.text();\n' +
@@ -554,10 +555,14 @@ export const OBSERVATORY_HTML =
   '\n' +
   '    const intents = messages.filter((m) => m.type === \'INTENT\' && m.intentId);\n' +
   '    const scanPromises = intents.map(async (intent) => {\n' +
-  '      const interior = await scanSpace(intent.intentId);\n' +
-  '      if (interior.messages.length > 0) {\n' +
-  '        interiorMessages.set(intent.intentId, interior.messages);\n' +
-  '        await descend(intent.intentId, depth + 1);\n' +
+  '      try {\n' +
+  '        const interior = await scanSpace(intent.intentId);\n' +
+  '        if (interior.messages.length > 0) {\n' +
+  '          interiorMessages.set(intent.intentId, interior.messages);\n' +
+  '          await descend(intent.intentId, depth + 1);\n' +
+  '        }\n' +
+  '      } catch (err) {\n' +
+  '        console.warn(\'Failed to scan interior\', intent.intentId, err.message);\n' +
   '      }\n' +
   '    });\n' +
   '    await Promise.all(scanPromises);\n' +

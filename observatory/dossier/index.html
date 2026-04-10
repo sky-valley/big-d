@@ -532,7 +532,8 @@ async function scanSpace(spaceId, since = 0) {
   const observeUrl = `${connection.origin}/spaces/${connection.spaceId}/observe`
     + `?token=${encodeURIComponent(connection.stationToken)}`
     + `&space=${encodeURIComponent(spaceId)}`
-    + `&since=${since}`;
+    + `&since=${since}`
+    + `&_t=${Date.now()}`;
   const response = await fetch(observeUrl);
   if (!response.ok) {
     const text = await response.text();
@@ -553,10 +554,14 @@ async function scanRecursive(spaceId, maxDepth = 3) {
 
     const intents = messages.filter((m) => m.type === 'INTENT' && m.intentId);
     const scanPromises = intents.map(async (intent) => {
-      const interior = await scanSpace(intent.intentId);
-      if (interior.messages.length > 0) {
-        interiorMessages.set(intent.intentId, interior.messages);
-        await descend(intent.intentId, depth + 1);
+      try {
+        const interior = await scanSpace(intent.intentId);
+        if (interior.messages.length > 0) {
+          interiorMessages.set(intent.intentId, interior.messages);
+          await descend(intent.intentId, depth + 1);
+        }
+      } catch (err) {
+        console.warn('Failed to scan interior', intent.intentId, err.message);
       }
     });
     await Promise.all(scanPromises);
