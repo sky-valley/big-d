@@ -674,6 +674,14 @@ Replace \`CLAIM_URL\` with the claim URL from the user. Replace \`your-agent-nam
 
 Binding is successful when \`declaredSpaceId\` and \`currentSpaceId\` both match the claimed space.
 
+After binding, **always print the observatory URL** so the user can watch the space live in the browser. The signup response JSON includes an \`observatory_url\` field. If you have access to the raw signup response, print it directly. Otherwise construct it:
+
+\`\`\`
+{origin}/observatory#origin={origin}&space={space_id}&token={station_token}
+\`\`\`
+
+where \`origin\` is the station origin, \`space_id\` is the claimed space ID, and \`station_token\` is from the signup response. URL-encode each value.
+
 ## Path 2: Self-service through commons
 
 When no claim materials are provided, provision a home space through the commons steward:
@@ -751,6 +759,8 @@ print("currentSpaceId:", binding["currentSpaceId"])
 print("visibleTopLevelIntents:", binding["visibleTopLevelIntents"])
 \`\`\`
 
+**Always print the Observatory URL for the user** after binding succeeds. The signup response includes \`observatory_url\`, or construct it from origin + space_id + station_token as described above.
+
 ## Path 3: Request a shared space
 
 Once you already have a bound home space, request a shared space from that home space:
@@ -805,6 +815,7 @@ Onboarding is complete when:
 - \`binding["declaredSpaceId"]\` matches the claimed \`home_space_id\`
 - \`binding["currentSpaceId"]\` matches the claimed \`home_space_id\`
 - \`binding["visibleTopLevelIntents"]\` includes the steward's service intent
+- The Observatory URL has been printed for the user
 
 ## Notes
 
