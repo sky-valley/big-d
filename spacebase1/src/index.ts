@@ -14,6 +14,7 @@ import {
   OG_STANDARD_PNG_BASE64,
   TWITTER_CARD_PNG_BASE64,
 } from './social-preview-assets.ts';
+import { OBSERVATORY_HTML } from './observatory-asset.ts';
 import {
   authenticateContinuationRequest,
   TERMS_OF_SERVICE,
@@ -21,6 +22,7 @@ import {
   claimWelcomeMarkdown,
   issueStationSession,
   normalizeHandle,
+  sha256b64url,
   signupErrorResponse,
   validateSignupRequestBody,
   validateClaimSignup,
@@ -375,7 +377,7 @@ async function forwardToSpace(
   env: Env,
   spaceId: string,
   origin: string,
-  surface: 'itp' | 'scan' | 'stream' | 'continue',
+  surface: 'itp' | 'scan' | 'stream' | 'observe' | 'continue',
   request: Request,
   search: string,
 ): Promise<Response> {
@@ -440,13 +442,13 @@ export default {
       return Response.redirect(`${origin}/spaces/${bundle.spaceId}?token=${encodeURIComponent(bundle.claimToken)}`, 303);
     }
 
-    const spaceSurfaceMatch = url.pathname.match(/^\/spaces\/([^/]+)\/(itp|scan|stream|continue)$/);
+    const spaceSurfaceMatch = url.pathname.match(/^\/spaces\/([^/]+)\/(itp|scan|stream|observe|continue)$/);
     if (spaceSurfaceMatch) {
       const [, spaceId, surface] = spaceSurfaceMatch;
       if (spaceId === 'commons') {
         await ensureCommonsSpace(env, origin);
       }
-      return forwardToSpace(env, spaceId, origin, surface as 'itp' | 'scan' | 'stream' | 'continue', request, url.search);
+      return forwardToSpace(env, spaceId, origin, surface as 'itp' | 'scan' | 'stream' | 'observe' | 'continue', request, url.search);
     }
 
     const participationDocsMatch = url.pathname.match(/^\/spaces\/([^/]+)\/(?:\.well-known\/welcome\.md|tos)$/);
@@ -467,6 +469,12 @@ export default {
       if (request.method === 'GET' && url.pathname.endsWith('/tos')) {
         return withHeaders(textResponse(TERMS_OF_SERVICE), { 'x-robots-tag': 'noindex, nofollow' });
       }
+    }
+
+    if (isGetLike(request) && url.pathname === '/observatory') {
+      return staticResponse(request, new Response(OBSERVATORY_HTML, {
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      }));
     }
 
     if (isGetLike(request) && url.pathname === '/agent-setup') {
@@ -1425,6 +1433,25 @@ export class HostedSpace {
           'cache-control': 'no-store',
         },
       });
+    }
+
+    if (url.pathname === '/observe' && request.method === 'GET') {
+      const state = (await this.state.storage.get<HostedSpaceRecord>('state')) ?? null;
+      if (!state) return textResponse('Space not initialized\n', 404);
+      const token = url.searchParams.get('token');
+      if (!token) return jsonResponse({ error: 'Missing token query parameter' }, 401);
+      const tokenHash = await sha256b64url(token);
+      const session = (await this.state.storage.get<StationSession>(`session:${tokenHash}`)) ?? null;
+      if (!session) return jsonResponse({ error: 'Invalid token' }, 401);
+      if (session.expiresAt < new Date().toISOString()) return jsonResponse({ error: 'Token expired' }, 401);
+
+      const spaceId = url.searchParams.get('space') ?? topLevelSpaceId(state);
+      const since = parseInt(url.searchParams.get('since') ?? '0', 10);
+      const messages = ((await this.state.storage.get<StoredMessage[]>('messages')) ?? []).filter(
+        (message) => message.parentId === spaceId && message.seq > since,
+      );
+      const latestSeq = (await this.state.storage.get<number>('latestSeq')) ?? 0;
+      return jsonResponse({ spaceId, messages, latestSeq });
     }
 
     return textResponse('Not found\n', 404);

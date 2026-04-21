@@ -601,6 +601,7 @@ export async function issueStationSession(
       scan_endpoint: profile.scanUrl,
       stream_endpoint: profile.streamUrl,
       space_id: spaceId,
+      observatory_url: `${profile.origin}/observatory#origin=${encodeURIComponent(profile.origin)}&space=${encodeURIComponent(spaceId)}&token=${encodeURIComponent(stationToken)}`,
     },
   };
 }
