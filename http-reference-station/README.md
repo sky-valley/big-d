@@ -11,6 +11,7 @@ of the system.
 ## What It Implements
 
 - Welcome Mat-compatible discovery and signup
+- Welcome Mat-compatible continuation (`POST /continue`)
 - framed ITP carriage at `POST /itp`
 - framed station reads at `POST /scan`
 - SSE observation at `GET /stream`

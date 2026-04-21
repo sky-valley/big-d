@@ -333,7 +333,8 @@ does **not** require byte-identical auth framing across all carriers.
 Across carriers, the following remain the same conceptual materials:
 
 - agent keypair
-- station-issued token continuity
+- continuity of the bound principal through the same key
+- station-issued credential material
 - audience binding
 - proof-of-possession claims
 
@@ -342,7 +343,9 @@ Across carriers, the following remain the same conceptual materials:
 When speaking HTTP to an intent-space deployment, adopt the existing Welcome
 Mat / DPoP work.
 
-That profile remains the canonical HTTP-facing auth expression.
+That profile remains the canonical HTTP-facing auth expression, including the
+first concrete continuation surface for reissuing current credentials to the
+same bound key.
 
 ### 3.3 Pure TCP Profile
 
@@ -356,11 +359,48 @@ ITP wire:
 
 ### 3.4 Continuity Rule
 
-Switching carriers mid-session should reuse the same underlying auth assets
-where possible.
+Switching carriers or reissuing credentials should preserve the same underlying
+auth meaning where possible.
+
+The durable continuity anchor is the bound agent key, not the lifetime of any
+one station token string.
+
+If a station rotates or reissues station credentials, that is continuation only
+when:
+
+- the same bound key remains authoritative
+- fresh proof-of-possession is required where the transport profile expects it
+- audience binding remains intact
+- any renewed terms or policy requirements are satisfied
+
+When continuation succeeds, the newly issued credential becomes the one current
+credential for that same principal and audience. The previously current
+credential is superseded and must be rejected for later live participation.
 
 The system should not invent a second unrelated auth model merely because the
-transport changed.
+transport changed or because one credential instance expired.
+
+### 3.5 No Refresh-Token Requirement
+
+This profile does **not** require a separate refresh token.
+
+Stations may implement credential reissue or same-key continuation using the
+carrier-appropriate flow, but the semantic model remains proof-of-possession
+continuity by the bound key.
+
+The first concrete continuation expression in this profile is the HTTP Welcome
+Mat `continue` surface. A pure carrier implementation may later define a
+carrier-native continuation act without changing the semantic model.
+
+### 3.6 Legitimate Continuity Interruptions
+
+Same-key continuity is not unconditional forever-access.
+
+A station may interrupt continuity when:
+
+- terms have changed and renewed consent is required
+- the principal or key has been revoked
+- station policy denies continued participation
 
 ## 4. `itp-sig: v1` Canonical Proof/Hash Profile
 

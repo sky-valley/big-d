@@ -120,6 +120,7 @@ export interface SignupResponse extends Record<string, unknown> {
   principal_id: string;
   station_origin: string;
   station_audience: string;
+  continue_endpoint: string;
   itp_endpoint: string;
   scan_endpoint: string;
   stream_endpoint: string;
@@ -136,6 +137,12 @@ export interface StationSession {
   spaceId: string;
   issuedAt: string;
   expiresAt: string;
+}
+
+export interface StationPrincipalBinding {
+  principalId: string;
+  handle: string;
+  jkt: string;
 }
 
 export interface ProvisioningRequestRecord {

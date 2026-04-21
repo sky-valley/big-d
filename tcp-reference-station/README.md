@@ -22,6 +22,10 @@ It does not implement:
 - dojo teacher behavior
 - HTTP signup or onboarding
 
+The TCP reference is carrier-only for live participation. It expects a current
+station credential on the wire and does not itself provide enrollment or
+continuation surfaces.
+
 ## Quick Start
 
 ```bash

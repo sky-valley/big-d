@@ -84,17 +84,22 @@ interface TestIdentity {
   buildProof: (action: string, request: Record<string, unknown>) => string;
 }
 
+interface TestIdentityOptions {
+  expOffsetSeconds?: number;
+}
+
 function b64urlEncode(value: Buffer | string): string {
   return Buffer.from(value).toString('base64url');
 }
 
-function makeIdentity(senderId: string): TestIdentity {
+function makeIdentity(senderId: string, options: TestIdentityOptions = {}): TestIdentity {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 4096 });
   const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
   const publicJwk = publicKey.export({ format: 'jwk' }) as JsonWebKey;
   const thumbprint = createHash('sha256').update(
     JSON.stringify({ e: publicJwk.e, kty: 'RSA', n: publicJwk.n }),
   ).digest('base64url');
+  const expOffsetSeconds = options.expOffsetSeconds ?? (60 * 60);
   const header = { typ: 'itp+jwt', alg: 'HS256' };
   const payload = {
     iss: 'intent-space-test',
@@ -104,7 +109,7 @@ function makeIdentity(senderId: string): TestIdentity {
     cnf: { jkt: thumbprint },
     scope: 'intent-space:station',
     iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + (60 * 60),
+    exp: Math.floor(Date.now() / 1000) + expOffsetSeconds,
     jti: randomUUID(),
   };
   const headerPart = b64urlEncode(Buffer.from(JSON.stringify(header), 'utf8'));
@@ -266,6 +271,24 @@ test('Signed frame without itp-sig is rejected');
       && serializeMessage.includes('Signed frame requires itp-sig: v1'),
     `Expected signed-frame marker rejection, got parse="${parseMessage}" serialize="${serializeMessage}"`,
   );
+}
+
+// --- Test 0c: expired token claims are rejected on the wire ---
+test('Expired station token claims are rejected');
+{
+  const client = new IntentSpaceClient(socketPath);
+  const identity = makeIdentity('agent-expired', { expOffsetSeconds: -60 });
+  let errorMessage = '';
+  await client.connect();
+  try {
+    await client.authenticate(identity.stationToken, identity.buildProof);
+  } catch (error) {
+    errorMessage = error instanceof Error ? error.message : String(error);
+  } finally {
+    client.disconnect();
+  }
+
+  assert(errorMessage.includes('Station token expired'), `Expected expired token rejection, got "${errorMessage}"`);
 }
 
 // --- Test 1: connect receives service intents ---

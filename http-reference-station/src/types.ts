@@ -56,6 +56,7 @@ export interface SignupResponse extends Record<string, unknown> {
   principal_id: string;
   station_origin: string;
   station_audience: string;
+  continue_endpoint: string;
   itp_endpoint: string;
   scan_endpoint: string;
   stream_endpoint: string;

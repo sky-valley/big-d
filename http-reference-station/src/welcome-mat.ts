@@ -24,6 +24,7 @@ export interface HttpReferenceProfile {
   origin: string;
   audience: string;
   signupPath: string;
+  continuePath: string;
   termsPath: string;
   itpPath: string;
   scanPath: string;
@@ -206,6 +207,7 @@ export function welcomeMatMarkdown(profile: HttpReferenceProfile): string {
     '',
     `- terms: GET ${new URL(profile.termsPath, profile.origin).toString()}`,
     `- signup: POST ${new URL(profile.signupPath, profile.origin).toString()}`,
+    `- continue: POST ${new URL(profile.continuePath, profile.origin).toString()}`,
     `- itp: POST ${new URL(profile.itpPath, profile.origin).toString()}`,
     `- scan: POST ${new URL(profile.scanPath, profile.origin).toString()}`,
     `- stream: GET ${new URL(profile.streamPath, profile.origin).toString()}`,
@@ -220,6 +222,8 @@ export function welcomeMatMarkdown(profile: HttpReferenceProfile): string {
     '## participation',
     '',
     'After signup, use the returned station token with HTTP DPoP-style request authentication.',
+    'Call the continue endpoint with a fresh DPoP proof from the same enrolled key to receive a fresh current station token.',
+    'That fresh current token supersedes the prior current credential for the same principal and audience.',
     'Real ITP acts go to `/itp`. Station support operations stay distinct at `/scan` and `/stream`.',
   ].join('\n');
 }
@@ -235,6 +239,7 @@ export function llmsTxt(profile: HttpReferenceProfile): string {
     `- Welcome Mat discovery: ${new URL('/.well-known/welcome.md', profile.origin).toString()}`,
     `- Terms of service: ${new URL(profile.termsPath, profile.origin).toString()}`,
     `- Signup: ${new URL(profile.signupPath, profile.origin).toString()}`,
+    `- Continue: ${new URL(profile.continuePath, profile.origin).toString()}`,
     '',
     '## Endpoints',
     '',
@@ -255,6 +260,7 @@ export function agentCard(profile: HttpReferenceProfile): Record<string, unknown
       welcomeMd: new URL('/.well-known/welcome.md', profile.origin).toString(),
       terms: new URL(profile.termsPath, profile.origin).toString(),
       signup: new URL(profile.signupPath, profile.origin).toString(),
+      continue: new URL(profile.continuePath, profile.origin).toString(),
       itp: new URL(profile.itpPath, profile.origin).toString(),
       scan: new URL(profile.scanPath, profile.origin).toString(),
       stream: new URL(profile.streamPath, profile.origin).toString(),
@@ -262,6 +268,7 @@ export function agentCard(profile: HttpReferenceProfile): Record<string, unknown
     },
     capabilities: [
       'welcome-mat-signup',
+      'welcome-mat-continue',
       'http-dpop-auth',
       'framed-itp-over-http',
       'sse-observation',
@@ -273,6 +280,16 @@ export interface SignupValidationResult {
   handle: string;
   jwk: Record<string, unknown>;
   jwkThumbprint: string;
+}
+
+export interface ContinuationValidationResult {
+  jwk: Record<string, unknown>;
+  jwkThumbprint: string;
+}
+
+export interface IssuedStationCredential {
+  signup: SignupResponse;
+  tokenId: string;
 }
 
 export function validateSignup(input: {
@@ -328,14 +345,36 @@ export function validateSignup(input: {
   };
 }
 
+export function validateContinuation(input: {
+  dpopJwt: string;
+  profile: HttpReferenceProfile;
+  nowSeconds?: number;
+}): ContinuationValidationResult {
+  const nowSeconds = input.nowSeconds ?? Math.floor(Date.now() / 1000);
+  const dpop = parseJwt(input.dpopJwt);
+  const jwk = verifyRs256Jwt(dpop, 'dpop+jwt');
+  assertRecent(dpop.payload.iat, nowSeconds, PROOF_MAX_AGE_SECONDS);
+  if (dpop.payload.htm !== 'POST') {
+    throw new Error('DPoP htm must be POST');
+  }
+  if (dpop.payload.htu !== new URL(input.profile.continuePath, input.profile.origin).toString()) {
+    throw new Error('DPoP htu does not match continue URL');
+  }
+  return {
+    jwk,
+    jwkThumbprint: jwkThumbprint(jwk),
+  };
+}
+
 export function issueStationToken(
   handle: string,
   principalId: string,
   jwkThumb: string,
   secret: string,
   profile: HttpReferenceProfile,
-): SignupResponse {
+): IssuedStationCredential {
   const nowSeconds = Math.floor(Date.now() / 1000);
+  const tokenId = randomUUID();
   const payload: JwtPayload = {
     iss: profile.origin,
     sub: principalId,
@@ -345,7 +384,7 @@ export function issueStationToken(
     scope: STATION_TOKEN_SCOPE,
     iat: nowSeconds,
     exp: nowSeconds + STATION_TOKEN_TTL_SECONDS,
-    jti: randomUUID(),
+    jti: tokenId,
   };
   const stationToken = signHs256Jwt(
     { typ: STATION_TOKEN_TYP, alg: 'HS256' },
@@ -353,15 +392,19 @@ export function issueStationToken(
     secret,
   );
   return {
-    station_token: stationToken,
-    token_type: STATION_TOKEN_TYPE,
-    handle,
-    principal_id: principalId,
-    station_origin: profile.origin,
-    station_audience: profile.audience,
-    itp_endpoint: new URL(profile.itpPath, profile.origin).toString(),
-    scan_endpoint: new URL(profile.scanPath, profile.origin).toString(),
-    stream_endpoint: new URL(profile.streamPath, profile.origin).toString(),
+    tokenId,
+    signup: {
+      station_token: stationToken,
+      token_type: STATION_TOKEN_TYPE,
+      handle,
+      principal_id: principalId,
+      station_origin: profile.origin,
+      station_audience: profile.audience,
+      continue_endpoint: new URL(profile.continuePath, profile.origin).toString(),
+      itp_endpoint: new URL(profile.itpPath, profile.origin).toString(),
+      scan_endpoint: new URL(profile.scanPath, profile.origin).toString(),
+      stream_endpoint: new URL(profile.streamPath, profile.origin).toString(),
+    },
   };
 }
 

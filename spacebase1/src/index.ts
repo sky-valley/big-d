@@ -16,6 +16,7 @@ import {
 } from './social-preview-assets.ts';
 import { OBSERVATORY_HTML } from './observatory-asset.ts';
 import {
+  authenticateContinuationRequest,
   TERMS_OF_SERVICE,
   authenticateHttpRequest,
   claimWelcomeMarkdown,
@@ -26,6 +27,7 @@ import {
   validateSignupRequestBody,
   validateClaimSignup,
   type ClaimProfile,
+  type SignupClaimProfile,
 } from './claim-auth.ts';
 import {
   frameToItpMessage,
@@ -57,6 +59,7 @@ import type {
   SpaceBootstrapInput,
   SpaceBundle,
   SpaceProvisionBundle,
+  StationPrincipalBinding,
   StationSession,
   StoredMessage,
   ProvisioningRequestRecord,
@@ -152,7 +155,7 @@ function buildClaimServiceUrl(origin: string, spaceId: string, claimToken: strin
   return `${origin}/claim/${spaceId}/${claimToken}`;
 }
 
-function buildClaimProfile(origin: string, spaceId: string, claimToken: string): ClaimProfile {
+function buildClaimProfile(origin: string, spaceId: string, claimToken: string): SignupClaimProfile {
   const claimServiceUrl = buildClaimServiceUrl(origin, spaceId, claimToken);
   return {
     origin,
@@ -160,6 +163,7 @@ function buildClaimProfile(origin: string, spaceId: string, claimToken: string):
     claimServiceUrl,
     welcomeUrl: `${claimServiceUrl}/.well-known/welcome.md`,
     signupUrl: `${claimServiceUrl}/signup`,
+    continueUrl: `${origin}/spaces/${spaceId}/continue`,
     termsUrl: `${claimServiceUrl}/tos`,
     itpUrl: `${origin}/spaces/${spaceId}/itp`,
     scanUrl: `${origin}/spaces/${spaceId}/scan`,
@@ -167,13 +171,14 @@ function buildClaimProfile(origin: string, spaceId: string, claimToken: string):
   };
 }
 
-function buildCommonsProfile(origin: string): ClaimProfile {
+function buildCommonsProfile(origin: string): SignupClaimProfile {
   return {
     origin,
     audience: audienceForSpace('commons'),
     claimServiceUrl: `${origin}/commons`,
     welcomeUrl: `${origin}/commons/.well-known/welcome.md`,
     signupUrl: `${origin}/commons/signup`,
+    continueUrl: `${origin}/spaces/commons/continue`,
     termsUrl: `${origin}/commons/tos`,
     itpUrl: `${origin}/spaces/commons/itp`,
     scanUrl: `${origin}/spaces/commons/scan`,
@@ -187,7 +192,7 @@ function buildParticipationProfile(origin: string, spaceId: string): ClaimProfil
     audience: audienceForSpace(spaceId),
     claimServiceUrl: `${origin}/spaces/${spaceId}`,
     welcomeUrl: `${origin}/spaces/${spaceId}/.well-known/welcome.md`,
-    signupUrl: `${origin}/spaces/${spaceId}/signup`,
+    continueUrl: `${origin}/spaces/${spaceId}/continue`,
     termsUrl: `${origin}/spaces/${spaceId}/tos`,
     itpUrl: `${origin}/spaces/${spaceId}/itp`,
     scanUrl: `${origin}/spaces/${spaceId}/scan`,
@@ -215,6 +220,10 @@ function makeObligationId(sharedSpaceId: string, participantPrincipalId: string)
 
 function makeInvitationIntentId(sharedSpaceId: string, participantPrincipalId: string): string {
   return `spacebase1:invite:${sharedSpaceId}:${participantPrincipalId}`;
+}
+
+function stablePrincipalSuffix(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24);
 }
 
 function topLevelSpaceId(state: HostedSpaceRecord): string {
@@ -368,7 +377,7 @@ async function forwardToSpace(
   env: Env,
   spaceId: string,
   origin: string,
-  surface: 'itp' | 'scan' | 'stream' | 'observe',
+  surface: 'itp' | 'scan' | 'stream' | 'observe' | 'continue',
   request: Request,
   search: string,
 ): Promise<Response> {
@@ -433,16 +442,33 @@ export default {
       return Response.redirect(`${origin}/spaces/${bundle.spaceId}?token=${encodeURIComponent(bundle.claimToken)}`, 303);
     }
 
-    const spaceSurfaceMatch = url.pathname.match(/^\/spaces\/([^/]+)\/(itp|scan|stream|observe)$/);
-  if (spaceSurfaceMatch) {
+    const spaceSurfaceMatch = url.pathname.match(/^\/spaces\/([^/]+)\/(itp|scan|stream|observe|continue)$/);
+    if (spaceSurfaceMatch) {
       const [, spaceId, surface] = spaceSurfaceMatch;
       if (spaceId === 'commons') {
         await ensureCommonsSpace(env, origin);
       }
-      if (surface === 'observe') {
-        return forwardToSpace(env, spaceId, origin, 'observe' as 'itp' | 'scan' | 'stream', request, url.search);
+      return forwardToSpace(env, spaceId, origin, surface as 'itp' | 'scan' | 'stream' | 'observe' | 'continue', request, url.search);
+    }
+
+    const participationDocsMatch = url.pathname.match(/^\/spaces\/([^/]+)\/(?:\.well-known\/welcome\.md|tos)$/);
+    if (participationDocsMatch) {
+      const [, spaceId] = participationDocsMatch;
+      if (spaceId === 'commons') {
+        await ensureCommonsSpace(env, origin);
       }
-      return forwardToSpace(env, spaceId, origin, surface as 'itp' | 'scan' | 'stream', request, url.search);
+      const profile = buildParticipationProfile(origin, spaceId);
+      if (request.method === 'GET' && url.pathname.endsWith('/.well-known/welcome.md')) {
+        return new Response(`${claimWelcomeMarkdown(profile)}\n`, {
+          headers: {
+            'content-type': 'text/markdown; charset=utf-8',
+            'x-robots-tag': 'noindex, nofollow',
+          },
+        });
+      }
+      if (request.method === 'GET' && url.pathname.endsWith('/tos')) {
+        return withHeaders(textResponse(TERMS_OF_SERVICE), { 'x-robots-tag': 'noindex, nofollow' });
+      }
     }
 
     if (isGetLike(request) && url.pathname === '/observatory') {
@@ -838,7 +864,7 @@ export class SpacebaseControl {
           handle: bodyResult.body.handle!,
           profile,
         });
-        const principalId = `prn_spacebase1_commons_${validated.handle.replace(/[^a-z0-9]+/g, '_')}`;
+        const principalId = `prn_spacebase1_commons_${stablePrincipalSuffix(validated.jwkThumbprint)}`;
         const issued = await issueStationSession(
           validated.handle,
           principalId,
@@ -950,6 +976,32 @@ export class SpacebaseControl {
 export class HostedSpace {
   constructor(private readonly state: DurableObjectState, private readonly env: Env) {}
 
+  private bindingKey(jkt: string): string {
+    return `binding:${jkt}`;
+  }
+
+  private currentSessionKey(principalId: string): string {
+    return `current-session:${principalId}`;
+  }
+
+  private async putBinding(binding: StationPrincipalBinding): Promise<void> {
+    await this.state.storage.put(this.bindingKey(binding.jkt), binding);
+  }
+
+  private async getBindingByJkt(jkt: string): Promise<StationPrincipalBinding | null> {
+    return (await this.state.storage.get<StationPrincipalBinding>(this.bindingKey(jkt))) ?? null;
+  }
+
+  private async setCurrentSession(session: StationSession): Promise<void> {
+    await this.state.storage.put(`session:${session.tokenHash}`, session);
+    await this.state.storage.put(this.currentSessionKey(session.principalId), session.tokenHash);
+  }
+
+  private async isCurrentSession(session: StationSession): Promise<boolean> {
+    const currentTokenHash = (await this.state.storage.get<string>(this.currentSessionKey(session.principalId))) ?? null;
+    return currentTokenHash === session.tokenHash;
+  }
+
   private async rememberProofJti(tokenHash: string, jti: string, expiresAt: string): Promise<boolean> {
     const key = `proof:${tokenHash}:${jti}`;
     const existing = (await this.state.storage.get<string>(key)) ?? null;
@@ -1040,9 +1092,14 @@ export class HostedSpace {
             status: body.status,
             principalId: body.principalId,
             handle: body.handle,
-          };
+      };
       await this.state.storage.put('state', updated);
-      await this.state.storage.put(`session:${body.session.tokenHash}`, body.session);
+      await this.setCurrentSession(body.session);
+      await this.putBinding({
+        principalId: body.principalId,
+        handle: body.handle,
+        jkt: body.session.jkt,
+      });
       return jsonResponse(updated);
     }
 
@@ -1055,7 +1112,12 @@ export class HostedSpace {
         participantPrincipalIds: Array.from(new Set([...(record.participantPrincipalIds ?? []), body.principalId])),
       };
       await this.state.storage.put('state', updated);
-      await this.state.storage.put(`session:${body.session.tokenHash}`, body.session);
+      await this.setCurrentSession(body.session);
+      await this.putBinding({
+        principalId: body.principalId,
+        handle: body.handle,
+        jkt: body.session.jkt,
+      });
       return jsonResponse(updated);
     }
 
@@ -1075,6 +1137,34 @@ export class HostedSpace {
       return jsonResponse(record);
     }
 
+    if (url.pathname === '/continue' && request.method === 'POST') {
+      const state = (await this.state.storage.get<HostedSpaceRecord>('state')) ?? null;
+      if (!state) return textResponse('Space not initialized\n', 404);
+      const forwardedUrl = request.headers.get('x-spacebase-forwarded-url') ?? request.url;
+      let binding: StationPrincipalBinding;
+      try {
+        binding = await authenticateContinuationRequest(
+          request,
+          forwardedUrl,
+          async (jkt) => this.getBindingByJkt(jkt),
+        );
+      } catch (error) {
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 401);
+      }
+      const origin = normalizeOrigin(new URL(forwardedUrl));
+      const profile = buildParticipationProfile(origin, state.spaceId);
+      const issued = await issueStationSession(
+        binding.handle,
+        binding.principalId,
+        binding.jkt,
+        profile,
+        state.spaceId,
+      );
+      await this.setCurrentSession(issued.session);
+      await this.putBinding(binding);
+      return jsonResponse(issued.signup);
+    }
+
     if (url.pathname === '/scan' && request.method === 'POST') {
       const state = (await this.state.storage.get<HostedSpaceRecord>('state')) ?? null;
       if (!state) return textResponse('Space not initialized\n', 404);
@@ -1086,6 +1176,7 @@ export class HostedSpace {
           request.headers.get('x-spacebase-forwarded-url') ?? request.url,
           state.audience,
           async (tokenHash) => (await this.state.storage.get<StationSession>(`session:${tokenHash}`)) ?? null,
+          (session) => this.isCurrentSession(session),
           (tokenHash, jti, expiresAt) => this.rememberProofJti(tokenHash, jti, expiresAt),
         );
       } catch (error) {
@@ -1128,6 +1219,7 @@ export class HostedSpace {
           request.headers.get('x-spacebase-forwarded-url') ?? request.url,
           state.audience,
           async (tokenHash) => (await this.state.storage.get<StationSession>(`session:${tokenHash}`)) ?? null,
+          (session) => this.isCurrentSession(session),
           (tokenHash, jti, expiresAt) => this.rememberProofJti(tokenHash, jti, expiresAt),
         );
       } catch (error) {
@@ -1314,6 +1406,7 @@ export class HostedSpace {
           request.headers.get('x-spacebase-forwarded-url') ?? request.url,
           state.audience,
           async (tokenHash) => (await this.state.storage.get<StationSession>(`session:${tokenHash}`)) ?? null,
+          (session) => this.isCurrentSession(session),
           (tokenHash, jti, expiresAt) => this.rememberProofJti(tokenHash, jti, expiresAt),
         );
       } catch (error) {

@@ -63,11 +63,16 @@ export interface ClaimProfile {
   audience: string;
   claimServiceUrl: string;
   welcomeUrl: string;
-  signupUrl: string;
+  signupUrl?: string;
+  continueUrl: string;
   termsUrl: string;
   itpUrl: string;
   scanUrl: string;
   streamUrl: string;
+}
+
+export interface SignupClaimProfile extends ClaimProfile {
+  signupUrl: string;
 }
 
 class SignupValidationFailure extends Error {
@@ -272,10 +277,12 @@ export function validateSignupRequestBody(value: unknown): {
 }
 
 export function claimWelcomeMarkdown(profile: ClaimProfile): string {
-  return [
-    '# spacebase1 claim surface',
+  const lines = [
+    '# spacebase1 station surface',
     '',
-    'Use this welcome document to bind a prepared space using your own key material.',
+    profile.signupUrl
+      ? 'Use this welcome document to bind a prepared space using your own key material.'
+      : 'Use this welcome document to continue participation in an already-bound space using the same key material.',
     '',
     `- protocol: ${WELCOME_MAT_PROTOCOL}`,
     `- dpop algorithms: ${WELCOME_MAT_DPOP_ALGORITHM}`,
@@ -284,69 +291,103 @@ export function claimWelcomeMarkdown(profile: ClaimProfile): string {
     '## endpoints',
     '',
     `- terms: GET ${profile.termsUrl}`,
-    `- signup: POST ${profile.signupUrl}`,
+  ];
+  if (profile.signupUrl) {
+    lines.push(`- signup: POST ${profile.signupUrl}`);
+  }
+  lines.push(`- continue: POST ${profile.continueUrl}`);
+  lines.push(
     '',
-    '## signup body',
+    `- itp: POST ${profile.itpUrl}`,
+    `- scan: POST ${profile.scanUrl}`,
+    `- stream: GET ${profile.streamUrl}`,
+  );
+  if (profile.signupUrl) {
+    lines.push(
+      '',
+      '## signup body',
+      '',
+      '- content-type: application/json',
+      '- handle: string — your participant handle; the station normalizes it to the supported handle format',
+      `- dpop header: required — a \`dpop+jwt\` proof bound to the signup POST request`,
+      `- access_token: string — a ${WELCOME_MAT_DPOP_ALGORITHM}-signed Welcome Mat access token JWT with typ \`wm+jwt\``,
+      `- tos_signature: string — a detached ${WELCOME_MAT_DPOP_ALGORITHM} signature over the raw terms text, base64url-encoded`,
+      '',
+      '## access token header',
+      '',
+      '- typ: `wm+jwt`',
+      `- alg: \`${WELCOME_MAT_DPOP_ALGORITHM}\``,
+      '- jwk: omit this header field; the public key belongs in the DPoP proof header',
+      '',
+      '```json',
+      JSON.stringify({ typ: 'wm+jwt', alg: WELCOME_MAT_DPOP_ALGORITHM }, null, 2),
+      '```',
+      '',
+      '## access token claims',
+      '',
+      '- sub: string — your agent identifier',
+      `- aud: string — either \`${profile.origin}\` or \`${profile.claimServiceUrl}\``,
+      '- iat: number — issued-at timestamp in seconds',
+      '- exp: number — expiry timestamp in seconds',
+      '- jti: string — unique token id',
+      '- cnf.jkt: string — base64url JWK thumbprint of the DPoP proof key',
+      `- tos_hash: string — \`base64url(sha256(terms_text))\` for the exact text at ${profile.termsUrl}`,
+      '',
+      '## signup dpop proof requirements',
+      '',
+      '- header typ: `dpop+jwt`',
+      `- header alg: \`${WELCOME_MAT_DPOP_ALGORITHM}\``,
+      '- header jwk: required — your RSA public key',
+      '- payload htm: `POST`',
+      `- payload htu: \`${profile.signupUrl}\``,
+      '- payload iat: number — issued-at timestamp in seconds',
+      '- payload jti: string — unique proof id',
+      '',
+      '## signature formats',
+      '',
+      '- access_token: compact JWT with exactly three parts',
+      '- tos_signature: raw RSA-SHA256 signature bytes over the exact terms text, base64url-encoded without padding',
+      '',
+      '## signup body example',
+      '',
+      '```json',
+      JSON.stringify({
+        handle: 'your-agent-name',
+        access_token: '<wm+jwt access token>',
+        tos_signature: '<base64url rsa-sha256 signature over terms text>',
+      }, null, 2),
+      '```',
+    );
+  }
+  lines.push(
     '',
-    '- content-type: application/json',
-    '- handle: string — your participant handle; the station normalizes it to the supported handle format',
-    `- dpop header: required — a \`dpop+jwt\` proof bound to the signup POST request`,
-    `- access_token: string — a ${WELCOME_MAT_DPOP_ALGORITHM}-signed Welcome Mat access token JWT with typ \`wm+jwt\``,
-    `- tos_signature: string — a detached ${WELCOME_MAT_DPOP_ALGORITHM} signature over the raw terms text, base64url-encoded`,
+    '## continue request',
     '',
-    '## access token header',
+    '- method: POST',
+    '- body: none',
+    `- dpop header: required — a \`dpop+jwt\` proof bound to \`${profile.continueUrl}\``,
+    '- same-key rule: the DPoP key must already be bound to a principal in this space',
     '',
-    '- typ: `wm+jwt`',
-    `- alg: \`${WELCOME_MAT_DPOP_ALGORITHM}\``,
-    '- jwk: omit this header field; the public key belongs in the DPoP proof header',
-    '',
-    '```json',
-    JSON.stringify({ typ: 'wm+jwt', alg: WELCOME_MAT_DPOP_ALGORITHM }, null, 2),
-    '```',
-    '',
-    '## access token claims',
-    '',
-    '- sub: string — your agent identifier',
-    `- aud: string — either \`${profile.origin}\` or \`${profile.claimServiceUrl}\``,
-    '- iat: number — issued-at timestamp in seconds',
-    '- exp: number — expiry timestamp in seconds',
-    '- jti: string — unique token id',
-    '- cnf.jkt: string — base64url JWK thumbprint of the DPoP proof key',
-    `- tos_hash: string — \`base64url(sha256(terms_text))\` for the exact text at ${profile.termsUrl}`,
-    '',
-    '## dpop proof requirements',
+    '## continue dpop proof requirements',
     '',
     '- header typ: `dpop+jwt`',
     `- header alg: \`${WELCOME_MAT_DPOP_ALGORITHM}\``,
     '- header jwk: required — your RSA public key',
     '- payload htm: `POST`',
-    `- payload htu: \`${profile.signupUrl}\``,
+    `- payload htu: \`${profile.continueUrl}\``,
     '- payload iat: number — issued-at timestamp in seconds',
     '- payload jti: string — unique proof id',
     '',
-    '## signature formats',
+    '## after enrollment',
     '',
-    '- access_token: compact JWT with exactly three parts',
-    '- tos_signature: raw RSA-SHA256 signature bytes over the exact terms text, base64url-encoded without padding',
-    '',
-    '## signup body example',
-    '',
-    '```json',
-    JSON.stringify({
-      handle: 'your-agent-name',
-      access_token: '<wm+jwt access token>',
-      tos_signature: '<base64url rsa-sha256 signature over terms text>',
-    }, null, 2),
-    '```',
-    '',
-    '## after signup',
-    '',
-    `- itp: POST ${profile.itpUrl}`,
-    `- scan: POST ${profile.scanUrl}`,
-    `- stream: GET ${profile.streamUrl}`,
-    '',
-    'If you are binding a prepared or provisioned space, the bind endpoint is the signup URL above.',
-  ].join('\n');
+    'Use the returned current station token for `itp`, `scan`, and `stream`.',
+    'Call `continue` with the same bound key whenever you need a fresh current credential.',
+    'A fresh current credential supersedes the prior current token for this same principal in this space.',
+  );
+  if (profile.signupUrl) {
+    lines.push('', 'If you are binding a prepared or provisioned space, the bind endpoint is the signup URL above.');
+  }
+  return lines.join('\n');
 }
 
 export async function validateClaimSignup(input: {
@@ -354,7 +395,7 @@ export async function validateClaimSignup(input: {
   accessTokenJwt: string;
   tosSignatureB64url: string;
   handle: string;
-  profile: ClaimProfile;
+  profile: SignupClaimProfile;
   nowSeconds?: number;
 }): Promise<{ handle: string; jwk: JsonWebKey; jwkThumbprint: string }> {
   const nowSeconds = input.nowSeconds ?? Math.floor(Date.now() / 1000);
@@ -555,6 +596,7 @@ export async function issueStationSession(
       principal_id: principalId,
       station_origin: profile.origin,
       station_audience: profile.audience,
+      continue_endpoint: profile.continueUrl,
       itp_endpoint: profile.itpUrl,
       scan_endpoint: profile.scanUrl,
       stream_endpoint: profile.streamUrl,
@@ -569,6 +611,7 @@ export async function authenticateHttpRequest(
   absoluteUrl: string,
   audience: string,
   lookupSession: (tokenHash: string) => Promise<StationSession | null>,
+  isCurrentSession: (session: StationSession) => Promise<boolean>,
   rememberProofJti: (tokenHash: string, jti: string, expiresAt: string) => Promise<boolean>,
 ): Promise<HttpRequestAuth> {
   const authorization = request.headers.get('authorization');
@@ -591,6 +634,9 @@ export async function authenticateHttpRequest(
   }
   if (session.audience !== audience) {
     throw new Error('Station token aud does not match configured audience');
+  }
+  if (!(await isCurrentSession(session))) {
+    throw new Error('Station token is no longer current');
   }
   if (session.expiresAt < new Date().toISOString()) {
     throw new Error('Station token has expired');
@@ -632,4 +678,31 @@ export async function authenticateHttpRequest(
     jkt: session.jkt,
     audience,
   };
+}
+
+export async function authenticateContinuationRequest(
+  request: Request,
+  absoluteUrl: string,
+  lookupBindingByJkt: (jkt: string) => Promise<{ principalId: string; handle: string; jkt: string } | null>,
+): Promise<{ principalId: string; handle: string; jkt: string }> {
+  const proofRaw = request.headers.get('dpop');
+  if (!proofRaw) {
+    throw new Error('Missing DPoP header');
+  }
+  const proof = parseJwt(proofRaw);
+  const jwk = await verifyRs256Jwt(proof, 'dpop+jwt');
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  assertRecent(proof.payload.iat, nowSeconds, PROOF_MAX_AGE_SECONDS, 'DPoP proof');
+  if (proof.payload.htm !== request.method.toUpperCase()) {
+    throw new Error('DPoP htm mismatch');
+  }
+  if (proof.payload.htu !== absoluteUrl) {
+    throw new Error('DPoP htu mismatch');
+  }
+  const jkt = await jwkThumbprint(jwk);
+  const binding = await lookupBindingByJkt(jkt);
+  if (!binding) {
+    throw new Error('Unknown principal binding');
+  }
+  return binding;
 }
