@@ -92,14 +92,30 @@ export function createAccept(senderId: string, promiseId: string): ITPMessage {
   };
 }
 
-/** Create a DECLINE — recorded in the log but does NOT create a promise entity */
-export function createDecline(senderId: string, intentId: string, reason: string): ITPMessage {
+/**
+ * Create a DECLINE — recorded in the log but does NOT create a promise entity.
+ *
+ * Stewards must emit DECLINE on unsupported operations so callers fail loudly
+ * instead of silently timing out. Use `supportedOperations` to hint which ops
+ * the steward does handle.
+ */
+export function createDecline(
+  senderId: string,
+  intentId: string,
+  reason: string,
+  options?: { parentId?: string; supportedOperations?: string[] },
+): ITPMessage {
+  const payload: ITPMessage['payload'] = { reason };
+  if (options?.supportedOperations) {
+    payload.supportedOperations = options.supportedOperations;
+  }
   return {
     type: 'DECLINE',
     intentId,
+    ...(options?.parentId ? { parentId: options.parentId } : {}),
     timestamp: Date.now(),
     senderId,
-    payload: { reason },
+    payload,
   };
 }
 

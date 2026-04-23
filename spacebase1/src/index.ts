@@ -38,7 +38,9 @@ import {
 } from './framing.ts';
 import {
   buildSharedSpaceInvitationPayload,
-  parseSharedSpaceRequest,
+  classifyCommonsIntent,
+  classifyHomeSpaceIntent,
+  HOME_SPACE_STEWARD_OPERATIONS,
   validateSharedSpaceParticipants,
   type PrincipalHomeRecord as SharedPrincipalHomeRecord,
   type SharedSpaceDeliveryObligation as SharedSpaceDeliveryObligationRecord,
@@ -1233,28 +1235,42 @@ export class HostedSpace {
           senderId: auth.principalId,
         });
         if (state.kind === 'commons' && stored.type === 'INTENT' && stored.parentId === topLevelSpaceId(state) && stored.intentId) {
-          const normalizedLabel = normalizeHandle(auth.handle);
-          const promiseId = makePromiseId();
-          const pending: ProvisioningRequestRecord = {
-            intentId: stored.intentId,
-            promiseId,
-            requestedByPrincipalId: auth.principalId,
-            requestedByHandle: normalizedLabel,
-            requestedAt: new Date().toISOString(),
-          };
-          await this.state.storage.put(`provision:${stored.intentId}`, pending);
-          await appendStoredMessage(this.state, {
-            type: 'PROMISE',
-            parentId: stored.intentId,
-            senderId: state.stewardId,
-            intentId: stored.intentId,
-            promiseId,
-            payload: {
-              content: `I will provision one home space for ${normalizedLabel} once you accept this promise.`,
-              requested_space_kind: 'home',
-              intended_agent_label: normalizedLabel,
-            },
-          });
+          const classification = classifyCommonsIntent(stored.payload);
+          if (classification.kind === 'unsupported') {
+            await appendStoredMessage(this.state, {
+              type: 'DECLINE',
+              parentId: stored.intentId,
+              intentId: stored.intentId,
+              senderId: state.stewardId,
+              payload: {
+                reason: classification.reason,
+                supportedOperations: [...classification.supportedOperations],
+              },
+            });
+          } else {
+            const normalizedLabel = normalizeHandle(auth.handle);
+            const promiseId = makePromiseId();
+            const pending: ProvisioningRequestRecord = {
+              intentId: stored.intentId,
+              promiseId,
+              requestedByPrincipalId: auth.principalId,
+              requestedByHandle: normalizedLabel,
+              requestedAt: new Date().toISOString(),
+            };
+            await this.state.storage.put(`provision:${stored.intentId}`, pending);
+            await appendStoredMessage(this.state, {
+              type: 'PROMISE',
+              parentId: stored.intentId,
+              senderId: state.stewardId,
+              intentId: stored.intentId,
+              promiseId,
+              payload: {
+                content: `I will provision one home space for ${normalizedLabel} once you accept this promise.`,
+                requested_space_kind: 'home',
+                intended_agent_label: normalizedLabel,
+              },
+            });
+          }
         }
         if (state.kind === 'commons' && stored.type === 'ACCEPT' && stored.parentId && stored.promiseId) {
           const pending = (await this.state.storage.get<ProvisioningRequestRecord>(`provision:${stored.parentId}`)) ?? null;
@@ -1299,8 +1315,20 @@ export class HostedSpace {
           }
         }
         if (state.kind === 'home-space' && stored.type === 'INTENT' && stored.parentId === topLevelSpaceId(state) && stored.intentId && auth.principalId === state.principalId) {
-          const sharedRequest = parseSharedSpaceRequest(stored.payload);
-          if (sharedRequest) {
+          const classification = classifyHomeSpaceIntent(stored.payload);
+          if (classification.kind === 'unsupported') {
+            await appendStoredMessage(this.state, {
+              type: 'DECLINE',
+              parentId: stored.intentId,
+              intentId: stored.intentId,
+              senderId: state.stewardId,
+              payload: {
+                reason: classification.reason,
+                supportedOperations: [...classification.supportedOperations],
+              },
+            });
+          } else {
+            const sharedRequest = classification.request;
             const validation = await validateSharedSpaceRequest(
               this.env,
               origin,
@@ -1317,6 +1345,7 @@ export class HostedSpace {
                   reason: validation.detail ?? validation.error,
                   error: validation.error,
                   unresolved_principals: validation.unresolvedPrincipalIds ?? [],
+                  supportedOperations: [...HOME_SPACE_STEWARD_OPERATIONS],
                 },
               });
             } else {

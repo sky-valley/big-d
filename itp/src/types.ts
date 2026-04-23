@@ -71,6 +71,7 @@ export interface ITPPayload {
   filesChanged?: string[];
   summary?: string;
   targetRepo?: string;
+  supportedOperations?: string[];
 }
 
 // ============ Meta-Protocol Types ============

@@ -12,7 +12,15 @@ import {
   validateSignupRequestBody,
 } from '../src/claim-auth.ts';
 import { generateFriendlyAgentLabel } from '../src/name-generator.ts';
-import { buildSharedSpaceInvitationPayload, parseSharedSpaceRequest, validateSharedSpaceParticipants } from '../src/shared-spaces.ts';
+import {
+  buildSharedSpaceInvitationPayload,
+  classifyCommonsIntent,
+  classifyHomeSpaceIntent,
+  COMMONS_STEWARD_OPERATIONS,
+  HOME_SPACE_STEWARD_OPERATIONS,
+  parseSharedSpaceRequest,
+  validateSharedSpaceParticipants,
+} from '../src/shared-spaces.ts';
 import { buildClaimPrompt, renderAgentSetup, renderHomepage, renderRobotsTxt, renderSitemapXml, renderSkillFile, renderSocialPreviewSvg } from '../src/templates.ts';
 
 function b64urlEncode(value: Buffer | string): string {
@@ -291,6 +299,63 @@ describe('spacebase1 first slice helpers', () => {
         kind: 'home',
       },
     })).toBeNull();
+  });
+
+  it('classifies commons INTENTs and declines unsupported requestedSpace kinds', () => {
+    expect(classifyCommonsIntent({
+      requestedSpace: { kind: 'home' },
+    })).toEqual({ kind: 'provision-home-space' });
+
+    expect(classifyCommonsIntent({
+      content: 'Please provision one home space for me.',
+    })).toEqual({ kind: 'provision-home-space' });
+
+    const shared = classifyCommonsIntent({
+      requestedSpace: { kind: 'shared', participant_principals: ['prn-a'] },
+    });
+    expect(shared.kind).toBe('unsupported');
+    if (shared.kind === 'unsupported') {
+      expect(shared.reason).toMatch(/commons/i);
+      expect(shared.reason).toMatch(/shared/);
+      expect(shared.supportedOperations).toEqual(COMMONS_STEWARD_OPERATIONS);
+    }
+  });
+
+  it('classifies home-space INTENTs and declines unsupported or malformed ones', () => {
+    const ok = classifyHomeSpaceIntent({
+      requestedSpace: {
+        kind: 'shared',
+        participant_principals: ['prn-a', 'prn-b'],
+      },
+    });
+    expect(ok).toEqual({
+      kind: 'provision-shared-space',
+      request: { participantPrincipalIds: ['prn-a', 'prn-b'] },
+    });
+
+    const missing = classifyHomeSpaceIntent({});
+    expect(missing.kind).toBe('unsupported');
+    if (missing.kind === 'unsupported') {
+      expect(missing.reason).toMatch(/requestedSpace/);
+      expect(missing.supportedOperations).toEqual(HOME_SPACE_STEWARD_OPERATIONS);
+    }
+
+    const wrongKind = classifyHomeSpaceIntent({
+      requestedSpace: { kind: 'home' },
+    });
+    expect(wrongKind.kind).toBe('unsupported');
+    if (wrongKind.kind === 'unsupported') {
+      expect(wrongKind.reason).toMatch(/shared/);
+      expect(wrongKind.supportedOperations).toEqual(HOME_SPACE_STEWARD_OPERATIONS);
+    }
+
+    const missingParticipants = classifyHomeSpaceIntent({
+      requestedSpace: { kind: 'shared' },
+    });
+    expect(missingParticipants.kind).toBe('unsupported');
+    if (missingParticipants.kind === 'unsupported') {
+      expect(missingParticipants.reason).toMatch(/participant_principals/);
+    }
   });
 
   it('validates shared-space participants as explicit principals with bound homes', () => {
