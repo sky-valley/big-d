@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-cream text-ink font-sans;
+  }
+  ::selection {
+    background: theme(colors.accent.soft);
+  }
+  pre,
+  code {
+    @apply font-mono;
+  }
+  a {
+    transition: color 120ms ease;
+  }
+}
