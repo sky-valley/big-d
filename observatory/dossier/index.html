@@ -6,27 +6,35 @@
     <title>Space Observatory</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Crimson+Pro:ital,wght@1,400;1,500&display=swap" rel="stylesheet" />
     <style>
 :root {
-  --ink: #111217;
-  --paper: #f2eee6;
-  --paper-soft: #ebe4d8;
-  --accent: #0e6d5a;
-  --accent-soft: rgba(14, 109, 90, 0.14);
-  --signal: #d1642e;
-  --signal-soft: rgba(209, 100, 46, 0.16);
-  --line: rgba(17, 18, 23, 0.14);
-  --line-strong: rgba(17, 18, 23, 0.28);
-  --shadow: 0 24px 80px rgba(17, 18, 23, 0.12);
-  --mono: "IBM Plex Mono", ui-monospace, monospace;
-  --display: "Space Grotesk", "Avenir Next", sans-serif;
+  /* Tokens mirror the hackathon landing page (hackathon/tailwind.config.ts). */
+  --ink: #1a1a1a;
+  --muted: #737368;
+  --paper: #fafaf7;            /* cream */
+  --paper-soft: #efece4;       /* codebg */
+  --accent: #b9521e;           /* terracotta accent */
+  --accent-hover: #9a4317;
+  --accent-soft: #f4e7dd;
+  --signal: #a02f15;           /* DECLINE — deeper red so it pops against the ambient orange */
+  --signal-soft: rgba(160, 47, 21, 0.12);
+  --success: #2f7a4a;          /* ACCEPT / COMPLETE — desaturated forest, plays nicely with terracotta */
+  --success-soft: rgba(47, 122, 74, 0.12);
+  --line: #e8e4d8;             /* divider */
+  --line-strong: rgba(26, 26, 26, 0.28);
+  --shadow: 0 24px 80px rgba(26, 26, 26, 0.08);
+  --sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --display: "Inter Tight", "Inter", ui-sans-serif, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --serif: "Crimson Pro", ui-serif, Georgia, serif;
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; min-height: 100%; background: radial-gradient(circle at top, #fbf7f1 0%, var(--paper) 46%, #e8dfd1 100%); color: var(--ink); }
-body { font-family: var(--display); }
+html, body { margin: 0; min-height: 100%; background: var(--paper); color: var(--ink); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+body { font-family: var(--sans); }
 button { font: inherit; color: inherit; }
+::selection { background: var(--accent-soft); }
 
 /* ── Connect screen ────────────────────────────── */
 .connect-shell {
@@ -46,7 +54,9 @@ button { font: inherit; color: inherit; }
 }
 .connect-card h1 {
   margin: 0 0 0.25rem;
+  font-family: var(--display);
   font-size: 2.2rem;
+  font-weight: 500;
   line-height: 1;
   letter-spacing: -0.04em;
 }
@@ -54,9 +64,9 @@ button { font: inherit; color: inherit; }
   margin: 0 0 1.8rem;
   font-family: var(--mono);
   font-size: 0.77rem;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(17, 18, 23, 0.6);
+  color: var(--muted);
 }
 .connect-field { margin-bottom: 1rem; }
 .connect-field label {
@@ -67,7 +77,7 @@ button { font: inherit; color: inherit; }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgba(17, 18, 23, 0.55);
+  color: var(--muted);
 }
 .connect-field input,
 .connect-field textarea {
@@ -89,9 +99,9 @@ button { font: inherit; color: inherit; }
   padding: 0.6rem 0.8rem;
   font-family: var(--mono);
   font-size: 0.75rem;
-  color: #9c2e11;
-  background: rgba(209, 100, 46, 0.1);
-  border: 1px solid rgba(209, 100, 46, 0.25);
+  color: var(--signal);
+  background: var(--signal-soft);
+  border: 1px solid var(--signal);
   display: none;
 }
 .connect-btn {
@@ -108,13 +118,13 @@ button { font: inherit; color: inherit; }
   cursor: pointer;
   transition: background 100ms ease;
 }
-.connect-btn:hover { background: #0a5a49; }
+.connect-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 .connect-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .connect-hint {
   margin: 1rem 0 0;
   font-size: 0.78rem;
   line-height: 1.5;
-  color: rgba(17, 18, 23, 0.5);
+  color: var(--muted);
 }
 
 /* ── Observatory shell ─────────────────────────── */
@@ -152,18 +162,20 @@ button { font: inherit; color: inherit; }
   margin: 0 0 0.5rem;
   font-family: var(--mono);
   font-size: 0.77rem;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(17, 18, 23, 0.6);
+  color: var(--muted);
 }
 
 .hero-copy h1,
 .room-header h2 {
   margin: 0;
-  font-size: clamp(2.8rem, 5vw, 5.5rem);
-  line-height: 0.94;
-  letter-spacing: -0.05em;
-  max-width: 10ch;
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(2.6rem, 4.6vw, 5rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  max-width: 12ch;
 }
 
 .lede {
@@ -171,7 +183,7 @@ button { font: inherit; color: inherit; }
   max-width: 32rem;
   font-size: 1.08rem;
   line-height: 1.7;
-  color: rgba(17, 18, 23, 0.76);
+  color: var(--ink);
 }
 
 .hero-meta {
@@ -250,8 +262,8 @@ button { font: inherit; color: inherit; }
   stroke-width: 0.35;
   stroke-linecap: round;
 }
-.metro-line-interior { stroke: rgba(209, 100, 46, 0.5); stroke-width: 0.35; }
-.metro-line-nested { stroke: rgba(14, 109, 90, 0.4); stroke-width: 0.3; stroke-dasharray: 0.8 0.6; }
+.metro-line-interior { stroke: var(--accent); stroke-opacity: 0.55; stroke-width: 0.35; }
+.metro-line-nested { stroke: var(--ink); stroke-opacity: 0.35; stroke-width: 0.3; stroke-dasharray: 0.8 0.6; }
 
 .station {
   position: absolute;
@@ -290,7 +302,7 @@ button { font: inherit; color: inherit; }
 .station.is-selected .station-dot,
 .station:hover .station-dot {
   transform: scale(1.35);
-  box-shadow: 0 0 0 2px var(--dot-color, var(--ink)), 0 0 12px rgba(14, 109, 90, 0.25);
+  box-shadow: 0 0 0 2px var(--dot-color, var(--ink)), 0 0 12px rgba(185, 82, 30, 0.28);
 }
 
 .station-label {
@@ -356,7 +368,7 @@ button { font: inherit; color: inherit; }
   letter-spacing: 0.05em;
   border-radius: 2px;
   background: rgba(17, 18, 23, 0.06);
-  color: rgba(17, 18, 23, 0.45);
+  color: var(--muted);
 }
 .crumb:first-child .crumb-type { background: var(--accent-soft); color: var(--accent); }
 .crumb-name {
@@ -365,7 +377,7 @@ button { font: inherit; color: inherit; }
   font: inherit;
   padding: 0.2rem 0.3rem;
   cursor: pointer;
-  color: rgba(17, 18, 23, 0.6);
+  color: var(--muted);
   border-radius: 3px;
   transition: background 100ms ease, color 100ms ease;
 }
@@ -380,7 +392,7 @@ button { font: inherit; color: inherit; }
 
 .nav-meta {
   margin-left: auto;
-  color: rgba(17, 18, 23, 0.4);
+  color: var(--muted);
   font-size: 0.66rem;
   text-transform: uppercase;
   white-space: nowrap;
@@ -403,12 +415,12 @@ button { font: inherit; color: inherit; }
   margin: 0 0 0.4rem;
   padding: 0 0.2rem;
   font-size: 0.92rem;
-  color: rgba(17, 18, 23, 0.55);
+  color: var(--muted);
 }
 .page-empty {
   padding: 2rem;
   text-align: center;
-  color: rgba(17, 18, 23, 0.4);
+  color: var(--muted);
 }
 
 .event-row {
@@ -436,8 +448,11 @@ button { font: inherit; color: inherit; }
   border-left-color: var(--accent);
   background: var(--accent-soft);
 }
+/* Outcome-tinted left bar: orange = in flight, green = accepted, red = declined. */
 .event-row.has-replies { border-left-color: var(--accent); }
 .event-row.has-replies:hover { background: var(--accent-soft); }
+.event-row.has-replies.has-accept { border-left-color: var(--success); }
+.event-row.has-replies.has-accept:hover { background: var(--success-soft); }
 .event-row.has-replies.has-decline { border-left-color: var(--signal); }
 .event-row.has-replies.has-decline:hover { background: var(--signal-soft); }
 .event-row.has-replies.is-expanded { background: rgba(255, 255, 255, 0.55); }
@@ -448,17 +463,21 @@ button { font: inherit; color: inherit; }
   font-size: 0.85em;
   transform: translateY(-1px);
 }
+.event-row.has-replies.has-accept .reply-toggle { color: var(--success); }
 .event-row.has-replies.has-decline .reply-toggle { color: var(--signal); }
-.meta-decline {
+
+.meta-status {
   display: inline-block;
   padding: 0 0.35rem;
   margin-left: 0.1rem;
-  border: 1px solid var(--signal);
-  color: var(--signal);
   font-weight: 600;
   letter-spacing: 0.08em;
   border-radius: 2px;
+  border: 1px solid currentColor;
 }
+.meta-status.is-promise { color: var(--accent); }
+.meta-status.is-accept { color: var(--success); }
+.meta-status.is-decline { color: var(--signal); }
 .drill-arrow {
   font-weight: 700;
   color: var(--accent);
@@ -475,7 +494,7 @@ button { font: inherit; color: inherit; }
 }
 .event-kind { color: var(--signal); }
 .event-label { font-size: 0.98rem; line-height: 1.5; }
-.event-meta, .inspector-meta { color: rgba(17, 18, 23, 0.5); }
+.event-meta, .inspector-meta { color: var(--muted); }
 
 /* Inline replies nested under an INTENT row */
 .event-replies {
@@ -493,7 +512,7 @@ button { font: inherit; color: inherit; }
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(17, 18, 23, 0.4);
+  color: var(--muted);
   border-left: 2px dashed var(--line);
 }
 .event-reply {
@@ -526,7 +545,7 @@ button { font: inherit; color: inherit; }
 .event-reply.is-decline:hover,
 .event-reply.is-decline.is-selected {
   border-left-color: var(--signal);
-  background: rgba(209, 100, 46, 0.24);
+  background: rgba(160, 47, 21, 0.18);
 }
 .event-reply .event-label { font-size: 0.88rem; }
 
@@ -540,8 +559,11 @@ button { font: inherit; color: inherit; }
 }
 .browser-inspector h3 {
   margin: 0 0 0.45rem;
+  font-family: var(--display);
+  font-weight: 500;
   font-size: 1.2rem;
-  line-height: 1.1;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   overflow-wrap: anywhere;
 }
 .browser-inspector pre {
@@ -854,9 +876,9 @@ function timeAgo(ts) {
 }
 
 function nodeColor(node) {
-  if (node.type === 'root') return 'var(--accent)';
-  if (node.type === 'intent_interior') return 'var(--signal)';
-  return 'var(--accent)';
+  if (node.type === 'root') return 'var(--ink)';
+  if (node.type === 'intent_interior') return 'var(--accent)';
+  return 'var(--muted)';
 }
 
 function metroLayout(nodes, edges) {
@@ -1016,7 +1038,9 @@ function eventRowHtml(event, isSelected, opts) {
   if (isSelected) classes.push('is-selected');
   if (o.toggleId) classes.push('has-replies');
   if (o.toggleId && o.expanded) classes.push('is-expanded');
-  if (o.summaryHasDecline) classes.push('has-decline');
+  // Outcome class drives the left-bar color: red beats green beats orange.
+  if (o.status === 'declined') classes.push('has-decline');
+  else if (o.status === 'accepted') classes.push('has-accept');
   const toggleAttr = o.toggleId ? ` data-toggle-intent-id="${esc(o.toggleId)}"` : '';
   const replyTag = o.toggleId
     ? ` <span class="reply-toggle" aria-hidden="true">${o.expanded ? '\u25BE' : '\u25B8'}</span>`
@@ -1025,7 +1049,9 @@ function eventRowHtml(event, isSelected, opts) {
   if (o.toggleId) {
     const replyWord = o.summaryCount === 1 ? 'reply' : 'replies';
     summaryParts.push(`${o.summaryCount} ${replyWord}`);
-    if (o.summaryHasDecline) summaryParts.push('<span class="meta-decline">DECLINE</span>');
+    if (o.status === 'declined') summaryParts.push('<span class="meta-status is-decline">DECLINE</span>');
+    else if (o.status === 'accepted') summaryParts.push(`<span class="meta-status is-accept">${esc(o.statusLabel || 'ACCEPTED')}</span>`);
+    else if (o.status === 'in_progress') summaryParts.push('<span class="meta-status is-promise">PROMISED</span>');
   }
   const summary = summaryParts.length > 0 ? ` &middot; ${summaryParts.join(' &middot; ')}` : '';
   return `
@@ -1059,6 +1085,31 @@ function intentRepliesFor(event) {
   return snapshot?.eventsByNode?.[intentId] ?? [];
 }
 
+function computeIntentStatus(replies) {
+  // Outcome semantics:
+  //   declined    — any DECLINE landed (red, beats everything else)
+  //   accepted    — COMPLETE landed (green, full lifecycle); ACCEPT alone also counts
+  //   in_progress — only PROMISE so far (orange, awaiting accept/decline)
+  //   idle        — no replies yet (no badge)
+  if (!replies || replies.length === 0) return { kind: 'idle' };
+  let hasDecline = false;
+  let hasComplete = false;
+  let hasAccept = false;
+  let hasPromise = false;
+  for (const r of replies) {
+    const t = r.raw?.type;
+    if (t === 'DECLINE') hasDecline = true;
+    else if (t === 'COMPLETE') hasComplete = true;
+    else if (t === 'ACCEPT') hasAccept = true;
+    else if (t === 'PROMISE') hasPromise = true;
+  }
+  if (hasDecline) return { kind: 'declined' };
+  if (hasComplete) return { kind: 'accepted', label: 'COMPLETE' };
+  if (hasAccept) return { kind: 'accepted', label: 'ACCEPTED' };
+  if (hasPromise) return { kind: 'in_progress' };
+  return { kind: 'idle' };
+}
+
 function replyHasDeeperThread(reply) {
   if (reply.raw?.type !== 'INTENT') return false;
   const intentId = reply.raw?.intentId;
@@ -1076,12 +1127,13 @@ function renderEventRailBody(events) {
     }
     const intentId = event.raw?.intentId;
     const expanded = !!intentId && expandedIntents.has(intentId);
-    const summaryHasDecline = replies.some((r) => r.raw?.type === 'DECLINE');
+    const status = computeIntentStatus(replies);
     const opts = intentId ? {
       toggleId: intentId,
       expanded,
       summaryCount: replies.length,
-      summaryHasDecline,
+      status: status.kind,
+      statusLabel: status.label,
     } : null;
     const rowHtml = eventRowHtml(event, event.id === selectedEventId, opts);
     if (!expanded) return rowHtml;

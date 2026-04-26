@@ -13,27 +13,35 @@ export const OBSERVATORY_HTML =
   '    <title>Space Observatory</title>\n' +
   '    <link rel="preconnect" href="https://fonts.googleapis.com" />\n' +
   '    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n' +
-  '    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />\n' +
+  '    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Crimson+Pro:ital,wght@1,400;1,500&display=swap" rel="stylesheet" />\n' +
   '    <style>\n' +
   ':root {\n' +
-  '  --ink: #111217;\n' +
-  '  --paper: #f2eee6;\n' +
-  '  --paper-soft: #ebe4d8;\n' +
-  '  --accent: #0e6d5a;\n' +
-  '  --accent-soft: rgba(14, 109, 90, 0.14);\n' +
-  '  --signal: #d1642e;\n' +
-  '  --signal-soft: rgba(209, 100, 46, 0.16);\n' +
-  '  --line: rgba(17, 18, 23, 0.14);\n' +
-  '  --line-strong: rgba(17, 18, 23, 0.28);\n' +
-  '  --shadow: 0 24px 80px rgba(17, 18, 23, 0.12);\n' +
-  '  --mono: "IBM Plex Mono", ui-monospace, monospace;\n' +
-  '  --display: "Space Grotesk", "Avenir Next", sans-serif;\n' +
+  '  /* Tokens mirror the hackathon landing page (hackathon/tailwind.config.ts). */\n' +
+  '  --ink: #1a1a1a;\n' +
+  '  --muted: #737368;\n' +
+  '  --paper: #fafaf7;            /* cream */\n' +
+  '  --paper-soft: #efece4;       /* codebg */\n' +
+  '  --accent: #b9521e;           /* terracotta accent */\n' +
+  '  --accent-hover: #9a4317;\n' +
+  '  --accent-soft: #f4e7dd;\n' +
+  '  --signal: #a02f15;           /* DECLINE — deeper red so it pops against the ambient orange */\n' +
+  '  --signal-soft: rgba(160, 47, 21, 0.12);\n' +
+  '  --success: #2f7a4a;          /* ACCEPT / COMPLETE — desaturated forest, plays nicely with terracotta */\n' +
+  '  --success-soft: rgba(47, 122, 74, 0.12);\n' +
+  '  --line: #e8e4d8;             /* divider */\n' +
+  '  --line-strong: rgba(26, 26, 26, 0.28);\n' +
+  '  --shadow: 0 24px 80px rgba(26, 26, 26, 0.08);\n' +
+  '  --sans: "Inter", ui-sans-serif, system-ui, sans-serif;\n' +
+  '  --display: "Inter Tight", "Inter", ui-sans-serif, sans-serif;\n' +
+  '  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;\n' +
+  '  --serif: "Crimson Pro", ui-serif, Georgia, serif;\n' +
   '}\n' +
   '\n' +
   '* { box-sizing: border-box; }\n' +
-  'html, body { margin: 0; min-height: 100%; background: radial-gradient(circle at top, #fbf7f1 0%, var(--paper) 46%, #e8dfd1 100%); color: var(--ink); }\n' +
-  'body { font-family: var(--display); }\n' +
+  'html, body { margin: 0; min-height: 100%; background: var(--paper); color: var(--ink); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }\n' +
+  'body { font-family: var(--sans); }\n' +
   'button { font: inherit; color: inherit; }\n' +
+  '::selection { background: var(--accent-soft); }\n' +
   '\n' +
   '/* ── Connect screen ────────────────────────────── */\n' +
   '.connect-shell {\n' +
@@ -53,7 +61,9 @@ export const OBSERVATORY_HTML =
   '}\n' +
   '.connect-card h1 {\n' +
   '  margin: 0 0 0.25rem;\n' +
+  '  font-family: var(--display);\n' +
   '  font-size: 2.2rem;\n' +
+  '  font-weight: 500;\n' +
   '  line-height: 1;\n' +
   '  letter-spacing: -0.04em;\n' +
   '}\n' +
@@ -61,9 +71,9 @@ export const OBSERVATORY_HTML =
   '  margin: 0 0 1.8rem;\n' +
   '  font-family: var(--mono);\n' +
   '  font-size: 0.77rem;\n' +
-  '  letter-spacing: 0.12em;\n' +
+  '  letter-spacing: 0.18em;\n' +
   '  text-transform: uppercase;\n' +
-  '  color: rgba(17, 18, 23, 0.6);\n' +
+  '  color: var(--muted);\n' +
   '}\n' +
   '.connect-field { margin-bottom: 1rem; }\n' +
   '.connect-field label {\n' +
@@ -74,7 +84,7 @@ export const OBSERVATORY_HTML =
   '  font-weight: 600;\n' +
   '  text-transform: uppercase;\n' +
   '  letter-spacing: 0.06em;\n' +
-  '  color: rgba(17, 18, 23, 0.55);\n' +
+  '  color: var(--muted);\n' +
   '}\n' +
   '.connect-field input,\n' +
   '.connect-field textarea {\n' +
@@ -96,9 +106,9 @@ export const OBSERVATORY_HTML =
   '  padding: 0.6rem 0.8rem;\n' +
   '  font-family: var(--mono);\n' +
   '  font-size: 0.75rem;\n' +
-  '  color: #9c2e11;\n' +
-  '  background: rgba(209, 100, 46, 0.1);\n' +
-  '  border: 1px solid rgba(209, 100, 46, 0.25);\n' +
+  '  color: var(--signal);\n' +
+  '  background: var(--signal-soft);\n' +
+  '  border: 1px solid var(--signal);\n' +
   '  display: none;\n' +
   '}\n' +
   '.connect-btn {\n' +
@@ -115,13 +125,13 @@ export const OBSERVATORY_HTML =
   '  cursor: pointer;\n' +
   '  transition: background 100ms ease;\n' +
   '}\n' +
-  '.connect-btn:hover { background: #0a5a49; }\n' +
+  '.connect-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }\n' +
   '.connect-btn:disabled { opacity: 0.5; cursor: not-allowed; }\n' +
   '.connect-hint {\n' +
   '  margin: 1rem 0 0;\n' +
   '  font-size: 0.78rem;\n' +
   '  line-height: 1.5;\n' +
-  '  color: rgba(17, 18, 23, 0.5);\n' +
+  '  color: var(--muted);\n' +
   '}\n' +
   '\n' +
   '/* ── Observatory shell ─────────────────────────── */\n' +
@@ -159,18 +169,20 @@ export const OBSERVATORY_HTML =
   '  margin: 0 0 0.5rem;\n' +
   '  font-family: var(--mono);\n' +
   '  font-size: 0.77rem;\n' +
-  '  letter-spacing: 0.12em;\n' +
+  '  letter-spacing: 0.18em;\n' +
   '  text-transform: uppercase;\n' +
-  '  color: rgba(17, 18, 23, 0.6);\n' +
+  '  color: var(--muted);\n' +
   '}\n' +
   '\n' +
   '.hero-copy h1,\n' +
   '.room-header h2 {\n' +
   '  margin: 0;\n' +
-  '  font-size: clamp(2.8rem, 5vw, 5.5rem);\n' +
-  '  line-height: 0.94;\n' +
-  '  letter-spacing: -0.05em;\n' +
-  '  max-width: 10ch;\n' +
+  '  font-family: var(--display);\n' +
+  '  font-weight: 500;\n' +
+  '  font-size: clamp(2.6rem, 4.6vw, 5rem);\n' +
+  '  line-height: 1.02;\n' +
+  '  letter-spacing: -0.04em;\n' +
+  '  max-width: 12ch;\n' +
   '}\n' +
   '\n' +
   '.lede {\n' +
@@ -178,7 +190,7 @@ export const OBSERVATORY_HTML =
   '  max-width: 32rem;\n' +
   '  font-size: 1.08rem;\n' +
   '  line-height: 1.7;\n' +
-  '  color: rgba(17, 18, 23, 0.76);\n' +
+  '  color: var(--ink);\n' +
   '}\n' +
   '\n' +
   '.hero-meta {\n' +
@@ -257,8 +269,8 @@ export const OBSERVATORY_HTML =
   '  stroke-width: 0.35;\n' +
   '  stroke-linecap: round;\n' +
   '}\n' +
-  '.metro-line-interior { stroke: rgba(209, 100, 46, 0.5); stroke-width: 0.35; }\n' +
-  '.metro-line-nested { stroke: rgba(14, 109, 90, 0.4); stroke-width: 0.3; stroke-dasharray: 0.8 0.6; }\n' +
+  '.metro-line-interior { stroke: var(--accent); stroke-opacity: 0.55; stroke-width: 0.35; }\n' +
+  '.metro-line-nested { stroke: var(--ink); stroke-opacity: 0.35; stroke-width: 0.3; stroke-dasharray: 0.8 0.6; }\n' +
   '\n' +
   '.station {\n' +
   '  position: absolute;\n' +
@@ -297,7 +309,7 @@ export const OBSERVATORY_HTML =
   '.station.is-selected .station-dot,\n' +
   '.station:hover .station-dot {\n' +
   '  transform: scale(1.35);\n' +
-  '  box-shadow: 0 0 0 2px var(--dot-color, var(--ink)), 0 0 12px rgba(14, 109, 90, 0.25);\n' +
+  '  box-shadow: 0 0 0 2px var(--dot-color, var(--ink)), 0 0 12px rgba(185, 82, 30, 0.28);\n' +
   '}\n' +
   '\n' +
   '.station-label {\n' +
@@ -363,7 +375,7 @@ export const OBSERVATORY_HTML =
   '  letter-spacing: 0.05em;\n' +
   '  border-radius: 2px;\n' +
   '  background: rgba(17, 18, 23, 0.06);\n' +
-  '  color: rgba(17, 18, 23, 0.45);\n' +
+  '  color: var(--muted);\n' +
   '}\n' +
   '.crumb:first-child .crumb-type { background: var(--accent-soft); color: var(--accent); }\n' +
   '.crumb-name {\n' +
@@ -372,7 +384,7 @@ export const OBSERVATORY_HTML =
   '  font: inherit;\n' +
   '  padding: 0.2rem 0.3rem;\n' +
   '  cursor: pointer;\n' +
-  '  color: rgba(17, 18, 23, 0.6);\n' +
+  '  color: var(--muted);\n' +
   '  border-radius: 3px;\n' +
   '  transition: background 100ms ease, color 100ms ease;\n' +
   '}\n' +
@@ -387,7 +399,7 @@ export const OBSERVATORY_HTML =
   '\n' +
   '.nav-meta {\n' +
   '  margin-left: auto;\n' +
-  '  color: rgba(17, 18, 23, 0.4);\n' +
+  '  color: var(--muted);\n' +
   '  font-size: 0.66rem;\n' +
   '  text-transform: uppercase;\n' +
   '  white-space: nowrap;\n' +
@@ -410,12 +422,12 @@ export const OBSERVATORY_HTML =
   '  margin: 0 0 0.4rem;\n' +
   '  padding: 0 0.2rem;\n' +
   '  font-size: 0.92rem;\n' +
-  '  color: rgba(17, 18, 23, 0.55);\n' +
+  '  color: var(--muted);\n' +
   '}\n' +
   '.page-empty {\n' +
   '  padding: 2rem;\n' +
   '  text-align: center;\n' +
-  '  color: rgba(17, 18, 23, 0.4);\n' +
+  '  color: var(--muted);\n' +
   '}\n' +
   '\n' +
   '.event-row {\n' +
@@ -443,8 +455,11 @@ export const OBSERVATORY_HTML =
   '  border-left-color: var(--accent);\n' +
   '  background: var(--accent-soft);\n' +
   '}\n' +
+  '/* Outcome-tinted left bar: orange = in flight, green = accepted, red = declined. */\n' +
   '.event-row.has-replies { border-left-color: var(--accent); }\n' +
   '.event-row.has-replies:hover { background: var(--accent-soft); }\n' +
+  '.event-row.has-replies.has-accept { border-left-color: var(--success); }\n' +
+  '.event-row.has-replies.has-accept:hover { background: var(--success-soft); }\n' +
   '.event-row.has-replies.has-decline { border-left-color: var(--signal); }\n' +
   '.event-row.has-replies.has-decline:hover { background: var(--signal-soft); }\n' +
   '.event-row.has-replies.is-expanded { background: rgba(255, 255, 255, 0.55); }\n' +
@@ -455,17 +470,21 @@ export const OBSERVATORY_HTML =
   '  font-size: 0.85em;\n' +
   '  transform: translateY(-1px);\n' +
   '}\n' +
+  '.event-row.has-replies.has-accept .reply-toggle { color: var(--success); }\n' +
   '.event-row.has-replies.has-decline .reply-toggle { color: var(--signal); }\n' +
-  '.meta-decline {\n' +
+  '\n' +
+  '.meta-status {\n' +
   '  display: inline-block;\n' +
   '  padding: 0 0.35rem;\n' +
   '  margin-left: 0.1rem;\n' +
-  '  border: 1px solid var(--signal);\n' +
-  '  color: var(--signal);\n' +
   '  font-weight: 600;\n' +
   '  letter-spacing: 0.08em;\n' +
   '  border-radius: 2px;\n' +
+  '  border: 1px solid currentColor;\n' +
   '}\n' +
+  '.meta-status.is-promise { color: var(--accent); }\n' +
+  '.meta-status.is-accept { color: var(--success); }\n' +
+  '.meta-status.is-decline { color: var(--signal); }\n' +
   '.drill-arrow {\n' +
   '  font-weight: 700;\n' +
   '  color: var(--accent);\n' +
@@ -482,7 +501,7 @@ export const OBSERVATORY_HTML =
   '}\n' +
   '.event-kind { color: var(--signal); }\n' +
   '.event-label { font-size: 0.98rem; line-height: 1.5; }\n' +
-  '.event-meta, .inspector-meta { color: rgba(17, 18, 23, 0.5); }\n' +
+  '.event-meta, .inspector-meta { color: var(--muted); }\n' +
   '\n' +
   '/* Inline replies nested under an INTENT row */\n' +
   '.event-replies {\n' +
@@ -500,7 +519,7 @@ export const OBSERVATORY_HTML =
   '  font-size: 0.7rem;\n' +
   '  letter-spacing: 0.06em;\n' +
   '  text-transform: uppercase;\n' +
-  '  color: rgba(17, 18, 23, 0.4);\n' +
+  '  color: var(--muted);\n' +
   '  border-left: 2px dashed var(--line);\n' +
   '}\n' +
   '.event-reply {\n' +
@@ -533,7 +552,7 @@ export const OBSERVATORY_HTML =
   '.event-reply.is-decline:hover,\n' +
   '.event-reply.is-decline.is-selected {\n' +
   '  border-left-color: var(--signal);\n' +
-  '  background: rgba(209, 100, 46, 0.24);\n' +
+  '  background: rgba(160, 47, 21, 0.18);\n' +
   '}\n' +
   '.event-reply .event-label { font-size: 0.88rem; }\n' +
   '\n' +
@@ -547,8 +566,11 @@ export const OBSERVATORY_HTML =
   '}\n' +
   '.browser-inspector h3 {\n' +
   '  margin: 0 0 0.45rem;\n' +
+  '  font-family: var(--display);\n' +
+  '  font-weight: 500;\n' +
   '  font-size: 1.2rem;\n' +
-  '  line-height: 1.1;\n' +
+  '  line-height: 1.15;\n' +
+  '  letter-spacing: -0.02em;\n' +
   '  overflow-wrap: anywhere;\n' +
   '}\n' +
   '.browser-inspector pre {\n' +
@@ -861,9 +883,9 @@ export const OBSERVATORY_HTML =
   '}\n' +
   '\n' +
   'function nodeColor(node) {\n' +
-  '  if (node.type === \'root\') return \'var(--accent)\';\n' +
-  '  if (node.type === \'intent_interior\') return \'var(--signal)\';\n' +
-  '  return \'var(--accent)\';\n' +
+  '  if (node.type === \'root\') return \'var(--ink)\';\n' +
+  '  if (node.type === \'intent_interior\') return \'var(--accent)\';\n' +
+  '  return \'var(--muted)\';\n' +
   '}\n' +
   '\n' +
   'function metroLayout(nodes, edges) {\n' +
@@ -1023,7 +1045,9 @@ export const OBSERVATORY_HTML =
   '  if (isSelected) classes.push(\'is-selected\');\n' +
   '  if (o.toggleId) classes.push(\'has-replies\');\n' +
   '  if (o.toggleId && o.expanded) classes.push(\'is-expanded\');\n' +
-  '  if (o.summaryHasDecline) classes.push(\'has-decline\');\n' +
+  '  // Outcome class drives the left-bar color: red beats green beats orange.\n' +
+  '  if (o.status === \'declined\') classes.push(\'has-decline\');\n' +
+  '  else if (o.status === \'accepted\') classes.push(\'has-accept\');\n' +
   '  const toggleAttr = o.toggleId ? ` data-toggle-intent-id="${esc(o.toggleId)}"` : \'\';\n' +
   '  const replyTag = o.toggleId\n' +
   '    ? ` <span class="reply-toggle" aria-hidden="true">${o.expanded ? \'\\u25BE\' : \'\\u25B8\'}</span>`\n' +
@@ -1032,7 +1056,9 @@ export const OBSERVATORY_HTML =
   '  if (o.toggleId) {\n' +
   '    const replyWord = o.summaryCount === 1 ? \'reply\' : \'replies\';\n' +
   '    summaryParts.push(`${o.summaryCount} ${replyWord}`);\n' +
-  '    if (o.summaryHasDecline) summaryParts.push(\'<span class="meta-decline">DECLINE</span>\');\n' +
+  '    if (o.status === \'declined\') summaryParts.push(\'<span class="meta-status is-decline">DECLINE</span>\');\n' +
+  '    else if (o.status === \'accepted\') summaryParts.push(`<span class="meta-status is-accept">${esc(o.statusLabel || \'ACCEPTED\')}</span>`);\n' +
+  '    else if (o.status === \'in_progress\') summaryParts.push(\'<span class="meta-status is-promise">PROMISED</span>\');\n' +
   '  }\n' +
   '  const summary = summaryParts.length > 0 ? ` &middot; ${summaryParts.join(\' &middot; \')}` : \'\';\n' +
   '  return `\n' +
@@ -1066,6 +1092,31 @@ export const OBSERVATORY_HTML =
   '  return snapshot?.eventsByNode?.[intentId] ?? [];\n' +
   '}\n' +
   '\n' +
+  'function computeIntentStatus(replies) {\n' +
+  '  // Outcome semantics:\n' +
+  '  //   declined    — any DECLINE landed (red, beats everything else)\n' +
+  '  //   accepted    — COMPLETE landed (green, full lifecycle); ACCEPT alone also counts\n' +
+  '  //   in_progress — only PROMISE so far (orange, awaiting accept/decline)\n' +
+  '  //   idle        — no replies yet (no badge)\n' +
+  '  if (!replies || replies.length === 0) return { kind: \'idle\' };\n' +
+  '  let hasDecline = false;\n' +
+  '  let hasComplete = false;\n' +
+  '  let hasAccept = false;\n' +
+  '  let hasPromise = false;\n' +
+  '  for (const r of replies) {\n' +
+  '    const t = r.raw?.type;\n' +
+  '    if (t === \'DECLINE\') hasDecline = true;\n' +
+  '    else if (t === \'COMPLETE\') hasComplete = true;\n' +
+  '    else if (t === \'ACCEPT\') hasAccept = true;\n' +
+  '    else if (t === \'PROMISE\') hasPromise = true;\n' +
+  '  }\n' +
+  '  if (hasDecline) return { kind: \'declined\' };\n' +
+  '  if (hasComplete) return { kind: \'accepted\', label: \'COMPLETE\' };\n' +
+  '  if (hasAccept) return { kind: \'accepted\', label: \'ACCEPTED\' };\n' +
+  '  if (hasPromise) return { kind: \'in_progress\' };\n' +
+  '  return { kind: \'idle\' };\n' +
+  '}\n' +
+  '\n' +
   'function replyHasDeeperThread(reply) {\n' +
   '  if (reply.raw?.type !== \'INTENT\') return false;\n' +
   '  const intentId = reply.raw?.intentId;\n' +
@@ -1083,12 +1134,13 @@ export const OBSERVATORY_HTML =
   '    }\n' +
   '    const intentId = event.raw?.intentId;\n' +
   '    const expanded = !!intentId && expandedIntents.has(intentId);\n' +
-  '    const summaryHasDecline = replies.some((r) => r.raw?.type === \'DECLINE\');\n' +
+  '    const status = computeIntentStatus(replies);\n' +
   '    const opts = intentId ? {\n' +
   '      toggleId: intentId,\n' +
   '      expanded,\n' +
   '      summaryCount: replies.length,\n' +
-  '      summaryHasDecline,\n' +
+  '      status: status.kind,\n' +
+  '      statusLabel: status.label,\n' +
   '    } : null;\n' +
   '    const rowHtml = eventRowHtml(event, event.id === selectedEventId, opts);\n' +
   '    if (!expanded) return rowHtml;\n' +
