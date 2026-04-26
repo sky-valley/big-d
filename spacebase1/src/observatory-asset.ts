@@ -437,6 +437,29 @@ export const OBSERVATORY_HTML =
   '  border-left-color: var(--accent);\n' +
   '  background: var(--accent-soft);\n' +
   '}\n' +
+  '.event-row.has-replies { border-left-color: var(--accent); }\n' +
+  '.event-row.has-replies:hover { background: var(--accent-soft); }\n' +
+  '.event-row.has-replies.has-decline { border-left-color: var(--signal); }\n' +
+  '.event-row.has-replies.has-decline:hover { background: var(--signal-soft); }\n' +
+  '.event-row.has-replies.is-expanded { background: rgba(255, 255, 255, 0.55); }\n' +
+  '.reply-toggle {\n' +
+  '  display: inline-block;\n' +
+  '  margin-left: 0.4rem;\n' +
+  '  color: var(--accent);\n' +
+  '  font-size: 0.85em;\n' +
+  '  transform: translateY(-1px);\n' +
+  '}\n' +
+  '.event-row.has-replies.has-decline .reply-toggle { color: var(--signal); }\n' +
+  '.meta-decline {\n' +
+  '  display: inline-block;\n' +
+  '  padding: 0 0.35rem;\n' +
+  '  margin-left: 0.1rem;\n' +
+  '  border: 1px solid var(--signal);\n' +
+  '  color: var(--signal);\n' +
+  '  font-weight: 600;\n' +
+  '  letter-spacing: 0.08em;\n' +
+  '  border-radius: 2px;\n' +
+  '}\n' +
   '.drill-arrow {\n' +
   '  font-weight: 700;\n' +
   '  color: var(--accent);\n' +
@@ -454,6 +477,59 @@ export const OBSERVATORY_HTML =
   '.event-kind { color: var(--signal); }\n' +
   '.event-label { font-size: 0.98rem; line-height: 1.5; }\n' +
   '.event-meta, .inspector-meta { color: rgba(17, 18, 23, 0.5); }\n' +
+  '\n' +
+  '/* Inline replies nested under an INTENT row */\n' +
+  '.event-replies {\n' +
+  '  display: flex;\n' +
+  '  flex-direction: column;\n' +
+  '  gap: 0.32rem;\n' +
+  '  margin: 0.15rem 0 0.35rem 1.4rem;\n' +
+  '  padding-left: 0.9rem;\n' +
+  '  border-left: 2px dashed var(--line);\n' +
+  '}\n' +
+  '.event-replies-empty {\n' +
+  '  margin: 0.15rem 0 0.35rem 1.4rem;\n' +
+  '  padding: 0.4rem 0.9rem;\n' +
+  '  font-family: var(--mono);\n' +
+  '  font-size: 0.7rem;\n' +
+  '  letter-spacing: 0.06em;\n' +
+  '  text-transform: uppercase;\n' +
+  '  color: rgba(17, 18, 23, 0.4);\n' +
+  '  border-left: 2px dashed var(--line);\n' +
+  '}\n' +
+  '.event-reply {\n' +
+  '  border: 1px solid transparent;\n' +
+  '  border-left: 3px solid var(--line);\n' +
+  '  background: transparent;\n' +
+  '  padding: 0.55rem 0.8rem;\n' +
+  '  display: grid;\n' +
+  '  gap: 0.18rem;\n' +
+  '  cursor: pointer;\n' +
+  '  text-align: left;\n' +
+  '  animation: event-fade 280ms ease;\n' +
+  '}\n' +
+  '.event-reply:hover,\n' +
+  '.event-reply.is-selected {\n' +
+  '  border-color: var(--line);\n' +
+  '  border-left-color: var(--accent);\n' +
+  '  background: rgba(255, 255, 255, 0.7);\n' +
+  '}\n' +
+  '.event-reply.has-children {\n' +
+  '  border-left-color: var(--accent);\n' +
+  '}\n' +
+  '.event-reply.has-children:hover {\n' +
+  '  background: var(--accent-soft);\n' +
+  '}\n' +
+  '.event-reply.is-decline {\n' +
+  '  border-left-color: var(--signal);\n' +
+  '  background: var(--signal-soft);\n' +
+  '}\n' +
+  '.event-reply.is-decline:hover,\n' +
+  '.event-reply.is-decline.is-selected {\n' +
+  '  border-left-color: var(--signal);\n' +
+  '  background: rgba(209, 100, 46, 0.24);\n' +
+  '}\n' +
+  '.event-reply .event-label { font-size: 0.88rem; }\n' +
   '\n' +
   '.browser-inspector {\n' +
   '  border-left: 1px solid var(--line);\n' +
@@ -712,6 +788,18 @@ export const OBSERVATORY_HTML =
   '    }\n' +
   '  }\n' +
   '\n' +
+  '  // Catch-all: ensure every known interior (any depth scanRecursive reached)\n' +
+  '  // has entries in eventsByNode and interiorEvents. The explicit loop above\n' +
+  '  // only covered depth-1 and depth-2 intents; without this pass, depth-3+\n' +
+  '  // INTENT rows would render with a misleading "Waiting for steward response"\n' +
+  '  // even when their replies are present.\n' +
+  '  for (const [intentId, msgs] of interiors) {\n' +
+  '    if (eventsByNode[intentId]) continue;\n' +
+  '    const evts = toEvents(intentId, msgs);\n' +
+  '    eventsByNode[intentId] = evts;\n' +
+  '    if (msgs.length > 0) interiorEvents[intentId] = evts;\n' +
+  '  }\n' +
+  '\n' +
   '  nodes.sort((a, b) => {\n' +
   '    if (a.type === \'root\') return -1;\n' +
   '    if (b.type === \'root\') return 1;\n' +
@@ -741,6 +829,7 @@ export const OBSERVATORY_HTML =
   'let renderedBrowseDepth = 0;\n' +
   'let isFirstRender = true;\n' +
   'let browseStack = [];\n' +
+  'let expandedIntents = new Set();\n' +
   '\n' +
   'let graphScale = 1;\n' +
   'let graphPanX = 0;\n' +
@@ -922,13 +1011,103 @@ export const OBSERVATORY_HTML =
   '  return `${nodes.length}|${eventCounts}|${interiorCounts}|bs${browseStack.length}`;\n' +
   '}\n' +
   '\n' +
-  'function eventRowHtml(event, isSelected, hasChildren) {\n' +
+  'function eventRowHtml(event, isSelected, opts) {\n' +
+  '  const o = opts || {};\n' +
+  '  const classes = [\'event-row\'];\n' +
+  '  if (isSelected) classes.push(\'is-selected\');\n' +
+  '  if (o.toggleId) classes.push(\'has-replies\');\n' +
+  '  if (o.toggleId && o.expanded) classes.push(\'is-expanded\');\n' +
+  '  if (o.summaryHasDecline) classes.push(\'has-decline\');\n' +
+  '  const toggleAttr = o.toggleId ? ` data-toggle-intent-id="${esc(o.toggleId)}"` : \'\';\n' +
+  '  const replyTag = o.toggleId\n' +
+  '    ? ` <span class="reply-toggle" aria-hidden="true">${o.expanded ? \'\\u25BE\' : \'\\u25B8\'}</span>`\n' +
+  '    : \'\';\n' +
+  '  const summaryParts = [];\n' +
+  '  if (o.toggleId) {\n' +
+  '    const replyWord = o.summaryCount === 1 ? \'reply\' : \'replies\';\n' +
+  '    summaryParts.push(`${o.summaryCount} ${replyWord}`);\n' +
+  '    if (o.summaryHasDecline) summaryParts.push(\'<span class="meta-decline">DECLINE</span>\');\n' +
+  '  }\n' +
+  '  const summary = summaryParts.length > 0 ? ` &middot; ${summaryParts.join(\' &middot; \')}` : \'\';\n' +
   '  return `\n' +
-  '    <button class="event-row${isSelected ? \' is-selected\' : \'\'}${hasChildren ? \' has-children\' : \'\'}" data-event-id="${esc(event.id)}"${hasChildren ? ` data-drill-id="${esc(event.raw?.intentId ?? \'\')}"` : \'\'}>\n' +
+  '    <button class="${classes.join(\' \')}" data-event-id="${esc(event.id)}"${toggleAttr}>\n' +
   '      <span class="event-kind">${esc(event.kind.replaceAll(\'_\', \' \'))}</span>\n' +
-  '      <span class="event-label">${esc(event.label)}${hasChildren ? \' <span class="drill-arrow">&#8250;</span>\' : \'\'}</span>\n' +
-  '      <span class="event-meta">${esc(event.actorId)} &middot; ${esc(timeAgo(event.timestamp))}${hasChildren ? \' &middot; has thread\' : \'\'}</span>\n' +
+  '      <span class="event-label">${esc(event.label)}${replyTag}</span>\n' +
+  '      <span class="event-meta">${esc(event.actorId)} &middot; ${esc(timeAgo(event.timestamp))}${summary}</span>\n' +
   '    </button>`;\n' +
+  '}\n' +
+  '\n' +
+  'function eventReplyHtml(event, isSelected, hasDeeperThread) {\n' +
+  '  const isDecline = event.raw?.type === \'DECLINE\';\n' +
+  '  const classes = [\'event-reply\'];\n' +
+  '  if (isSelected) classes.push(\'is-selected\');\n' +
+  '  if (isDecline) classes.push(\'is-decline\');\n' +
+  '  if (hasDeeperThread) classes.push(\'has-children\');\n' +
+  '  const drillAttr = hasDeeperThread ? ` data-drill-id="${esc(event.raw?.intentId ?? \'\')}"` : \'\';\n' +
+  '  const drillArrow = hasDeeperThread ? \' <span class="drill-arrow">&#8250;</span>\' : \'\';\n' +
+  '  return `\n' +
+  '    <button class="${classes.join(\' \')}" data-event-id="${esc(event.id)}"${drillAttr}>\n' +
+  '      <span class="event-kind">${esc(event.kind.replaceAll(\'_\', \' \'))}</span>\n' +
+  '      <span class="event-label">${esc(event.label)}${drillArrow}</span>\n' +
+  '      <span class="event-meta">${esc(event.actorId)} &middot; ${esc(timeAgo(event.timestamp))}</span>\n' +
+  '    </button>`;\n' +
+  '}\n' +
+  '\n' +
+  'function intentRepliesFor(event) {\n' +
+  '  if (event.raw?.type !== \'INTENT\') return null;\n' +
+  '  const intentId = event.raw?.intentId;\n' +
+  '  if (!intentId) return null;\n' +
+  '  return snapshot?.eventsByNode?.[intentId] ?? [];\n' +
+  '}\n' +
+  '\n' +
+  'function replyHasDeeperThread(reply) {\n' +
+  '  if (reply.raw?.type !== \'INTENT\') return false;\n' +
+  '  const intentId = reply.raw?.intentId;\n' +
+  '  if (!intentId) return false;\n' +
+  '  const deeper = snapshot?.eventsByNode?.[intentId];\n' +
+  '  return !!(deeper && deeper.length > 0);\n' +
+  '}\n' +
+  '\n' +
+  'function renderEventRailBody(events) {\n' +
+  '  return events.map((event) => {\n' +
+  '    const replies = intentRepliesFor(event);\n' +
+  '    if (replies === null) {\n' +
+  '      // Non-INTENT row at this level — no toggle, no replies.\n' +
+  '      return eventRowHtml(event, event.id === selectedEventId, null);\n' +
+  '    }\n' +
+  '    const intentId = event.raw?.intentId;\n' +
+  '    const expanded = !!intentId && expandedIntents.has(intentId);\n' +
+  '    const summaryHasDecline = replies.some((r) => r.raw?.type === \'DECLINE\');\n' +
+  '    const opts = intentId ? {\n' +
+  '      toggleId: intentId,\n' +
+  '      expanded,\n' +
+  '      summaryCount: replies.length,\n' +
+  '      summaryHasDecline,\n' +
+  '    } : null;\n' +
+  '    const rowHtml = eventRowHtml(event, event.id === selectedEventId, opts);\n' +
+  '    if (!expanded) return rowHtml;\n' +
+  '    if (replies.length === 0) {\n' +
+  '      return `${rowHtml}<div class="event-replies-empty">Waiting for steward response\\u2026</div>`;\n' +
+  '    }\n' +
+  '    const replyHtml = replies.map((reply) => {\n' +
+  '      const deeper = replyHasDeeperThread(reply);\n' +
+  '      return eventReplyHtml(reply, reply.id === selectedEventId, deeper);\n' +
+  '    }).join(\'\');\n' +
+  '    return `${rowHtml}<div class="event-replies">${replyHtml}</div>`;\n' +
+  '  }).join(\'\');\n' +
+  '}\n' +
+  '\n' +
+  'function flattenVisibleEvents(events) {\n' +
+  '  const out = [];\n' +
+  '  for (const event of events) {\n' +
+  '    out.push(event);\n' +
+  '    const intentId = event.raw?.intentId;\n' +
+  '    if (intentId && expandedIntents.has(intentId)) {\n' +
+  '      const replies = intentRepliesFor(event);\n' +
+  '      if (replies) out.push(...replies);\n' +
+  '    }\n' +
+  '  }\n' +
+  '  return out;\n' +
   '}\n' +
   '\n' +
   'function currentBrowseEvents(nodeEvents) {\n' +
@@ -998,15 +1177,21 @@ export const OBSERVATORY_HTML =
   '}\n' +
   '\n' +
   'function bindEventClicks() {\n' +
-  '  app.querySelectorAll(\'#event-rail [data-event-id]\').forEach((el) => {\n' +
+  '  app.querySelectorAll(\'#event-rail .event-row[data-event-id], #event-rail .event-reply[data-event-id]\').forEach((el) => {\n' +
   '    el.addEventListener(\'click\', () => {\n' +
   '      const drillId = el.getAttribute(\'data-drill-id\');\n' +
   '      if (drillId) {\n' +
-  '        const label = el.querySelector(\'.event-label\')?.textContent?.replace(\' \\u203A\', \'\') ?? drillId.slice(-8);\n' +
+  '        const label = el.querySelector(\'.event-label\')?.textContent?.replace(\' \\u203A\', \'\').replace(/[\\u25B8\\u25BE]\\s*$/, \'\').trim() ?? drillId.slice(-8);\n' +
   '        browseStack.push({ parentId: drillId, label });\n' +
   '        selectedEventId = null;\n' +
   '        render();\n' +
   '        return;\n' +
+  '      }\n' +
+  '      const toggleId = el.getAttribute(\'data-toggle-intent-id\');\n' +
+  '      if (toggleId) {\n' +
+  '        if (expandedIntents.has(toggleId)) expandedIntents.delete(toggleId);\n' +
+  '        else expandedIntents.add(toggleId);\n' +
+  '        renderedFingerprint = null; // force rail rebuild so the new replies block renders\n' +
   '      }\n' +
   '      selectedEventId = el.getAttribute(\'data-event-id\');\n' +
   '      render();\n' +
@@ -1028,10 +1213,11 @@ export const OBSERVATORY_HTML =
   '  const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? nodes[0];\n' +
   '  const nodeEvents = selectedNode ? (snapshot.eventsByNode?.[selectedNode.id] ?? []) : [];\n' +
   '  const visibleEvents = currentBrowseEvents(nodeEvents);\n' +
-  '  if (!selectedEventId || !visibleEvents.some((e) => e.id === selectedEventId)) {\n' +
-  '    selectedEventId = visibleEvents.at(-1)?.id ?? null;\n' +
+  '  const flatVisibleEvents = flattenVisibleEvents(visibleEvents);\n' +
+  '  if (!selectedEventId || !flatVisibleEvents.some((e) => e.id === selectedEventId)) {\n' +
+  '    selectedEventId = flatVisibleEvents.at(-1)?.id ?? null;\n' +
   '  }\n' +
-  '  const selectedEvent = visibleEvents.find((e) => e.id === selectedEventId) ?? visibleEvents.at(-1) ?? null;\n' +
+  '  const selectedEvent = flatVisibleEvents.find((e) => e.id === selectedEventId) ?? flatVisibleEvents.at(-1) ?? null;\n' +
   '\n' +
   '  const nextFp = snapshotFingerprint(snapshot);\n' +
   '  const browseChanged = browseStack.length !== renderedBrowseDepth;\n' +
@@ -1043,7 +1229,7 @@ export const OBSERVATORY_HTML =
   '\n' +
   '  // Fast path: only event selection changed\n' +
   '  if (!isFirstRender && !dataChanged && !nodeChanged && eventChanged) {\n' +
-  '    app.querySelectorAll(\'#event-rail .event-row\').forEach((el) => {\n' +
+  '    app.querySelectorAll(\'#event-rail .event-row, #event-rail .event-reply\').forEach((el) => {\n' +
   '      el.classList.toggle(\'is-selected\', el.getAttribute(\'data-event-id\') === selectedEventId);\n' +
   '    });\n' +
   '    const inspector = app.querySelector(\'.browser-inspector\');\n' +
@@ -1056,19 +1242,13 @@ export const OBSERVATORY_HTML =
   '    return;\n' +
   '  }\n' +
   '\n' +
-  '  // Medium path: data changed but node didn\'t — patch event rail\n' +
+  '  // Medium path: data changed but node didn\'t — rebuild event rail body\n' +
   '  if (!isFirstRender && dataChanged && !nodeChanged) {\n' +
   '    const rail = document.getElementById(\'event-rail\');\n' +
   '    if (rail) {\n' +
-  '      const existingIds = new Set();\n' +
-  '      rail.querySelectorAll(\'[data-event-id]\').forEach((el) => existingIds.add(el.getAttribute(\'data-event-id\')));\n' +
-  '      const newEvents = visibleEvents.filter((e) => !existingIds.has(e.id));\n' +
-  '      for (const event of newEvents) {\n' +
-  '        rail.insertAdjacentHTML(\'beforeend\', eventRowHtml(event, event.id === selectedEventId, eventHasChildren(event)));\n' +
-  '      }\n' +
-  '      rail.querySelectorAll(\'.event-row\').forEach((el) => {\n' +
-  '        el.classList.toggle(\'is-selected\', el.getAttribute(\'data-event-id\') === selectedEventId);\n' +
-  '      });\n' +
+  '      const subtitle = rail.querySelector(\'.page-subtitle\');\n' +
+  '      const subtitleHtml = subtitle ? subtitle.outerHTML : \'\';\n' +
+  '      rail.innerHTML = `${subtitleHtml}${renderEventRailBody(visibleEvents)}`;\n' +
   '      bindEventClicks();\n' +
   '    }\n' +
   '\n' +
@@ -1149,7 +1329,7 @@ export const OBSERVATORY_HTML =
   '          <div class="browser-page" id="event-rail">\n' +
   '            ${selectedNode ? `\n' +
   '              <p class="page-subtitle">${esc(selectedNode.subtitle)}${browseStack.length > 0 ? ` \\u203A ${esc(browseStack[browseStack.length - 1].label)}` : \'\'}</p>\n' +
-  '              ${visibleEvents.map((e) => eventRowHtml(e, e.id === selectedEventId, eventHasChildren(e))).join(\'\')}\n' +
+  '              ${renderEventRailBody(visibleEvents)}\n' +
   '            ` : \'<p class="page-empty">No threads discovered yet.</p>\'}\n' +
   '          </div>\n' +
   '\n' +
