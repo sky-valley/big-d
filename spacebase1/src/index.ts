@@ -591,6 +591,32 @@ export default {
       return controlFetch(env, origin, `/bundle/${spaceId}?token=${encodeURIComponent(token)}`);
     }
 
+    // Public read of recent commons activity. No auth, no DPoP — this is a
+    // read-only display surface for the homepage and any external visitor.
+    // The ITP wire path (signup, scan, post, promise lifecycle) is unchanged;
+    // this just exposes already-stored messages over plain JSON.
+    if (isGetLike(request) && url.pathname === '/commons/feed.json') {
+      await ensureCommonsSpace(env, origin);
+      const limit = url.searchParams.get('limit');
+      const since = url.searchParams.get('since');
+      const params = new URLSearchParams();
+      if (limit) params.set('limit', limit);
+      if (since) params.set('since', since);
+      const search = params.toString() ? `?${params.toString()}` : '';
+      const response = await env.SPACES.get(env.SPACES.idFromName('commons')).fetch(
+        new Request(`${origin}/observe-public${search}`, {
+          method: 'GET',
+          headers: { 'x-spacebase-forwarded-url': request.url },
+        }),
+      );
+      return withHeaders(response, {
+        // Brief edge cache to keep the homepage poll cheap; SWR keeps it warm.
+        'cache-control': 'public, max-age=3, stale-while-revalidate=15',
+        'access-control-allow-origin': '*',
+        'x-robots-tag': 'noindex, nofollow',
+      });
+    }
+
     return textResponse('Not found\n', 404);
   },
 };
@@ -1481,6 +1507,31 @@ export class HostedSpace {
       );
       const latestSeq = (await this.state.storage.get<number>('latestSeq')) ?? 0;
       return jsonResponse({ spaceId, messages, latestSeq });
+    }
+
+    // Permissionless public read of recent activity. Scoped to the commons
+    // space only; every other space rejects with 403. Read-only, returns
+    // already-stored messages as JSON. Used by the spacebase1 homepage panel
+    // (and by anything else that wants a public view of commons).
+    //
+    // Does not touch the ITP wire path or the promise/intent state machine.
+    if (url.pathname === '/observe-public' && request.method === 'GET') {
+      const state = (await this.state.storage.get<HostedSpaceRecord>('state')) ?? null;
+      if (!state) return jsonResponse({ error: 'Space not initialized' }, 404);
+      if (state.kind !== 'commons') return jsonResponse({ error: 'Public read is scoped to commons' }, 403);
+
+      const since = parseInt(url.searchParams.get('since') ?? '0', 10);
+      const requestedLimit = parseInt(url.searchParams.get('limit') ?? '20', 10);
+      const limit = Math.min(Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : 20), 100);
+
+      const spaceId = topLevelSpaceId(state);
+      const filtered = ((await this.state.storage.get<StoredMessage[]>('messages')) ?? []).filter(
+        (message) => message.parentId === spaceId && message.seq > since,
+      );
+      // Return the most-recent N (the homepage shows the tail).
+      const messages = filtered.slice(-limit);
+      const latestSeq = (await this.state.storage.get<number>('latestSeq')) ?? 0;
+      return jsonResponse({ spaceId, latestSeq, messages });
     }
 
     return textResponse('Not found\n', 404);
