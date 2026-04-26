@@ -436,6 +436,29 @@ button { font: inherit; color: inherit; }
   border-left-color: var(--accent);
   background: var(--accent-soft);
 }
+.event-row.has-replies { border-left-color: var(--accent); }
+.event-row.has-replies:hover { background: var(--accent-soft); }
+.event-row.has-replies.has-decline { border-left-color: var(--signal); }
+.event-row.has-replies.has-decline:hover { background: var(--signal-soft); }
+.event-row.has-replies.is-expanded { background: rgba(255, 255, 255, 0.55); }
+.reply-toggle {
+  display: inline-block;
+  margin-left: 0.4rem;
+  color: var(--accent);
+  font-size: 0.85em;
+  transform: translateY(-1px);
+}
+.event-row.has-replies.has-decline .reply-toggle { color: var(--signal); }
+.meta-decline {
+  display: inline-block;
+  padding: 0 0.35rem;
+  margin-left: 0.1rem;
+  border: 1px solid var(--signal);
+  color: var(--signal);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  border-radius: 2px;
+}
 .drill-arrow {
   font-weight: 700;
   color: var(--accent);
@@ -453,6 +476,59 @@ button { font: inherit; color: inherit; }
 .event-kind { color: var(--signal); }
 .event-label { font-size: 0.98rem; line-height: 1.5; }
 .event-meta, .inspector-meta { color: rgba(17, 18, 23, 0.5); }
+
+/* Inline replies nested under an INTENT row */
+.event-replies {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  margin: 0.15rem 0 0.35rem 1.4rem;
+  padding-left: 0.9rem;
+  border-left: 2px dashed var(--line);
+}
+.event-replies-empty {
+  margin: 0.15rem 0 0.35rem 1.4rem;
+  padding: 0.4rem 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(17, 18, 23, 0.4);
+  border-left: 2px dashed var(--line);
+}
+.event-reply {
+  border: 1px solid transparent;
+  border-left: 3px solid var(--line);
+  background: transparent;
+  padding: 0.55rem 0.8rem;
+  display: grid;
+  gap: 0.18rem;
+  cursor: pointer;
+  text-align: left;
+  animation: event-fade 280ms ease;
+}
+.event-reply:hover,
+.event-reply.is-selected {
+  border-color: var(--line);
+  border-left-color: var(--accent);
+  background: rgba(255, 255, 255, 0.7);
+}
+.event-reply.has-children {
+  border-left-color: var(--accent);
+}
+.event-reply.has-children:hover {
+  background: var(--accent-soft);
+}
+.event-reply.is-decline {
+  border-left-color: var(--signal);
+  background: var(--signal-soft);
+}
+.event-reply.is-decline:hover,
+.event-reply.is-decline.is-selected {
+  border-left-color: var(--signal);
+  background: rgba(209, 100, 46, 0.24);
+}
+.event-reply .event-label { font-size: 0.88rem; }
 
 .browser-inspector {
   border-left: 1px solid var(--line);
@@ -711,6 +787,18 @@ function buildSnapshot(spaceId, topLevel, interiors) {
     }
   }
 
+  // Catch-all: ensure every known interior (any depth scanRecursive reached)
+  // has entries in eventsByNode and interiorEvents. The explicit loop above
+  // only covered depth-1 and depth-2 intents; without this pass, depth-3+
+  // INTENT rows would render with a misleading "Waiting for steward response"
+  // even when their replies are present.
+  for (const [intentId, msgs] of interiors) {
+    if (eventsByNode[intentId]) continue;
+    const evts = toEvents(intentId, msgs);
+    eventsByNode[intentId] = evts;
+    if (msgs.length > 0) interiorEvents[intentId] = evts;
+  }
+
   nodes.sort((a, b) => {
     if (a.type === 'root') return -1;
     if (b.type === 'root') return 1;
@@ -740,6 +828,7 @@ let renderedEventId = null;
 let renderedBrowseDepth = 0;
 let isFirstRender = true;
 let browseStack = [];
+let expandedIntents = new Set();
 
 let graphScale = 1;
 let graphPanX = 0;
@@ -921,13 +1010,103 @@ function snapshotFingerprint(snap) {
   return `${nodes.length}|${eventCounts}|${interiorCounts}|bs${browseStack.length}`;
 }
 
-function eventRowHtml(event, isSelected, hasChildren) {
+function eventRowHtml(event, isSelected, opts) {
+  const o = opts || {};
+  const classes = ['event-row'];
+  if (isSelected) classes.push('is-selected');
+  if (o.toggleId) classes.push('has-replies');
+  if (o.toggleId && o.expanded) classes.push('is-expanded');
+  if (o.summaryHasDecline) classes.push('has-decline');
+  const toggleAttr = o.toggleId ? ` data-toggle-intent-id="${esc(o.toggleId)}"` : '';
+  const replyTag = o.toggleId
+    ? ` <span class="reply-toggle" aria-hidden="true">${o.expanded ? '\u25BE' : '\u25B8'}</span>`
+    : '';
+  const summaryParts = [];
+  if (o.toggleId) {
+    const replyWord = o.summaryCount === 1 ? 'reply' : 'replies';
+    summaryParts.push(`${o.summaryCount} ${replyWord}`);
+    if (o.summaryHasDecline) summaryParts.push('<span class="meta-decline">DECLINE</span>');
+  }
+  const summary = summaryParts.length > 0 ? ` &middot; ${summaryParts.join(' &middot; ')}` : '';
   return `
-    <button class="event-row${isSelected ? ' is-selected' : ''}${hasChildren ? ' has-children' : ''}" data-event-id="${esc(event.id)}"${hasChildren ? ` data-drill-id="${esc(event.raw?.intentId ?? '')}"` : ''}>
+    <button class="${classes.join(' ')}" data-event-id="${esc(event.id)}"${toggleAttr}>
       <span class="event-kind">${esc(event.kind.replaceAll('_', ' '))}</span>
-      <span class="event-label">${esc(event.label)}${hasChildren ? ' <span class="drill-arrow">&#8250;</span>' : ''}</span>
-      <span class="event-meta">${esc(event.actorId)} &middot; ${esc(timeAgo(event.timestamp))}${hasChildren ? ' &middot; has thread' : ''}</span>
+      <span class="event-label">${esc(event.label)}${replyTag}</span>
+      <span class="event-meta">${esc(event.actorId)} &middot; ${esc(timeAgo(event.timestamp))}${summary}</span>
     </button>`;
+}
+
+function eventReplyHtml(event, isSelected, hasDeeperThread) {
+  const isDecline = event.raw?.type === 'DECLINE';
+  const classes = ['event-reply'];
+  if (isSelected) classes.push('is-selected');
+  if (isDecline) classes.push('is-decline');
+  if (hasDeeperThread) classes.push('has-children');
+  const drillAttr = hasDeeperThread ? ` data-drill-id="${esc(event.raw?.intentId ?? '')}"` : '';
+  const drillArrow = hasDeeperThread ? ' <span class="drill-arrow">&#8250;</span>' : '';
+  return `
+    <button class="${classes.join(' ')}" data-event-id="${esc(event.id)}"${drillAttr}>
+      <span class="event-kind">${esc(event.kind.replaceAll('_', ' '))}</span>
+      <span class="event-label">${esc(event.label)}${drillArrow}</span>
+      <span class="event-meta">${esc(event.actorId)} &middot; ${esc(timeAgo(event.timestamp))}</span>
+    </button>`;
+}
+
+function intentRepliesFor(event) {
+  if (event.raw?.type !== 'INTENT') return null;
+  const intentId = event.raw?.intentId;
+  if (!intentId) return null;
+  return snapshot?.eventsByNode?.[intentId] ?? [];
+}
+
+function replyHasDeeperThread(reply) {
+  if (reply.raw?.type !== 'INTENT') return false;
+  const intentId = reply.raw?.intentId;
+  if (!intentId) return false;
+  const deeper = snapshot?.eventsByNode?.[intentId];
+  return !!(deeper && deeper.length > 0);
+}
+
+function renderEventRailBody(events) {
+  return events.map((event) => {
+    const replies = intentRepliesFor(event);
+    if (replies === null) {
+      // Non-INTENT row at this level — no toggle, no replies.
+      return eventRowHtml(event, event.id === selectedEventId, null);
+    }
+    const intentId = event.raw?.intentId;
+    const expanded = !!intentId && expandedIntents.has(intentId);
+    const summaryHasDecline = replies.some((r) => r.raw?.type === 'DECLINE');
+    const opts = intentId ? {
+      toggleId: intentId,
+      expanded,
+      summaryCount: replies.length,
+      summaryHasDecline,
+    } : null;
+    const rowHtml = eventRowHtml(event, event.id === selectedEventId, opts);
+    if (!expanded) return rowHtml;
+    if (replies.length === 0) {
+      return `${rowHtml}<div class="event-replies-empty">Waiting for steward response\u2026</div>`;
+    }
+    const replyHtml = replies.map((reply) => {
+      const deeper = replyHasDeeperThread(reply);
+      return eventReplyHtml(reply, reply.id === selectedEventId, deeper);
+    }).join('');
+    return `${rowHtml}<div class="event-replies">${replyHtml}</div>`;
+  }).join('');
+}
+
+function flattenVisibleEvents(events) {
+  const out = [];
+  for (const event of events) {
+    out.push(event);
+    const intentId = event.raw?.intentId;
+    if (intentId && expandedIntents.has(intentId)) {
+      const replies = intentRepliesFor(event);
+      if (replies) out.push(...replies);
+    }
+  }
+  return out;
 }
 
 function currentBrowseEvents(nodeEvents) {
@@ -997,15 +1176,21 @@ function bindNodeClicks() {
 }
 
 function bindEventClicks() {
-  app.querySelectorAll('#event-rail [data-event-id]').forEach((el) => {
+  app.querySelectorAll('#event-rail .event-row[data-event-id], #event-rail .event-reply[data-event-id]').forEach((el) => {
     el.addEventListener('click', () => {
       const drillId = el.getAttribute('data-drill-id');
       if (drillId) {
-        const label = el.querySelector('.event-label')?.textContent?.replace(' \u203A', '') ?? drillId.slice(-8);
+        const label = el.querySelector('.event-label')?.textContent?.replace(' \u203A', '').replace(/[\u25B8\u25BE]\s*$/, '').trim() ?? drillId.slice(-8);
         browseStack.push({ parentId: drillId, label });
         selectedEventId = null;
         render();
         return;
+      }
+      const toggleId = el.getAttribute('data-toggle-intent-id');
+      if (toggleId) {
+        if (expandedIntents.has(toggleId)) expandedIntents.delete(toggleId);
+        else expandedIntents.add(toggleId);
+        renderedFingerprint = null; // force rail rebuild so the new replies block renders
       }
       selectedEventId = el.getAttribute('data-event-id');
       render();
@@ -1027,10 +1212,11 @@ function render() {
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? nodes[0];
   const nodeEvents = selectedNode ? (snapshot.eventsByNode?.[selectedNode.id] ?? []) : [];
   const visibleEvents = currentBrowseEvents(nodeEvents);
-  if (!selectedEventId || !visibleEvents.some((e) => e.id === selectedEventId)) {
-    selectedEventId = visibleEvents.at(-1)?.id ?? null;
+  const flatVisibleEvents = flattenVisibleEvents(visibleEvents);
+  if (!selectedEventId || !flatVisibleEvents.some((e) => e.id === selectedEventId)) {
+    selectedEventId = flatVisibleEvents.at(-1)?.id ?? null;
   }
-  const selectedEvent = visibleEvents.find((e) => e.id === selectedEventId) ?? visibleEvents.at(-1) ?? null;
+  const selectedEvent = flatVisibleEvents.find((e) => e.id === selectedEventId) ?? flatVisibleEvents.at(-1) ?? null;
 
   const nextFp = snapshotFingerprint(snapshot);
   const browseChanged = browseStack.length !== renderedBrowseDepth;
@@ -1042,7 +1228,7 @@ function render() {
 
   // Fast path: only event selection changed
   if (!isFirstRender && !dataChanged && !nodeChanged && eventChanged) {
-    app.querySelectorAll('#event-rail .event-row').forEach((el) => {
+    app.querySelectorAll('#event-rail .event-row, #event-rail .event-reply').forEach((el) => {
       el.classList.toggle('is-selected', el.getAttribute('data-event-id') === selectedEventId);
     });
     const inspector = app.querySelector('.browser-inspector');
@@ -1055,19 +1241,13 @@ function render() {
     return;
   }
 
-  // Medium path: data changed but node didn't — patch event rail
+  // Medium path: data changed but node didn't — rebuild event rail body
   if (!isFirstRender && dataChanged && !nodeChanged) {
     const rail = document.getElementById('event-rail');
     if (rail) {
-      const existingIds = new Set();
-      rail.querySelectorAll('[data-event-id]').forEach((el) => existingIds.add(el.getAttribute('data-event-id')));
-      const newEvents = visibleEvents.filter((e) => !existingIds.has(e.id));
-      for (const event of newEvents) {
-        rail.insertAdjacentHTML('beforeend', eventRowHtml(event, event.id === selectedEventId, eventHasChildren(event)));
-      }
-      rail.querySelectorAll('.event-row').forEach((el) => {
-        el.classList.toggle('is-selected', el.getAttribute('data-event-id') === selectedEventId);
-      });
+      const subtitle = rail.querySelector('.page-subtitle');
+      const subtitleHtml = subtitle ? subtitle.outerHTML : '';
+      rail.innerHTML = `${subtitleHtml}${renderEventRailBody(visibleEvents)}`;
       bindEventClicks();
     }
 
@@ -1148,7 +1328,7 @@ function render() {
           <div class="browser-page" id="event-rail">
             ${selectedNode ? `
               <p class="page-subtitle">${esc(selectedNode.subtitle)}${browseStack.length > 0 ? ` \u203A ${esc(browseStack[browseStack.length - 1].label)}` : ''}</p>
-              ${visibleEvents.map((e) => eventRowHtml(e, e.id === selectedEventId, eventHasChildren(e))).join('')}
+              ${renderEventRailBody(visibleEvents)}
             ` : '<p class="page-empty">No threads discovered yet.</p>'}
           </div>
 
@@ -1285,3 +1465,4 @@ boot();
     </script>
   </body>
 </html>
+
