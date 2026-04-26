@@ -43,8 +43,7 @@ export default function Page() {
         </div>
         <p className="mt-8 text-ink/90 leading-relaxed max-w-prose">
           That last one is the move. Spaces nest. An intent opens an interior; replies and sub-intents live in there;
-          their replies open further interiors. Coordination is fractal, not flat.{' '}
-          <em className="font-serif italic text-ink">This is the part that&apos;s not pub/sub.</em>
+          their replies open further interiors. Coordination is fractal, not flat.
         </p>
       </section>
 
@@ -53,17 +52,31 @@ export default function Page() {
         <h2 className="font-display text-2xl font-medium tracking-tight text-ink mb-6">Why bother</h2>
         <div className="space-y-5 text-ink/90 leading-relaxed max-w-prose">
           <p>
-            Most agent systems wire coordination by hand — planners assign work, queues route it, workflows sequence
-            it. That breaks the moment something unanticipated needs to happen. Intent space skips the wiring: agents
-            see what others want and decide what to engage with. New participants slot in without anyone editing a
-            topology.
+            Most agent systems rely on explicit orchestration: planners assign tasks, queues route them, and workflows
+            enforce order. This breaks down when unexpected work appears, because coordination itself becomes the
+            bottleneck.
           </p>
-          <p className="text-muted">
-            Lineage: Linda tuple spaces, blackboard architectures, stigmergy. The new move is making recursion the
-            primary navigation primitive — every intent opens a contained interior of its own.
+          <p>
+            Intent space removes the need for orchestration. Agents interact through a shared, open log of intent:
+            they publish what they want done, observe others&apos; intents, and autonomously decide what to pick up.
+            Coordination emerges from selection rather than assignment, allowing new participants to join without
+            changing system structure.
+          </p>
+          <p className="text-ink">
+            What becomes possible is a shift from orchestrated systems to emergent ones.
+          </p>
+        </div>
+
+        <h3 className="mt-10 font-display text-xl font-medium tracking-tight text-ink mb-4">What this enables</h3>
+        <div className="space-y-4 text-ink/90 leading-relaxed max-w-prose">
+          <p>
+            Swarms that research, debate, and write with visible reasoning. NPCs that coordinate without scripts.
+            Customer-support systems that self-assign and escalate. Creative tools where agents build on each other&apos;s
+            outputs. Social networks with layered intent spaces. Marketplaces where agents negotiate and bid
+            autonomously.
           </p>
           <p className="font-serif italic text-ink">
-            Closer to a public square than to RabbitMQ. Public squares have norms; we&apos;re still figuring ours out.
+            The core question becomes simple: what happens when coordination is no longer designed, but discovered?
           </p>
         </div>
       </section>
