@@ -1139,6 +1139,66 @@ export const OBSERVATORY_HTML =
   '  return !!(deeper && deeper.length > 0);\n' +
   '}\n' +
   '\n' +
+  '// Tries to update the event rail in place, without an innerHTML wipe.\n' +
+  '// Returns true on success; false when a structural change (rows added,\n' +
+  '// removed, or reordered) means the caller should fall back to a full\n' +
+  '// rebuild.\n' +
+  '//\n' +
+  '// In commons most polls bring no new top-level rows — only the timeAgo\n' +
+  '// strings inside existing rows shift ("2s ago" → "6s ago"). Without this\n' +
+  '// path, every such poll wipes the entire list and the rail visibly\n' +
+  '// flickers; with it, only structural changes trigger a rebuild.\n' +
+  'function updateRailInPlace(rail, visibleEvents, subtitleHtml) {\n' +
+  '  const desiredBodyHtml = renderEventRailBody(visibleEvents);\n' +
+  '  const desiredFullHtml = `${subtitleHtml}${desiredBodyHtml}`;\n' +
+  '  if (rail.innerHTML === desiredFullHtml) return true;\n' +
+  '\n' +
+  '  const tmp = document.createElement(\'div\');\n' +
+  '  tmp.innerHTML = desiredFullHtml;\n' +
+  '\n' +
+  '  const existingButtons = rail.querySelectorAll(\'.event-row, .event-reply\');\n' +
+  '  const desiredButtons = tmp.querySelectorAll(\'.event-row, .event-reply\');\n' +
+  '  if (existingButtons.length !== desiredButtons.length) return false;\n' +
+  '  for (let i = 0; i < existingButtons.length; i++) {\n' +
+  '    if (existingButtons[i].getAttribute(\'data-event-id\') !== desiredButtons[i].getAttribute(\'data-event-id\')) {\n' +
+  '      return false;\n' +
+  '    }\n' +
+  '  }\n' +
+  '\n' +
+  '  // Same set of rows in the same order — patch each row\'s classes and the\n' +
+  '  // small inner spans (label + meta) without replacing the buttons\n' +
+  '  // themselves. Click handlers stay attached, no rebind needed.\n' +
+  '  for (let i = 0; i < existingButtons.length; i++) {\n' +
+  '    const cur = existingButtons[i];\n' +
+  '    const next = desiredButtons[i];\n' +
+  '    if (cur.className !== next.className) cur.className = next.className;\n' +
+  '    const curLabel = cur.querySelector(\'.event-label\');\n' +
+  '    const nextLabel = next.querySelector(\'.event-label\');\n' +
+  '    if (curLabel && nextLabel && curLabel.innerHTML !== nextLabel.innerHTML) {\n' +
+  '      curLabel.innerHTML = nextLabel.innerHTML;\n' +
+  '    }\n' +
+  '    const curMeta = cur.querySelector(\'.event-meta\');\n' +
+  '    const nextMeta = next.querySelector(\'.event-meta\');\n' +
+  '    if (curMeta && nextMeta && curMeta.innerHTML !== nextMeta.innerHTML) {\n' +
+  '      curMeta.innerHTML = nextMeta.innerHTML;\n' +
+  '    }\n' +
+  '  }\n' +
+  '\n' +
+  '  // Subtitle (page-subtitle) lives outside the keyed buttons; refresh it\n' +
+  '  // if it changed (e.g. browseStack updated).\n' +
+  '  const curSubtitle = rail.querySelector(\'.page-subtitle\');\n' +
+  '  const nextSubtitle = tmp.querySelector(\'.page-subtitle\');\n' +
+  '  if (curSubtitle && nextSubtitle) {\n' +
+  '    if (curSubtitle.outerHTML !== nextSubtitle.outerHTML) curSubtitle.replaceWith(nextSubtitle);\n' +
+  '  } else if (!curSubtitle && nextSubtitle) {\n' +
+  '    rail.insertBefore(nextSubtitle, rail.firstChild);\n' +
+  '  } else if (curSubtitle && !nextSubtitle) {\n' +
+  '    curSubtitle.remove();\n' +
+  '  }\n' +
+  '\n' +
+  '  return true;\n' +
+  '}\n' +
+  '\n' +
   'function renderEventRailBody(events) {\n' +
   '  return events.map((event) => {\n' +
   '    const replies = intentRepliesFor(event);\n' +
@@ -1320,8 +1380,10 @@ export const OBSERVATORY_HTML =
   '    if (rail) {\n' +
   '      const subtitle = rail.querySelector(\'.page-subtitle\');\n' +
   '      const subtitleHtml = subtitle ? subtitle.outerHTML : \'\';\n' +
-  '      rail.innerHTML = `${subtitleHtml}${renderEventRailBody(visibleEvents)}`;\n' +
-  '      bindEventClicks();\n' +
+  '      if (!updateRailInPlace(rail, visibleEvents, subtitleHtml)) {\n' +
+  '        rail.innerHTML = `${subtitleHtml}${renderEventRailBody(visibleEvents)}`;\n' +
+  '        bindEventClicks();\n' +
+  '      }\n' +
   '    }\n' +
   '\n' +
   '    const navMeta = app.querySelector(\'.nav-meta\');\n' +

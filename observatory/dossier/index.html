@@ -1132,6 +1132,66 @@ function replyHasDeeperThread(reply) {
   return !!(deeper && deeper.length > 0);
 }
 
+// Tries to update the event rail in place, without an innerHTML wipe.
+// Returns true on success; false when a structural change (rows added,
+// removed, or reordered) means the caller should fall back to a full
+// rebuild.
+//
+// In commons most polls bring no new top-level rows — only the timeAgo
+// strings inside existing rows shift ("2s ago" → "6s ago"). Without this
+// path, every such poll wipes the entire list and the rail visibly
+// flickers; with it, only structural changes trigger a rebuild.
+function updateRailInPlace(rail, visibleEvents, subtitleHtml) {
+  const desiredBodyHtml = renderEventRailBody(visibleEvents);
+  const desiredFullHtml = `${subtitleHtml}${desiredBodyHtml}`;
+  if (rail.innerHTML === desiredFullHtml) return true;
+
+  const tmp = document.createElement('div');
+  tmp.innerHTML = desiredFullHtml;
+
+  const existingButtons = rail.querySelectorAll('.event-row, .event-reply');
+  const desiredButtons = tmp.querySelectorAll('.event-row, .event-reply');
+  if (existingButtons.length !== desiredButtons.length) return false;
+  for (let i = 0; i < existingButtons.length; i++) {
+    if (existingButtons[i].getAttribute('data-event-id') !== desiredButtons[i].getAttribute('data-event-id')) {
+      return false;
+    }
+  }
+
+  // Same set of rows in the same order — patch each row's classes and the
+  // small inner spans (label + meta) without replacing the buttons
+  // themselves. Click handlers stay attached, no rebind needed.
+  for (let i = 0; i < existingButtons.length; i++) {
+    const cur = existingButtons[i];
+    const next = desiredButtons[i];
+    if (cur.className !== next.className) cur.className = next.className;
+    const curLabel = cur.querySelector('.event-label');
+    const nextLabel = next.querySelector('.event-label');
+    if (curLabel && nextLabel && curLabel.innerHTML !== nextLabel.innerHTML) {
+      curLabel.innerHTML = nextLabel.innerHTML;
+    }
+    const curMeta = cur.querySelector('.event-meta');
+    const nextMeta = next.querySelector('.event-meta');
+    if (curMeta && nextMeta && curMeta.innerHTML !== nextMeta.innerHTML) {
+      curMeta.innerHTML = nextMeta.innerHTML;
+    }
+  }
+
+  // Subtitle (page-subtitle) lives outside the keyed buttons; refresh it
+  // if it changed (e.g. browseStack updated).
+  const curSubtitle = rail.querySelector('.page-subtitle');
+  const nextSubtitle = tmp.querySelector('.page-subtitle');
+  if (curSubtitle && nextSubtitle) {
+    if (curSubtitle.outerHTML !== nextSubtitle.outerHTML) curSubtitle.replaceWith(nextSubtitle);
+  } else if (!curSubtitle && nextSubtitle) {
+    rail.insertBefore(nextSubtitle, rail.firstChild);
+  } else if (curSubtitle && !nextSubtitle) {
+    curSubtitle.remove();
+  }
+
+  return true;
+}
+
 function renderEventRailBody(events) {
   return events.map((event) => {
     const replies = intentRepliesFor(event);
@@ -1313,8 +1373,10 @@ function render() {
     if (rail) {
       const subtitle = rail.querySelector('.page-subtitle');
       const subtitleHtml = subtitle ? subtitle.outerHTML : '';
-      rail.innerHTML = `${subtitleHtml}${renderEventRailBody(visibleEvents)}`;
-      bindEventClicks();
+      if (!updateRailInPlace(rail, visibleEvents, subtitleHtml)) {
+        rail.innerHTML = `${subtitleHtml}${renderEventRailBody(visibleEvents)}`;
+        bindEventClicks();
+      }
     }
 
     const navMeta = app.querySelector('.nav-meta');
