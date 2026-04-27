@@ -845,6 +845,7 @@ let selectedNodeId = null;
 let selectedEventId = null;
 let knownNodeIds = new Set();
 let renderedFingerprint = null;
+let renderedGraphFingerprint = null;
 let renderedNodeId = null;
 let renderedEventId = null;
 let renderedBrowseDepth = 0;
@@ -1030,6 +1031,19 @@ function snapshotFingerprint(snap) {
   const eventCounts = nodes.map((n) => `${n.id}:${(snap.eventsByNode?.[n.id] || []).length}`).join(',');
   const interiorCounts = Object.entries(snap.interiorEvents || {}).map(([k, v]) => `${k}:${v.length}`).join(',');
   return `${nodes.length}|${eventCounts}|${interiorCounts}|bs${browseStack.length}`;
+}
+
+// Fingerprint of just the graph topology (node ids + edges). Used so the
+// hero graph SVG and station buttons are only rebuilt when nodes/edges
+// actually change — not on every poll where event counts shift inside
+// existing nodes. Without this, every active poll wipes the graph DOM and
+// the page visibly flickers.
+function graphTopologyFingerprint(snap) {
+  const nodes = snap.nodes || [];
+  const edges = snap.edges || [];
+  const nodeIds = nodes.map((n) => n.id).join(',');
+  const edgeIds = edges.map((e) => `${e.from}->${e.to}`).join(',');
+  return `${nodeIds}|${edgeIds}`;
 }
 
 function eventRowHtml(event, isSelected, opts) {
@@ -1315,15 +1329,29 @@ function render() {
 
     const graph = app.querySelector('.hero-graph');
     if (graph) {
-      graph.innerHTML = buildGraphMarkup(nodes) + `<div class="graph-controls">
-        <button class="graph-zoom-in" title="Zoom in">+</button>
-        <button class="graph-zoom-out" title="Zoom out">&minus;</button>
-        <button class="graph-zoom-reset" title="Reset view">&#8226;</button>
-      </div>`;
-      bindGraphPanZoom();
-      graph.querySelectorAll('[data-node-id]').forEach((el) => {
-        el.addEventListener('click', () => { selectedNodeId = el.getAttribute('data-node-id'); selectedEventId = null; browseStack = []; render(); });
-      });
+      const nextGraphFp = graphTopologyFingerprint(snapshot);
+      if (nextGraphFp !== renderedGraphFingerprint) {
+        graph.innerHTML = buildGraphMarkup(nodes) + `<div class="graph-controls">
+          <button class="graph-zoom-in" title="Zoom in">+</button>
+          <button class="graph-zoom-out" title="Zoom out">&minus;</button>
+          <button class="graph-zoom-reset" title="Reset view">&#8226;</button>
+        </div>`;
+        bindGraphPanZoom();
+        graph.querySelectorAll('[data-node-id]').forEach((el) => {
+          el.addEventListener('click', () => { selectedNodeId = el.getAttribute('data-node-id'); selectedEventId = null; browseStack = []; render(); });
+        });
+        renderedGraphFingerprint = nextGraphFp;
+      } else {
+        // Graph topology unchanged — refresh selection/freshness state on
+        // existing station buttons without rebuilding the SVG/DOM. This is
+        // the no-flicker path during active periods where only event counts
+        // inside existing nodes shift.
+        graph.querySelectorAll('[data-node-id]').forEach((el) => {
+          const id = el.getAttribute('data-node-id');
+          el.classList.toggle('is-selected', id === selectedNodeId);
+          if (knownNodeIds.has(id)) el.classList.remove('is-fresh');
+        });
+      }
     }
 
     const inspector = app.querySelector('.browser-inspector');
@@ -1397,6 +1425,7 @@ function render() {
   knownNodeIds = new Set(nodes.map((n) => n.id));
   isFirstRender = false;
   renderedFingerprint = nextFp;
+  renderedGraphFingerprint = graphTopologyFingerprint(snapshot);
   renderedNodeId = selectedNodeId;
   renderedBrowseDepth = browseStack.length;
   renderedEventId = selectedEventId;
