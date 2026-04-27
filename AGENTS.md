@@ -20,6 +20,10 @@ Current architecture references:
 - `docs/architecture/spacebase1-product-flow-addendum.md`
 - `loop/docs/solutions/architecture/self-modifying-agent-loop-promise-theory.md`
 
+Documented patterns and past-problem solutions:
+
+- `docs/solutions/` — past problems and patterns, organized by category with YAML frontmatter (`module`, `tags`, `problem_type`); relevant when implementing or debugging in documented areas
+
 Archived early root-level `loop/` drafts:
 
 - `loop/docs/archive/root-docs/`
