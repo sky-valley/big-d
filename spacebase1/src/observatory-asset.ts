@@ -631,15 +631,23 @@ export const OBSERVATORY_HTML =
   '// ── Observe client ───────────────────────────────────────────────────────────\n' +
   '// Uses the token-only GET /observe endpoint — no DPoP, no ITP framing.\n' +
   '\n' +
-  'let connection = null; // { origin, spaceId, stationToken }\n' +
+  'let connection = null; // { origin, spaceId, stationToken, anonymous? }\n' +
   '\n' +
+  '// In anonymous (public-read) mode, hit the unauthenticated /commons/feed.json\n' +
+  '// endpoint instead of the auth-gated /observe. The shape is the same\n' +
+  '// ({ spaceId, latestSeq, messages }), so the rest of the renderer is unchanged.\n' +
   'async function scanSpace(spaceId, since = 0) {\n' +
-  '  const observeUrl = `${connection.origin}/spaces/${connection.spaceId}/observe`\n' +
-  '    + `?token=${encodeURIComponent(connection.stationToken)}`\n' +
-  '    + `&space=${encodeURIComponent(spaceId)}`\n' +
-  '    + `&since=${since}`\n' +
-  '    + `&_t=${Date.now()}`;\n' +
-  '  const response = await fetch(observeUrl);\n' +
+  '  const url = connection.anonymous\n' +
+  '    ? `${connection.origin}/commons/feed.json`\n' +
+  '      + `?since=${since}`\n' +
+  '      + `&limit=50`\n' +
+  '      + `&_t=${Date.now()}`\n' +
+  '    : `${connection.origin}/spaces/${connection.spaceId}/observe`\n' +
+  '      + `?token=${encodeURIComponent(connection.stationToken)}`\n' +
+  '      + `&space=${encodeURIComponent(spaceId)}`\n' +
+  '      + `&since=${since}`\n' +
+  '      + `&_t=${Date.now()}`;\n' +
+  '  const response = await fetch(url);\n' +
   '  if (!response.ok) {\n' +
   '    const text = await response.text();\n' +
   '    throw new Error(`Observe failed (${response.status}): ${text}`);\n' +
@@ -648,6 +656,13 @@ export const OBSERVATORY_HTML =
   '}\n' +
   '\n' +
   'async function scanRecursive(spaceId, maxDepth = 3) {\n' +
+  '  // Anonymous public read shows top-level commons activity only.\n' +
+  '  // Interiors stay auth-gated server-side, so descending here would 403.\n' +
+  '  // Honor the constraint locally rather than blasting failed requests.\n' +
+  '  if (connection.anonymous) {\n' +
+  '    const result = await scanSpace(spaceId);\n' +
+  '    return { topLevel: result.messages ?? [], interiors: new Map() };\n' +
+  '  }\n' +
   '  const allMessages = new Map();\n' +
   '  const interiorMessages = new Map();\n' +
   '\n' +
@@ -1597,6 +1612,7 @@ export const OBSERVATORY_HTML =
   '  const origin = hash.get(\'origin\');\n' +
   '  const space = hash.get(\'space\');\n' +
   '  const token = hash.get(\'token\');\n' +
+  '  const isPublic = hash.get(\'public\') === \'1\';\n' +
   '\n' +
   '  if (origin && space && token) {\n' +
   '    try {\n' +
@@ -1605,6 +1621,18 @@ export const OBSERVATORY_HTML =
   '      return;\n' +
   '    } catch (err) {\n' +
   '      showConnect(`Auto-connect failed: ${err.message || err.name || \'Unknown error\'}`);\n' +
+  '      return;\n' +
+  '    }\n' +
+  '  }\n' +
+  '  // Anonymous public-read mode — for now, only valid against the commons.\n' +
+  '  // Hash shape: #origin=<origin>&space=commons&public=1\n' +
+  '  if (origin && space && isPublic) {\n' +
+  '    try {\n' +
+  '      connection = { origin, spaceId: space, stationToken: \'\', anonymous: true };\n' +
+  '      await startObservatory();\n' +
+  '      return;\n' +
+  '    } catch (err) {\n' +
+  '      showConnect(`Public read failed: ${err.message || err.name || \'Unknown error\'}`);\n' +
   '      return;\n' +
   '    }\n' +
   '  }\n' +
