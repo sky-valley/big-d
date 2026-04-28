@@ -232,6 +232,48 @@ function topLevelSpaceId(state: HostedSpaceRecord): string {
   return state.spaceId;
 }
 
+// Payload keys whose values are single-use credentials or otherwise scoped to
+// the intent owner. Any time a commons interior message is read by anyone
+// other than the intent owner or the steward, these keys are replaced with a
+// '[redacted]' string so the conversation arc stays visible without leaking
+// the home-space claim token.
+const SENSITIVE_COMMONS_PAYLOAD_KEYS = new Set([
+  'claim_token',
+  'claim_url',
+  'bind_url',
+  'bind_body',
+  'home_space_id',
+]);
+
+function redactSensitivePayload(message: StoredMessage): StoredMessage {
+  let touched = false;
+  const safePayload: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(message.payload)) {
+    if (SENSITIVE_COMMONS_PAYLOAD_KEYS.has(key)) {
+      safePayload[key] = '[redacted]';
+      touched = true;
+    } else {
+      safePayload[key] = value;
+    }
+  }
+  return touched ? { ...message, payload: safePayload } : message;
+}
+
+// Identify the senderId of the original INTENT whose subspace is `subspaceId`,
+// so /observe and /observe-public can decide whether a caller is the intent
+// owner. Returns null for top-level reads or when no matching intent exists.
+function intentOwnerForSubspace(
+  messages: StoredMessage[],
+  topLevel: string,
+  subspaceId: string,
+): string | null {
+  if (subspaceId === topLevel) return null;
+  const match = messages.find(
+    (m) => m.type === 'INTENT' && m.parentId === topLevel && m.intentId === subspaceId,
+  );
+  return match?.senderId ?? null;
+}
+
 async function appendStoredMessage(
   state: DurableObjectState,
   message: Omit<StoredMessage, 'seq' | 'timestamp'> & { seq?: number; timestamp?: number },
@@ -599,9 +641,11 @@ export default {
       await ensureCommonsSpace(env, origin);
       const limit = url.searchParams.get('limit');
       const since = url.searchParams.get('since');
+      const space = url.searchParams.get('space');
       const params = new URLSearchParams();
       if (limit) params.set('limit', limit);
       if (since) params.set('since', since);
+      if (space) params.set('space', space);
       const search = params.toString() ? `?${params.toString()}` : '';
       const response = await env.SPACES.get(env.SPACES.idFromName('commons')).fetch(
         new Request(`${origin}/observe-public${search}`, {
@@ -1500,11 +1544,28 @@ export class HostedSpace {
       if (!session) return jsonResponse({ error: 'Invalid token' }, 401);
       if (session.expiresAt < new Date().toISOString()) return jsonResponse({ error: 'Token expired' }, 401);
 
-      const spaceId = url.searchParams.get('space') ?? topLevelSpaceId(state);
+      const topLevel = topLevelSpaceId(state);
+      const spaceId = url.searchParams.get('space') ?? topLevel;
       const since = parseInt(url.searchParams.get('since') ?? '0', 10);
-      const messages = ((await this.state.storage.get<StoredMessage[]>('messages')) ?? []).filter(
+      const allMessages = (await this.state.storage.get<StoredMessage[]>('messages')) ?? [];
+      const filtered = allMessages.filter(
         (message) => message.parentId === spaceId && message.seq > since,
       );
+      // In commons, any signed-up agent can authenticate, but the COMPLETE
+      // message in another agent's intent subspace contains a single-use
+      // claim_token for that agent's home space. Without this scoping any
+      // commons member could harvest claim_tokens by scanning other agents'
+      // intent subspaces. Redact for non-owners so the conversation stays
+      // visible without leaking the credential.
+      let messages = filtered;
+      if (state.kind === 'commons' && spaceId !== topLevel) {
+        const intentOwner = intentOwnerForSubspace(allMessages, topLevel, spaceId);
+        const isOwner = intentOwner !== null && session.principalId === intentOwner;
+        const isSteward = session.principalId === state.stewardId;
+        if (!isOwner && !isSteward) {
+          messages = filtered.map(redactSensitivePayload);
+        }
+      }
       const latestSeq = (await this.state.storage.get<number>('latestSeq')) ?? 0;
       return jsonResponse({ spaceId, messages, latestSeq });
     }
@@ -1524,12 +1585,18 @@ export class HostedSpace {
       const requestedLimit = parseInt(url.searchParams.get('limit') ?? '20', 10);
       const limit = Math.min(Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : 20), 100);
 
-      const spaceId = topLevelSpaceId(state);
-      const filtered = ((await this.state.storage.get<StoredMessage[]>('messages')) ?? []).filter(
+      const topLevel = topLevelSpaceId(state);
+      const spaceId = url.searchParams.get('space') ?? topLevel;
+      const allMessages = (await this.state.storage.get<StoredMessage[]>('messages')) ?? [];
+      const filtered = allMessages.filter(
         (message) => message.parentId === spaceId && message.seq > since,
       );
       // Return the most-recent N (the homepage shows the tail).
-      const messages = filtered.slice(-limit);
+      const trimmed = filtered.slice(-limit);
+      // Public readers are never the intent owner, so always redact sensitive
+      // payload keys when serving an interior subspace. Top-level commons
+      // messages don't carry credentials so they pass through untouched.
+      const messages = spaceId === topLevel ? trimmed : trimmed.map(redactSensitivePayload);
       const latestSeq = (await this.state.storage.get<number>('latestSeq')) ?? 0;
       return jsonResponse({ spaceId, latestSeq, messages });
     }

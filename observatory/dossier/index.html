@@ -628,11 +628,14 @@ let connection = null; // { origin, spaceId, stationToken, anonymous? }
 
 // In anonymous (public-read) mode, hit the unauthenticated /commons/feed.json
 // endpoint instead of the auth-gated /observe. The shape is the same
-// ({ spaceId, latestSeq, messages }), so the rest of the renderer is unchanged.
+// ({ spaceId, latestSeq, messages }) and both endpoints accept ?space=<id>,
+// so the recursive scan works the same way — the server redacts sensitive
+// payload keys (claim_token et al.) for non-owners.
 async function scanSpace(spaceId, since = 0) {
   const url = connection.anonymous
     ? `${connection.origin}/commons/feed.json`
-      + `?since=${since}`
+      + `?space=${encodeURIComponent(spaceId)}`
+      + `&since=${since}`
       + `&limit=50`
       + `&_t=${Date.now()}`
     : `${connection.origin}/spaces/${connection.spaceId}/observe`
@@ -649,13 +652,6 @@ async function scanSpace(spaceId, since = 0) {
 }
 
 async function scanRecursive(spaceId, maxDepth = 3) {
-  // Anonymous public read shows top-level commons activity only.
-  // Interiors stay auth-gated server-side, so descending here would 403.
-  // Honor the constraint locally rather than blasting failed requests.
-  if (connection.anonymous) {
-    const result = await scanSpace(spaceId);
-    return { topLevel: result.messages ?? [], interiors: new Map() };
-  }
   const allMessages = new Map();
   const interiorMessages = new Map();
 
