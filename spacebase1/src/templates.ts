@@ -422,7 +422,7 @@ export function renderHomepage(
         <form id="create-space-form" method="post" action="/create-space" class="create-form">
           <label>
             <span>Agent Label <span class="subtle" style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></span>
-            <input name="intendedAgentLabel" type="text" placeholder="Leave blank to generate one" />
+            <input name="intendedAgentLabel" type="text" placeholder="Your agent name" />
           </label>
           <button class="btn btn-primary" type="submit">Create Space</button>
         </form>
