@@ -62,14 +62,59 @@ export function parseSharedSpaceRequest(payload: Record<string, unknown>): Share
 
 // ===== Steward operation classification =====
 //
-// Stewards must reply with an explicit DECLINE on any unsupported operation
-// within ~1s, never drop the intent silently. The hackathon rule: "fail loudly
-// and fast." These helpers tell the route handler which operation (if any) a
-// given intent payload matches, and — on a miss — what DECLINE reason and
-// supportedOperations hint to return.
+// These helpers tell the route handler which operation (if any) a given intent
+// payload matches. Home-space stewards still fail loudly for malformed shared
+// space requests. Commons is a public room, so unrelated top-level intents are
+// ignored silently instead of receiving provisioning promises or declines.
 
 export const COMMONS_STEWARD_OPERATIONS = ['provision-home-space'] as const;
 export const HOME_SPACE_STEWARD_OPERATIONS = ['provision-shared-space'] as const;
+
+const HOME_SPACE_STRUCTURED_VALUES = new Set([
+  'agent space',
+  'home',
+  'home space',
+  'home-space',
+  'intent space',
+  'personal',
+  'personal space',
+  'private',
+  'private home',
+  'private home space',
+  'private space',
+  'spacebase1 space',
+]);
+
+const NON_HOME_SPACE_STRUCTURED_VALUES = new Set([
+  'commons',
+  'group',
+  'group space',
+  'public',
+  'public space',
+  'shared',
+  'shared space',
+  'team',
+  'team space',
+]);
+
+const NATURAL_TEXT_KEYS = [
+  'ask',
+  'body',
+  'content',
+  'description',
+  'goal',
+  'instruction',
+  'intent',
+  'message',
+  'objective',
+  'prompt',
+  'query',
+  'request',
+  'summary',
+  'task',
+  'text',
+  'title',
+];
 
 export type StewardUnsupported = {
   kind: 'unsupported';
@@ -79,6 +124,7 @@ export type StewardUnsupported = {
 
 export type CommonsClassification =
   | { kind: 'provision-home-space' }
+  | { kind: 'ignore' }
   | StewardUnsupported;
 
 export type HomeSpaceClassification =
@@ -88,27 +134,36 @@ export type HomeSpaceClassification =
 /**
  * Classify an INTENT received by the commons steward at the top-level space.
  *
- * Commons only provisions home spaces. Anything else must DECLINE.
- *
- * Payloads without an explicit `requestedSpace` block are treated as the
- * plain legacy "please provision a home space" intent — the pre-April-2026
- * onboarding docs used free-text content only.
+ * Commons only provisions home spaces. Explicit unsupported space-operation
+ * requests can DECLINE, but arbitrary public commons intents should be ignored.
  */
 export function classifyCommonsIntent(payload: Record<string, unknown>): CommonsClassification {
-  const requestedSpace = payload.requestedSpace;
-  if (!requestedSpace || typeof requestedSpace !== 'object') {
+  const structured = classifyStructuredHomeSpaceRequest(payload);
+  if (structured === true) return { kind: 'provision-home-space' };
+  if (structured === false) {
+    return {
+      kind: 'unsupported',
+      reason: 'commons steward only provisions home/private/personal agent spaces; request shared spaces from your bound home space instead.',
+      supportedOperations: COMMONS_STEWARD_OPERATIONS,
+    };
+  }
+
+  if (isCommonsHomeSpaceProvisioningRequest(payload)) {
     return { kind: 'provision-home-space' };
   }
-  const record = requestedSpace as Record<string, unknown>;
-  if (record.kind === 'home') {
-    return { kind: 'provision-home-space' };
-  }
-  const observed = typeof record.kind === 'string' ? record.kind : JSON.stringify(record.kind ?? null);
-  return {
-    kind: 'unsupported',
-    reason: `commons steward does not support requestedSpace.kind=${observed}. commons only provisions home spaces; request shared spaces from your bound home space instead.`,
-    supportedOperations: COMMONS_STEWARD_OPERATIONS,
-  };
+  return { kind: 'ignore' };
+}
+
+export function isCommonsHomeSpaceProvisioningRequest(payload: Record<string, unknown>): boolean {
+  const structured = classifyStructuredHomeSpaceRequest(payload);
+  if (structured != null) return structured;
+
+  const text = NATURAL_TEXT_KEYS
+    .map((key) => payload[key])
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ');
+
+  return isNaturalLanguageHomeSpaceProvisioningRequest(text);
 }
 
 /**
@@ -152,6 +207,84 @@ export function classifyHomeSpaceIntent(payload: Record<string, unknown>): HomeS
     };
   }
   return { kind: 'provision-shared-space', request: parsed };
+}
+
+function classifyStructuredHomeSpaceRequest(payload: Record<string, unknown>): boolean | null {
+  const requestedSpace = objectField(payload, 'requestedSpace') ?? objectField(payload, 'requested_space');
+  if (requestedSpace) {
+    const requestedSpaceKind = firstStringField(requestedSpace, ['kind', 'type', 'spaceKind', 'space_kind', 'spaceType', 'space_type']);
+    if (requestedSpaceKind) return isHomeSpaceStructuredValue(requestedSpaceKind);
+
+    const requestedVisibility = firstStringField(requestedSpace, ['visibility', 'scope', 'privacy']);
+    if (requestedVisibility && isHomeSpaceStructuredValue(requestedVisibility)) return true;
+  }
+
+  const directKind = firstStringField(payload, [
+    'requestedSpaceKind',
+    'requested_space_kind',
+    'requestedKind',
+    'requested_kind',
+    'spaceKind',
+    'space_kind',
+    'spaceType',
+    'space_type',
+  ]);
+  if (directKind) return isHomeSpaceStructuredValue(directKind);
+
+  const requestType = firstStringField(payload, ['requestType', 'request_type', 'action', 'intentType', 'intent_type']);
+  if (requestType && /\b(provision|create|setup|set up|claim|bind)[\s_-]*(home|private|personal|intent|agent|spacebase1)[\s_-]*space\b/i.test(requestType)) {
+    return true;
+  }
+
+  return null;
+}
+
+function isHomeSpaceStructuredValue(value: string): boolean {
+  const normalized = normalizeProvisioningText(value);
+  if (HOME_SPACE_STRUCTURED_VALUES.has(normalized)) return true;
+  if (NON_HOME_SPACE_STRUCTURED_VALUES.has(normalized)) return false;
+  return /\b(home|private|personal|intent|agent|spacebase1)\s+space\b/.test(normalized);
+}
+
+function isNaturalLanguageHomeSpaceProvisioningRequest(value: string): boolean {
+  const text = normalizeProvisioningText(value);
+  if (!text) return false;
+
+  const hasConflictingSpaceKind = /\b(shared|team|public|group|commons)\s+(space|room)\b/.test(text);
+  const hasQualifiedHomeSpace = /\b(home|private|personal|intent|agent|spacebase1)\s+(space|room)\b/.test(text)
+    || /\b(my|own)\s+(home\s+)?space\b/.test(text)
+    || /\bspace\s+for\s+(me|my agent|this agent)\b/.test(text);
+  const hasGenericSpace = /\b(space|room)\b/.test(text);
+  const hasStrongProvisioningVerb = /\b(provision|claim|bind)\b/.test(text);
+  const hasCreateProvisioningVerb = /\b(create|make|set up|setup|prepare|open|allocate|spin up|give me|assign|issue|reserve|start|establish|initialize|initialise)\b/.test(text);
+  const hasNeedProvisioningVerb = /\b(need|want|request|require|looking for|would like|help me get|get me)\b/.test(text);
+
+  if (hasConflictingSpaceKind && !hasQualifiedHomeSpace) return false;
+  if (hasStrongProvisioningVerb && hasGenericSpace) return true;
+  if ((hasCreateProvisioningVerb || hasNeedProvisioningVerb) && hasQualifiedHomeSpace) return true;
+  return false;
+}
+
+function normalizeProvisioningText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function objectField(payload: Record<string, unknown>, field: string): Record<string, unknown> | null {
+  const value = payload[field];
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function firstStringField(payload: Record<string, unknown>, fields: string[]): string | null {
+  for (const field of fields) {
+    const value = payload[field];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return null;
 }
 
 export function validateSharedSpaceParticipants(

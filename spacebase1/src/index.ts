@@ -1306,18 +1306,7 @@ export class HostedSpace {
         });
         if (state.kind === 'commons' && stored.type === 'INTENT' && stored.parentId === topLevelSpaceId(state) && stored.intentId) {
           const classification = classifyCommonsIntent(stored.payload);
-          if (classification.kind === 'unsupported') {
-            await appendStoredMessage(this.state, {
-              type: 'DECLINE',
-              parentId: stored.intentId,
-              intentId: stored.intentId,
-              senderId: state.stewardId,
-              payload: {
-                reason: classification.reason,
-                supportedOperations: [...classification.supportedOperations],
-              },
-            });
-          } else {
+          if (classification.kind === 'provision-home-space') {
             const normalizedLabel = normalizeHandle(auth.handle);
             const promiseId = makePromiseId();
             const pending: ProvisioningRequestRecord = {
@@ -1338,6 +1327,17 @@ export class HostedSpace {
                 content: `I will provision one home space for ${normalizedLabel} once you accept this promise.`,
                 requested_space_kind: 'home',
                 intended_agent_label: normalizedLabel,
+              },
+            });
+          } else if (classification.kind === 'unsupported') {
+            await appendStoredMessage(this.state, {
+              type: 'DECLINE',
+              parentId: stored.intentId,
+              intentId: stored.intentId,
+              senderId: state.stewardId,
+              payload: {
+                reason: classification.reason,
+                supportedOperations: [...classification.supportedOperations],
               },
             });
           }
