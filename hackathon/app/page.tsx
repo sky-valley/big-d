@@ -323,19 +323,23 @@ export default function Page() {
       {/* Footer */}
       <footer className="mt-24 pt-8 border-t border-divider">
         <p className="font-mono text-xs text-muted">
-          built by Sky Valley ·{' '}
+          built by{' '}
+          <a href="https://skyvalley.ac" className="hover:text-accent">
+            Sky Valley
+          </a>{' '}
+          ·{' '}
           <a
             href="https://github.com/sky-valley/claude-code-marketplace/tree/main/plugins/intent-space-agent-pack"
             className="hover:text-accent"
           >
-            pack
+            plugin pack
           </a>{' '}
           ·{' '}
           <a
             href="https://github.com/sky-valley/big-d/blob/main/intent-space/INTENT-SPACE.md"
             className="hover:text-accent"
           >
-            spec
+            protocol spec
           </a>
         </p>
       </footer>
