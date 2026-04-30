@@ -632,6 +632,8 @@ export const OBSERVATORY_HTML =
   '// Uses the token-only GET /observe endpoint — no DPoP, no ITP framing.\n' +
   '\n' +
   'let connection = null; // { origin, spaceId, stationToken, anonymous? }\n' +
+  'const PUBLIC_FEED_LIMIT = 50;\n' +
+  'const INTERIOR_SCAN_CONCURRENCY = 6;\n' +
   '\n' +
   '// In anonymous (public-read) mode, hit the unauthenticated /commons/feed.json\n' +
   '// endpoint instead of the auth-gated /observe. The shape is the same\n' +
@@ -643,8 +645,7 @@ export const OBSERVATORY_HTML =
   '    ? `${connection.origin}/commons/feed.json`\n' +
   '      + `?space=${encodeURIComponent(spaceId)}`\n' +
   '      + `&since=${since}`\n' +
-  '      + `&limit=50`\n' +
-  '      + `&_t=${Date.now()}`\n' +
+  '      + `&limit=${PUBLIC_FEED_LIMIT}`\n' +
   '    : `${connection.origin}/spaces/${connection.spaceId}/observe`\n' +
   '      + `?token=${encodeURIComponent(connection.stationToken)}`\n' +
   '      + `&space=${encodeURIComponent(spaceId)}`\n' +
@@ -658,32 +659,57 @@ export const OBSERVATORY_HTML =
   '  return response.json();\n' +
   '}\n' +
   '\n' +
-  'async function scanRecursive(spaceId, maxDepth = 3) {\n' +
+  'async function runWithConcurrency(items, limit, worker) {\n' +
+  '  let index = 0;\n' +
+  '  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {\n' +
+  '    while (index < items.length) {\n' +
+  '      const item = items[index++];\n' +
+  '      await worker(item);\n' +
+  '    }\n' +
+  '  });\n' +
+  '  await Promise.all(workers);\n' +
+  '}\n' +
+  '\n' +
+  'async function scanRecursive(spaceId, maxDepth = 3, rootMessages = null) {\n' +
   '  const allMessages = new Map();\n' +
   '  const interiorMessages = new Map();\n' +
+  '  const fetches = new Map();\n' +
+  '  const descents = new Map();\n' +
   '\n' +
-  '  async function descend(parentId, depth) {\n' +
-  '    const result = await scanSpace(parentId);\n' +
-  '    const messages = result.messages;\n' +
-  '    allMessages.set(parentId, messages);\n' +
-  '    if (depth >= maxDepth) return;\n' +
-  '\n' +
-  '    const intents = messages.filter((m) => m.type === \'INTENT\' && m.intentId);\n' +
-  '    const scanPromises = intents.map(async (intent) => {\n' +
-  '      try {\n' +
-  '        const interior = await scanSpace(intent.intentId);\n' +
-  '        if (interior.messages.length > 0) {\n' +
-  '          interiorMessages.set(intent.intentId, interior.messages);\n' +
-  '          await descend(intent.intentId, depth + 1);\n' +
-  '        }\n' +
-  '      } catch (err) {\n' +
-  '        console.warn(\'Failed to scan interior\', intent.intentId, err.message);\n' +
-  '      }\n' +
-  '    });\n' +
-  '    await Promise.all(scanPromises);\n' +
+  '  async function fetchMessages(parentId) {\n' +
+  '    if (parentId === spaceId && rootMessages) return rootMessages;\n' +
+  '    if (!fetches.has(parentId)) {\n' +
+  '      fetches.set(parentId, scanSpace(parentId).then((result) => result.messages ?? []));\n' +
+  '    }\n' +
+  '    return fetches.get(parentId);\n' +
   '  }\n' +
   '\n' +
-  '  await descend(spaceId, 0);\n' +
+  '  async function descend(parentId, depth, knownMessages = null) {\n' +
+  '    if (descents.has(parentId)) return descents.get(parentId);\n' +
+  '    const task = (async () => {\n' +
+  '      const messages = knownMessages ?? await fetchMessages(parentId);\n' +
+  '      allMessages.set(parentId, messages);\n' +
+  '      if (parentId !== spaceId && messages.length > 0) interiorMessages.set(parentId, messages);\n' +
+  '      if (depth >= maxDepth) return;\n' +
+  '\n' +
+  '      const intents = messages.filter((m) => m.type === \'INTENT\' && m.intentId);\n' +
+  '      await runWithConcurrency(intents, INTERIOR_SCAN_CONCURRENCY, async (intent) => {\n' +
+  '        try {\n' +
+  '          const interior = await fetchMessages(intent.intentId);\n' +
+  '          if (interior.length > 0) {\n' +
+  '            interiorMessages.set(intent.intentId, interior);\n' +
+  '            await descend(intent.intentId, depth + 1, interior);\n' +
+  '          }\n' +
+  '        } catch (err) {\n' +
+  '          console.warn(\'Failed to scan interior\', intent.intentId, err.message);\n' +
+  '        }\n' +
+  '      });\n' +
+  '    })();\n' +
+  '    descents.set(parentId, task);\n' +
+  '    return task;\n' +
+  '  }\n' +
+  '\n' +
+  '  await descend(spaceId, 0, rootMessages);\n' +
   '  return { topLevel: allMessages.get(spaceId) ?? [], interiors: interiorMessages };\n' +
   '}\n' +
   '\n' +
@@ -1580,23 +1606,109 @@ export const OBSERVATORY_HTML =
   '// ── Refresh loop ─────────────────────────────────────────────────────────────\n' +
   '\n' +
   'const POLL_INTERVAL = 4000;\n' +
+  'const INTERIOR_HYDRATE_INTERVAL = 15000;\n' +
   'let pollTimer = null;\n' +
+  'let currentTopLevel = [];\n' +
+  'let currentInteriors = new Map();\n' +
+  'let currentTopLevelFingerprint = \'\';\n' +
+  'let lastHydratedTopLevelFingerprint = \'\';\n' +
+  'let lastHydratedAt = 0;\n' +
+  'let hydrationInFlight = false;\n' +
+  'let hydrationQueued = false;\n' +
+  'let observatoryRunId = 0;\n' +
+  '\n' +
+  'function topLevelFingerprint(messages) {\n' +
+  '  return messages.map((m) => `${m.seq}:${m.type}:${m.intentId ?? \'\'}:${m.timestamp ?? \'\'}`).join(\'|\');\n' +
+  '}\n' +
+  '\n' +
+  'function hasIntentChildren(messages) {\n' +
+  '  return messages.some((m) => m.type === \'INTENT\' && m.intentId);\n' +
+  '}\n' +
+  '\n' +
+  'function applySnapshot(topLevel, interiors) {\n' +
+  '  currentTopLevel = topLevel;\n' +
+  '  currentInteriors = new Map(interiors);\n' +
+  '  snapshot = buildSnapshot(connection.spaceId, currentTopLevel, currentInteriors);\n' +
+  '  render();\n' +
+  '}\n' +
+  '\n' +
+  'function scheduleInteriorHydration(force = false) {\n' +
+  '  if (!hasIntentChildren(currentTopLevel)) {\n' +
+  '    lastHydratedTopLevelFingerprint = currentTopLevelFingerprint;\n' +
+  '    lastHydratedAt = Date.now();\n' +
+  '    currentInteriors = new Map();\n' +
+  '    applySnapshot(currentTopLevel, currentInteriors);\n' +
+  '    return;\n' +
+  '  }\n' +
+  '  const recentlyHydrated = Date.now() - lastHydratedAt < INTERIOR_HYDRATE_INTERVAL;\n' +
+  '  if (!force && currentTopLevelFingerprint === lastHydratedTopLevelFingerprint && recentlyHydrated) return;\n' +
+  '  if (hydrationInFlight) {\n' +
+  '    hydrationQueued = true;\n' +
+  '    return;\n' +
+  '  }\n' +
+  '  void hydrateInteriors();\n' +
+  '}\n' +
+  '\n' +
+  'async function hydrateInteriors() {\n' +
+  '  hydrationInFlight = true;\n' +
+  '  hydrationQueued = false;\n' +
+  '  const runId = observatoryRunId;\n' +
+  '  const rootMessages = currentTopLevel;\n' +
+  '  const hydrateFingerprint = currentTopLevelFingerprint;\n' +
+  '  try {\n' +
+  '    const { interiors } = await scanRecursive(connection.spaceId, 3, rootMessages);\n' +
+  '    if (runId !== observatoryRunId) return;\n' +
+  '    if (hydrateFingerprint === currentTopLevelFingerprint) {\n' +
+  '      lastHydratedTopLevelFingerprint = hydrateFingerprint;\n' +
+  '      lastHydratedAt = Date.now();\n' +
+  '      applySnapshot(currentTopLevel, interiors);\n' +
+  '    } else {\n' +
+  '      hydrationQueued = true;\n' +
+  '    }\n' +
+  '  } catch (err) {\n' +
+  '    console.warn(\'Interior hydration failed:\', err.message);\n' +
+  '  } finally {\n' +
+  '    if (runId !== observatoryRunId) return;\n' +
+  '    hydrationInFlight = false;\n' +
+  '    if (hydrationQueued) scheduleInteriorHydration(true);\n' +
+  '  }\n' +
+  '}\n' +
+  '\n' +
+  'async function refreshTopLevel() {\n' +
+  '  const runId = observatoryRunId;\n' +
+  '  const result = await scanSpace(connection.spaceId);\n' +
+  '  if (runId !== observatoryRunId) return;\n' +
+  '  const topLevel = result.messages ?? [];\n' +
+  '  const nextFingerprint = topLevelFingerprint(topLevel);\n' +
+  '  const changed = nextFingerprint !== currentTopLevelFingerprint;\n' +
+  '  currentTopLevelFingerprint = nextFingerprint;\n' +
+  '  applySnapshot(topLevel, currentInteriors);\n' +
+  '  if (changed || Date.now() - lastHydratedAt >= INTERIOR_HYDRATE_INTERVAL) {\n' +
+  '    scheduleInteriorHydration(changed);\n' +
+  '  }\n' +
+  '}\n' +
   '\n' +
   'async function poll() {\n' +
   '  try {\n' +
-  '    const { topLevel, interiors } = await scanRecursive(connection.spaceId);\n' +
-  '    snapshot = buildSnapshot(connection.spaceId, topLevel, interiors);\n' +
-  '    render();\n' +
+  '    await refreshTopLevel();\n' +
   '  } catch (err) {\n' +
   '    console.warn(\'Poll failed:\', err.message);\n' +
   '  }\n' +
   '}\n' +
   '\n' +
   'async function startObservatory() {\n' +
+  '  if (pollTimer) clearInterval(pollTimer);\n' +
+  '  observatoryRunId += 1;\n' +
+  '  currentTopLevel = [];\n' +
+  '  currentInteriors = new Map();\n' +
+  '  currentTopLevelFingerprint = \'\';\n' +
+  '  lastHydratedTopLevelFingerprint = \'\';\n' +
+  '  lastHydratedAt = 0;\n' +
+  '  hydrationInFlight = false;\n' +
+  '  hydrationQueued = false;\n' +
+  '  snapshot = null;\n' +
   '  app.innerHTML = `<main class="loading-shell"><p>Scanning space...</p></main>`;\n' +
-  '  const { topLevel, interiors } = await scanRecursive(connection.spaceId);\n' +
-  '  snapshot = buildSnapshot(connection.spaceId, topLevel, interiors);\n' +
-  '  render();\n' +
+  '  await refreshTopLevel();\n' +
   '  pollTimer = setInterval(poll, POLL_INTERVAL);\n' +
   '}\n' +
   '\n' +
@@ -1639,5 +1751,4 @@ export const OBSERVATORY_HTML =
   '    </script>\n' +
   '  </body>\n' +
   '</html>\n' +
-  '\n' +
   '';

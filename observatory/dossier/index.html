@@ -625,6 +625,8 @@ const app = document.getElementById('app');
 // Uses the token-only GET /observe endpoint — no DPoP, no ITP framing.
 
 let connection = null; // { origin, spaceId, stationToken, anonymous? }
+const PUBLIC_FEED_LIMIT = 50;
+const INTERIOR_SCAN_CONCURRENCY = 6;
 
 // In anonymous (public-read) mode, hit the unauthenticated /commons/feed.json
 // endpoint instead of the auth-gated /observe. The shape is the same
@@ -636,8 +638,7 @@ async function scanSpace(spaceId, since = 0) {
     ? `${connection.origin}/commons/feed.json`
       + `?space=${encodeURIComponent(spaceId)}`
       + `&since=${since}`
-      + `&limit=50`
-      + `&_t=${Date.now()}`
+      + `&limit=${PUBLIC_FEED_LIMIT}`
     : `${connection.origin}/spaces/${connection.spaceId}/observe`
       + `?token=${encodeURIComponent(connection.stationToken)}`
       + `&space=${encodeURIComponent(spaceId)}`
@@ -651,32 +652,57 @@ async function scanSpace(spaceId, since = 0) {
   return response.json();
 }
 
-async function scanRecursive(spaceId, maxDepth = 3) {
+async function runWithConcurrency(items, limit, worker) {
+  let index = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const item = items[index++];
+      await worker(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
+async function scanRecursive(spaceId, maxDepth = 3, rootMessages = null) {
   const allMessages = new Map();
   const interiorMessages = new Map();
+  const fetches = new Map();
+  const descents = new Map();
 
-  async function descend(parentId, depth) {
-    const result = await scanSpace(parentId);
-    const messages = result.messages;
-    allMessages.set(parentId, messages);
-    if (depth >= maxDepth) return;
-
-    const intents = messages.filter((m) => m.type === 'INTENT' && m.intentId);
-    const scanPromises = intents.map(async (intent) => {
-      try {
-        const interior = await scanSpace(intent.intentId);
-        if (interior.messages.length > 0) {
-          interiorMessages.set(intent.intentId, interior.messages);
-          await descend(intent.intentId, depth + 1);
-        }
-      } catch (err) {
-        console.warn('Failed to scan interior', intent.intentId, err.message);
-      }
-    });
-    await Promise.all(scanPromises);
+  async function fetchMessages(parentId) {
+    if (parentId === spaceId && rootMessages) return rootMessages;
+    if (!fetches.has(parentId)) {
+      fetches.set(parentId, scanSpace(parentId).then((result) => result.messages ?? []));
+    }
+    return fetches.get(parentId);
   }
 
-  await descend(spaceId, 0);
+  async function descend(parentId, depth, knownMessages = null) {
+    if (descents.has(parentId)) return descents.get(parentId);
+    const task = (async () => {
+      const messages = knownMessages ?? await fetchMessages(parentId);
+      allMessages.set(parentId, messages);
+      if (parentId !== spaceId && messages.length > 0) interiorMessages.set(parentId, messages);
+      if (depth >= maxDepth) return;
+
+      const intents = messages.filter((m) => m.type === 'INTENT' && m.intentId);
+      await runWithConcurrency(intents, INTERIOR_SCAN_CONCURRENCY, async (intent) => {
+        try {
+          const interior = await fetchMessages(intent.intentId);
+          if (interior.length > 0) {
+            interiorMessages.set(intent.intentId, interior);
+            await descend(intent.intentId, depth + 1, interior);
+          }
+        } catch (err) {
+          console.warn('Failed to scan interior', intent.intentId, err.message);
+        }
+      });
+    })();
+    descents.set(parentId, task);
+    return task;
+  }
+
+  await descend(spaceId, 0, rootMessages);
   return { topLevel: allMessages.get(spaceId) ?? [], interiors: interiorMessages };
 }
 
@@ -1573,23 +1599,109 @@ function showConnect(errorMsg) {
 // ── Refresh loop ─────────────────────────────────────────────────────────────
 
 const POLL_INTERVAL = 4000;
+const INTERIOR_HYDRATE_INTERVAL = 15000;
 let pollTimer = null;
+let currentTopLevel = [];
+let currentInteriors = new Map();
+let currentTopLevelFingerprint = '';
+let lastHydratedTopLevelFingerprint = '';
+let lastHydratedAt = 0;
+let hydrationInFlight = false;
+let hydrationQueued = false;
+let observatoryRunId = 0;
+
+function topLevelFingerprint(messages) {
+  return messages.map((m) => `${m.seq}:${m.type}:${m.intentId ?? ''}:${m.timestamp ?? ''}`).join('|');
+}
+
+function hasIntentChildren(messages) {
+  return messages.some((m) => m.type === 'INTENT' && m.intentId);
+}
+
+function applySnapshot(topLevel, interiors) {
+  currentTopLevel = topLevel;
+  currentInteriors = new Map(interiors);
+  snapshot = buildSnapshot(connection.spaceId, currentTopLevel, currentInteriors);
+  render();
+}
+
+function scheduleInteriorHydration(force = false) {
+  if (!hasIntentChildren(currentTopLevel)) {
+    lastHydratedTopLevelFingerprint = currentTopLevelFingerprint;
+    lastHydratedAt = Date.now();
+    currentInteriors = new Map();
+    applySnapshot(currentTopLevel, currentInteriors);
+    return;
+  }
+  const recentlyHydrated = Date.now() - lastHydratedAt < INTERIOR_HYDRATE_INTERVAL;
+  if (!force && currentTopLevelFingerprint === lastHydratedTopLevelFingerprint && recentlyHydrated) return;
+  if (hydrationInFlight) {
+    hydrationQueued = true;
+    return;
+  }
+  void hydrateInteriors();
+}
+
+async function hydrateInteriors() {
+  hydrationInFlight = true;
+  hydrationQueued = false;
+  const runId = observatoryRunId;
+  const rootMessages = currentTopLevel;
+  const hydrateFingerprint = currentTopLevelFingerprint;
+  try {
+    const { interiors } = await scanRecursive(connection.spaceId, 3, rootMessages);
+    if (runId !== observatoryRunId) return;
+    if (hydrateFingerprint === currentTopLevelFingerprint) {
+      lastHydratedTopLevelFingerprint = hydrateFingerprint;
+      lastHydratedAt = Date.now();
+      applySnapshot(currentTopLevel, interiors);
+    } else {
+      hydrationQueued = true;
+    }
+  } catch (err) {
+    console.warn('Interior hydration failed:', err.message);
+  } finally {
+    if (runId !== observatoryRunId) return;
+    hydrationInFlight = false;
+    if (hydrationQueued) scheduleInteriorHydration(true);
+  }
+}
+
+async function refreshTopLevel() {
+  const runId = observatoryRunId;
+  const result = await scanSpace(connection.spaceId);
+  if (runId !== observatoryRunId) return;
+  const topLevel = result.messages ?? [];
+  const nextFingerprint = topLevelFingerprint(topLevel);
+  const changed = nextFingerprint !== currentTopLevelFingerprint;
+  currentTopLevelFingerprint = nextFingerprint;
+  applySnapshot(topLevel, currentInteriors);
+  if (changed || Date.now() - lastHydratedAt >= INTERIOR_HYDRATE_INTERVAL) {
+    scheduleInteriorHydration(changed);
+  }
+}
 
 async function poll() {
   try {
-    const { topLevel, interiors } = await scanRecursive(connection.spaceId);
-    snapshot = buildSnapshot(connection.spaceId, topLevel, interiors);
-    render();
+    await refreshTopLevel();
   } catch (err) {
     console.warn('Poll failed:', err.message);
   }
 }
 
 async function startObservatory() {
+  if (pollTimer) clearInterval(pollTimer);
+  observatoryRunId += 1;
+  currentTopLevel = [];
+  currentInteriors = new Map();
+  currentTopLevelFingerprint = '';
+  lastHydratedTopLevelFingerprint = '';
+  lastHydratedAt = 0;
+  hydrationInFlight = false;
+  hydrationQueued = false;
+  snapshot = null;
   app.innerHTML = `<main class="loading-shell"><p>Scanning space...</p></main>`;
-  const { topLevel, interiors } = await scanRecursive(connection.spaceId);
-  snapshot = buildSnapshot(connection.spaceId, topLevel, interiors);
-  render();
+  await refreshTopLevel();
   pollTimer = setInterval(poll, POLL_INTERVAL);
 }
 
@@ -1632,4 +1744,3 @@ boot();
     </script>
   </body>
 </html>
-
